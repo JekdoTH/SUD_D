@@ -14,6 +14,12 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^8.35.0
         version: 8.67.0(eslint@8.57.1)(typescript@5.9.3)
+      cross-env:
+        specifier: ^7.0.3
+        version: 7.0.3
+      electron:
+        specifier: ^36.4.0
+        version: 36.9.5
       eslint:
         specifier: ^8.57.1
         version: 8.57.1
@@ -56,6 +62,9 @@ importers:
       '@sud-d/infrastructure':
         specifier: workspace:*
         version: link:../infrastructure
+      better-sqlite3:
+        specifier: ^11.10.0
+        version: 11.10.0
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -63,6 +72,9 @@ importers:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
     devDependencies:
+      '@electron/rebuild':
+        specifier: ^3.6.0
+        version: 3.6.1
       '@types/react':
         specifier: ^18.3.12
         version: 18.3.31
@@ -123,6 +135,9 @@ importers:
       '@sud-d/infrastructure':
         specifier: workspace:*
         version: link:../infrastructure
+      better-sqlite3:
+        specifier: ^11.10.0
+        version: 11.10.0
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^3.2.4
@@ -1165,6 +1180,11 @@ packages:
 
   crc@3.8.0:
     resolution: {integrity: sha512-iX3mfgcTMIq3ZKLIsVFAbv7+Mc10kxabAGQb8HvjA1o3T1PIYprbakQ65d3I+2HGHt6nSKkM9PYjgoJO2KcFBQ==}
+
+  cross-env@7.0.3:
+    resolution: {integrity: sha512-+/HKd6EgcQCJGh2PSjZuUitQBQynKor4wrFbRg4DtAgS1aWO+gU52xpH7M9ScGgXSYmAVS9bIJ8EzuaGw0oNAw==}
+    engines: {node: '>=10.14', npm: '>=6', yarn: '>=1'}
+    hasBin: true
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -3141,7 +3161,7 @@ snapshots:
     dependencies:
       '@types/http-cache-semantics': 4.2.0
       '@types/keyv': 3.1.4
-      '@types/node': 22.20.1
+      '@types/node': 26.2.0
       '@types/responselike': 1.0.3
 
   '@types/chai@5.2.3':
@@ -3165,7 +3185,7 @@ snapshots:
 
   '@types/keyv@3.1.4':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.2.0
 
   '@types/ms@2.1.0': {}
 
@@ -3196,7 +3216,7 @@ snapshots:
 
   '@types/responselike@1.0.3':
     dependencies:
-      '@types/node': 22.20.1
+      '@types/node': 26.2.0
 
   '@types/uuid@10.0.0': {}
 
@@ -3766,6 +3786,10 @@ snapshots:
     dependencies:
       buffer: 5.7.1
     optional: true
+
+  cross-env@7.0.3:
+    dependencies:
+      cross-spawn: 7.0.6
 
   cross-spawn@7.0.6:
     dependencies:

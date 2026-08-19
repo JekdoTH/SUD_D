@@ -11,13 +11,15 @@
   "scripts": {
     "lint": "eslint packages --ext .ts,.tsx --max-warnings 0",
     "typecheck": "tsc --project tsconfig.check.json",
-    "test": "vitest run",
+    "test": "cross-env ELECTRON_RUN_AS_NODE=1 electron ./node_modules/vitest/vitest.mjs run",
     "build": "pnpm --filter @sud-d/domain build && pnpm --filter @sud-d/contracts build && pnpm --filter @sud-d/infrastructure build && pnpm --filter @sud-d/application build && pnpm --filter @sud-d/desktop build",
     "dev": "pnpm --filter @sud-d/desktop dev"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.35.0",
+    "cross-env": "^7.0.3",
+    "electron": "^36.4.0",
     "eslint": "^8.57.1",
     "eslint-define-config": "^2.1.0",
     "typescript": "^5.8.3",

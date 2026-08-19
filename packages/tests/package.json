@@ -10,7 +10,8 @@
     "@sud-d/application": "workspace:*",
     "@sud-d/domain": "workspace:*",
     "@sud-d/infrastructure": "workspace:*",
-    "@sud-d/contracts": "workspace:*"
+    "@sud-d/contracts": "workspace:*",
+    "better-sqlite3": "^11.10.0"
   },
   "devDependencies": {
     "vitest": "^3.2.4",

@@ -7,11 +7,12 @@ import {
   session,
 } from 'electron';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from '@sud-d/infrastructure';
 import { createWorkspaceRepository } from '@sud-d/infrastructure';
 import { createAuditRepository } from '@sud-d/infrastructure';
-import { getDataRoot } from '@sud-d/infrastructure';
+import { getDataRoot, canonicalizePath } from '@sud-d/infrastructure';
 import { checkDataDirectory, checkWorkspaceRoot } from '@sud-d/infrastructure';
 import { createWorkspaceService } from '@sud-d/application';
 import {
@@ -40,8 +41,7 @@ const db = openDatabase(dbPath);
 const workspaceRepo = createWorkspaceRepository(db);
 const auditRepo = createAuditRepository(db);
 
-// Internal roots: the SUD-D data root itself is an InternalRoot
-import { canonicalizePath } from '@sud-d/infrastructure';
+// SUD-D data root is an InternalRoot — agents must not access it as a workspace
 const dataRootCanonical = canonicalizePath(dataRoot);
 const internalRoots: InternalRoot[] = dataRootCanonical.ok
   ? [{ canonicalPath: dataRootCanonical.value, label: 'SUD-D data root' }]
@@ -212,6 +212,11 @@ function registerIpcHandlers(): void {
 // ---------------------------------------------------------------------------
 
 function createWindow(): BrowserWindow {
+  const isDev = Boolean(process.env['VITE_DEV_SERVER_URL']);
+  const preloadPath = fs.existsSync(path.join(__dirname, 'preload.mjs'))
+    ? path.join(__dirname, 'preload.mjs')
+    : path.join(__dirname, 'preload.js');
+
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -223,18 +228,20 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
     },
   });
 
   mainWindowContents = win.webContents;
 
-  // Restrictive CSP
+  // Restrictive CSP: locked down in production, dev server compatible in dev
   session.defaultSession.webRequest.onHeadersReceived((_details, callback) => {
     callback({
       responseHeaders: {
         'Content-Security-Policy': [
-          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; font-src 'self' data:; media-src 'none'; object-src 'none'; frame-src 'none';",
+          isDev
+            ? "default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: http:; font-src 'self' data:;"
+            : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; font-src 'self' data:; media-src 'none'; object-src 'none'; frame-src 'none';",
         ],
       },
     });
