@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-electron/
+out/
+
+# TypeScript compiled output (packages build in-place to src/ when outDir not set)
+packages/*/src/*.js
+packages/*/src/*.d.ts
+packages/*/src/*.js.map
+packages/*/src/*.d.ts.map
+
+# But keep hand-written declaration source files
+!packages/desktop/src/global.d.ts
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Source maps
+*.js.map
+*.d.ts.map
+
+# Turbo
+.turbo/
+
+# Electron packaged
+release/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json

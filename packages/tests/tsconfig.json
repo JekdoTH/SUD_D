@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "paths": {
+      "@sud-d/domain": ["../domain/src/index.ts"],
+      "@sud-d/contracts": ["../contracts/src/index.ts"],
+      "@sud-d/infrastructure": ["../infrastructure/src/index.ts"],
+      "@sud-d/application": ["../application/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

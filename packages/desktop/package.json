@@ -1,0 +1,31 @@
+{
+  "name": "@sud-d/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --project tsconfig.node.json && vite build",
+    "typecheck": "tsc --project tsconfig.node.json --noEmit && tsc --project tsconfig.web.json --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@sud-d/application": "workspace:*",
+    "@sud-d/contracts": "workspace:*",
+    "@sud-d/domain": "workspace:*",
+    "@sud-d/infrastructure": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^36.4.0",
+    "electron-builder": "^25.1.8",
+    "vite": "^6.3.5",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  }
+}
