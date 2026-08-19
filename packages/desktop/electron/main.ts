@@ -235,7 +235,11 @@ function createWindow(): BrowserWindow {
   mainWindowContents = win.webContents;
 
   // Restrictive CSP: locked down in production, dev server compatible in dev
-  session.defaultSession.webRequest.onHeadersReceived((_details, callback) => {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    if (details.url.startsWith('devtools://') || details.url.startsWith('chrome-extension://')) {
+      callback({});
+      return;
+    }
     callback({
       responseHeaders: {
         'Content-Security-Policy': [

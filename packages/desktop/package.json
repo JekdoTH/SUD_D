@@ -5,6 +5,7 @@
   "type": "module",
   "main": "./dist-electron/main.js",
   "scripts": {
+    "predev": "electron-rebuild -w better-sqlite3",
     "dev": "vite",
     "build": "vite build",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
