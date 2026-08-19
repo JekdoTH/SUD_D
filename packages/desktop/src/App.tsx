@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { HomePage } from './pages/HomePage.js';
-import { ProjectsPage } from './pages/ProjectsPage.js';
-import { ActivityPage } from './pages/ActivityPage.js';
-import { SettingsPage } from './pages/SettingsPage.js';
-import { DoctorPage } from './pages/DoctorPage.js';
+import { HomePage } from './pages/HomePage';
+import { ProjectsPage } from './pages/ProjectsPage';
+import { ActivityPage } from './pages/ActivityPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { DoctorPage } from './pages/DoctorPage';
 
 type Page = 'home' | 'projects' | 'activity' | 'settings' | 'doctor';
 
