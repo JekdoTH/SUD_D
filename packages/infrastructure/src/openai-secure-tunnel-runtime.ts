@@ -238,6 +238,19 @@ export function createOpenAiSecureTunnelRuntimeWithDependencies(
   };
 }
 
+export function isOpenAiSecureTunnelClientAvailable(): boolean {
+  return resolveTunnelClientExecutable() !== undefined;
+}
+
+export function isMcpGatewayEntryAvailable(): boolean {
+  try {
+    const entryPath = getDefaultMcpGatewayEntryPath();
+    return path.basename(entryPath) === 'stdio-entry.js' && fs.existsSync(entryPath);
+  } catch {
+    return false;
+  }
+}
+
 export function createOpenAiSecureTunnelRuntime(): OpenAiSecureTunnelRuntime {
   const nodeExecutablePath = resolveNodeExecutable() ?? '';
   return createOpenAiSecureTunnelRuntimeWithDependencies({

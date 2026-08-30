@@ -19,6 +19,8 @@ import {
   createConnectionProfileRepository,
   createOpenAiSecureTunnelRuntime,
   createTunnelEnvironmentCredentialStore,
+  isMcpGatewayEntryAvailable,
+  isOpenAiSecureTunnelClientAvailable,
 } from '@sud-d/infrastructure';
 import {
   createConnectionConfigService,
@@ -30,6 +32,11 @@ import {
   registerDesktopConnectionIpcHandlers,
   type DesktopIpcMain,
 } from './connection-ipc.js';
+import { createDesktopDiagnosticsController } from './diagnostics-controller.js';
+import {
+  registerDesktopDiagnosticsIpcHandlers,
+  type DiagnosticsIpcMain,
+} from './diagnostics-ipc.js';
 import {
   WorkspaceAddInputSchema,
   WorkspaceSelectInputSchema,
@@ -38,7 +45,6 @@ import {
   IPC_CHANNELS,
   type WorkspaceDto,
   type AuditEventDto,
-  type DoctorCheckDto,
   type IpcResult,
 } from '@sud-d/contracts';
 import type { AppError, Workspace, AuditEvent } from '@sud-d/domain';
@@ -83,6 +89,26 @@ const connectionController = createDesktopConnectionController({
   connectionService,
   deviceName: os.hostname() || 'This Device',
   environment: process.env,
+});
+const diagnosticsController = createDesktopDiagnosticsController({
+  dataDirectoryWritable: () => checkDataDirectory(dataRoot),
+  sqliteHealthy: () => {
+    try {
+      db.prepare('SELECT 1').get();
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  listWorkspaces: () => workspaceRepo.list(),
+  workspaceRootStatus: checkWorkspaceRoot,
+  listProfiles: () => connectionProfileRepo.list(),
+  hasCredential: (profileId) => connectionCredentialStore.hasCredential(profileId),
+  mcpGatewayAvailable: isMcpGatewayEntryAvailable,
+  tunnelClientAvailable: isOpenAiSecureTunnelClientAvailable,
+  connectionStatus: () => connectionService.getStatus(),
+  tunnelRuntimeStatus: () => connectionRuntime.getStatus(),
+  listAuditEvents: (limit, excludeActions) => auditRepo.list(limit, excludeActions),
 });
 
 // ---------------------------------------------------------------------------
@@ -175,9 +201,11 @@ function registerIpcHandlers(): void {
   // Workspace: list
   ipcMain.handle(IPC_CHANNELS.WORKSPACE_LIST, (event) => {
     if (!isSenderValid(event.sender)) return ipcErr({ code: 'VALIDATION_FAILED', message: 'Invalid sender' });
-    const result = workspaceService.list();
-    if (!result.ok) return ipcErr(result.error);
-    return ipcOk(result.value.map(toWorkspaceDto));
+    try {
+      return ipcOk(workspaceRepo.list().map(toWorkspaceDto));
+    } catch {
+      return ipcErr({ code: 'INTERNAL_ERROR', message: 'Failed to list workspaces' });
+    }
   });
 
   // Workspace: add
@@ -237,43 +265,21 @@ function registerIpcHandlers(): void {
     }
   });
 
-  // Doctor: check
-  ipcMain.handle(IPC_CHANNELS.DOCTOR_CHECK, async (event) => {
-    if (!isSenderValid(event.sender)) return ipcErr({ code: 'VALIDATION_FAILED', message: 'Invalid sender' });
-    const dataWritable = checkDataDirectory(dataRoot);
-    let sqliteHealthy = false;
-    try {
-      db.prepare('SELECT 1').get();
-      sqliteHealthy = true;
-    } catch {
-      sqliteHealthy = false;
-    }
-    const workspaces = workspaceRepo.list();
-    const workspaceChecks = workspaces.map((ws) => {
-      const chk = checkWorkspaceRoot(ws.canonicalRoot);
-      return {
-        workspaceId: ws.id,
-        displayName: ws.displayName,
-        rootExists: chk.rootExists,
-        rootIsDirectory: chk.rootIsDirectory,
-      };
-    });
-    const dto: DoctorCheckDto = {
-      dataDirectoryWritable: dataWritable,
-      sqliteHealthy,
-      workspaceChecks,
-    };
-    return ipcOk(dto);
-  });
+  const validateDesktopSender = (sender: unknown): boolean =>
+    typeof sender === 'object' &&
+    sender !== null &&
+    'id' in sender &&
+    isSenderValid(sender as WebContents);
 
   registerDesktopConnectionIpcHandlers(
     ipcMain as unknown as DesktopIpcMain,
     connectionController,
-    (sender) =>
-      typeof sender === 'object' &&
-      sender !== null &&
-      'id' in sender &&
-      isSenderValid(sender as WebContents),
+    validateDesktopSender,
+  );
+  registerDesktopDiagnosticsIpcHandlers(
+    ipcMain as unknown as DiagnosticsIpcMain,
+    diagnosticsController,
+    validateDesktopSender,
   );
 }
 

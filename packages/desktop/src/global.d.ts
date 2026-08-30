@@ -7,6 +7,8 @@ import type {
   DoctorCheckDto,
   IpcResult,
   AuditListInput,
+  ActivityListInput,
+  DesktopActivityEventDto,
   ConnectionStartInput,
   ConnectionStopInput,
   ConnectionRestartInput,
@@ -30,6 +32,9 @@ interface SudDApi {
   };
   audit: {
     list(input?: AuditListInput): Promise<IpcResult<AuditEventDto[]>>;
+  };
+  activity: {
+    list(input?: ActivityListInput): Promise<IpcResult<DesktopActivityEventDto[]>>;
   };
   connection: {
     status(): Promise<IpcResult<DesktopConnectionSnapshotDto>>;

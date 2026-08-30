@@ -47,6 +47,14 @@ const SECRET_KEY_PATTERNS = [
   /private[_-]?key/i,
   /bearer/i,
   /access[_-]?key/i,
+  /env(?:ironment)?/i,
+  /payload/i,
+  /raw/i,
+  /stdout/i,
+  /stderr/i,
+  /command/i,
+  /argv/i,
+  /cwd/i,
 ];
 
 export function sanitizeMetadata(
@@ -68,7 +76,7 @@ export function sanitizeMetadata(
 
 export interface AuditRepository {
   append(event: Omit<AuditEvent, 'id'>): AuditEvent;
-  list(limit?: number): AuditEvent[];
+  list(limit?: number, excludeActions?: readonly string[]): AuditEvent[];
 }
 
 export function createAuditRepository(db: Db): AuditRepository {
@@ -96,10 +104,18 @@ export function createAuditRepository(db: Db): AuditRepository {
       return { ...event, id, metadata: sanitized };
     },
 
-    list(limit = 50): AuditEvent[] {
-      const rows = db
-        .prepare('SELECT * FROM audit_events ORDER BY timestamp DESC LIMIT ?')
-        .all(limit) as AuditRow[];
+    list(limit = 50, excludeActions: readonly string[] = []): AuditEvent[] {
+      const rows = excludeActions.length === 0
+        ? db
+            .prepare('SELECT * FROM audit_events ORDER BY timestamp DESC LIMIT ?')
+            .all(limit) as AuditRow[]
+        : db
+            .prepare(
+              `SELECT * FROM audit_events
+               WHERE action NOT IN (${excludeActions.map(() => '?').join(', ')})
+               ORDER BY timestamp DESC LIMIT ?`,
+            )
+            .all(...excludeActions, limit) as AuditRow[];
       return rows.map(rowToEvent);
     },
   };

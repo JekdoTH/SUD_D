@@ -9,6 +9,8 @@ import {
   type DoctorCheckDto,
   type IpcResult,
   type AuditListInput,
+  type ActivityListInput,
+  type DesktopActivityEventDto,
   type ConnectionStartInput,
   type ConnectionStopInput,
   type ConnectionRestartInput,
@@ -43,6 +45,10 @@ const api = {
   audit: {
     list: (input?: AuditListInput): Promise<IpcResult<AuditEventDto[]>> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUDIT_LIST, input) as Promise<IpcResult<AuditEventDto[]>>,
+  },
+  activity: {
+    list: (input?: ActivityListInput): Promise<IpcResult<DesktopActivityEventDto[]>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.ACTIVITY_LIST, input) as Promise<IpcResult<DesktopActivityEventDto[]>>,
   },
   connection: {
     status: (): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>

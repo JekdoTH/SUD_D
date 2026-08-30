@@ -26,6 +26,7 @@ export const IPC_CHANNELS = {
   CONNECTION_RESTART: 'connection:restart',
   CONNECTION_TUNNEL_SETUP: 'connection:tunnelSetup',
   CONNECTION_PREFERENCES_UPDATE: 'connection:preferences:update',
+  ACTIVITY_LIST: 'activity:list',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -90,6 +91,34 @@ export type AuditListInput = z.infer<typeof AuditListInputSchema>;
 // Doctor DTO
 // ---------------------------------------------------------------------------
 
+export const DoctorCheckStatusSchema = z.enum(['healthy', 'warning', 'error']);
+export type DoctorCheckStatus = z.infer<typeof DoctorCheckStatusSchema>;
+
+export const DoctorCheckIdSchema = z.enum([
+  'data_directory',
+  'database',
+  'active_workspace',
+  'connection_profile',
+  'credential',
+  'tunnel_configuration',
+  'mcp_gateway',
+  'tunnel_client',
+  'connection_runtime',
+  'gateway',
+  'tunnel',
+  'client',
+]);
+export type DoctorCheckId = z.infer<typeof DoctorCheckIdSchema>;
+
+export const DoctorCheckItemDtoSchema = z.object({
+  id: DoctorCheckIdSchema,
+  status: DoctorCheckStatusSchema,
+  label: z.string().min(1),
+  message: z.string().min(1),
+  guidance: z.string().min(1).optional(),
+}).strict();
+export type DoctorCheckItemDto = z.infer<typeof DoctorCheckItemDtoSchema>;
+
 export const DoctorCheckDtoSchema = z.object({
   dataDirectoryWritable: z.boolean(),
   sqliteHealthy: z.boolean(),
@@ -99,10 +128,39 @@ export const DoctorCheckDtoSchema = z.object({
       displayName: z.string(),
       rootExists: z.boolean(),
       rootIsDirectory: z.boolean(),
-    }),
+    }).strict(),
   ),
-});
+  overallStatus: DoctorCheckStatusSchema,
+  summary: z.string().min(1),
+  checks: z.array(DoctorCheckItemDtoSchema),
+}).strict();
 export type DoctorCheckDto = z.infer<typeof DoctorCheckDtoSchema>;
+
+export const ActivityListInputSchema = z.object({
+  limit: z.number().int().min(1).max(200).default(50),
+}).strict();
+export type ActivityListInput = z.infer<typeof ActivityListInputSchema>;
+
+export const DesktopActivityToneSchema = z.enum(['info', 'success', 'warning', 'error']);
+export type DesktopActivityTone = z.infer<typeof DesktopActivityToneSchema>;
+
+export const DesktopActivityDetailDtoSchema = z.object({
+  label: z.string().min(1),
+  value: z.string().min(1),
+}).strict();
+export type DesktopActivityDetailDto = z.infer<typeof DesktopActivityDetailDtoSchema>;
+
+export const DesktopActivityEventDtoSchema = z.object({
+  id: z.string(),
+  timestamp: z.string().datetime(),
+  action: z.string().min(1),
+  title: z.string().min(1),
+  category: z.enum(['connection', 'tunnel', 'workspace', 'configuration', 'system', 'other']),
+  tone: DesktopActivityToneSchema,
+  resultCode: z.string().min(1),
+  details: z.array(DesktopActivityDetailDtoSchema).max(3),
+}).strict();
+export type DesktopActivityEventDto = z.infer<typeof DesktopActivityEventDtoSchema>;
 
 // ---------------------------------------------------------------------------
 // Generic IPC result wrapper
