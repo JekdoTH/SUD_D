@@ -6,9 +6,9 @@ Long-term plan: see `SUD_D_ROADMAP.md`.
 
 **M0.5 — OpenAI Secure Tunnel Adapter**
 
-**Status: COMPLETE — automated verification passed 2026-08-30.**
+**Status: COMPLETE — automated verification and local production acceptance passed 2026-08-30.**
 
-Local production acceptance was **not started** because Work-PC has a control-plane credential available but no dedicated SUD_D tunnel ID/reference in the checked environment. `CONTROL_PLANE_TUNNEL_ID`, `SUD_D_TUNNEL_REFERENCE`, and `SUD_D_ACCEPTANCE_TUNNEL_REFERENCE` were unset; sanitized `profiles list` / `runtimes list` checks found no `tunnel_...` candidate. This is an acceptance-environment blocker only; no secret or user-managed profile was read, printed, changed, or reused.
+Local production adapter acceptance passed on Work-PC using a dedicated `CONTROL_PLANE_TUNNEL_ID` from the local user environment and an existing `CONTROL_PLANE_API_KEY` without printing either value. The acceptance run used a SUD_D-owned temporary runtime/profile area and an ephemeral loopback health port (`127.0.0.1:0`), and did not stop, reuse, or modify the active `serena-sudd-work` tunnel.
 
 M0.5 connects the M0.3 runtime boundary to a fixed-purpose OpenAI Secure Tunnel runtime and the M0.4 SUD_D MCP Gateway. It does **not** implement M0.6 Desktop Connection UI, privileged MCP tools, Tool Kernel, Policy execution, Approval, Recovery, Git tools, cloud/relay infrastructure, or Windows Credential Manager/DPAPI.
 
@@ -371,29 +371,42 @@ Built successfully:
 
 ## Local Acceptance Result
 
-**BLOCKED SAFELY / NOT STARTED.**
+**PASS.**
 
-Work-PC environment inspection found:
+Work-PC acceptance preflight found:
 
 - `tunnel-client` installed and runnable (`0.0.12+881c9a8...`)
-- `CONTROL_PLANE_API_KEY` is set (value was not read/reported)
-- `CONTROL_PLANE_TUNNEL_ID` is unset
-- `SUD_D_TUNNEL_REFERENCE` is unset
-- `SUD_D_ACCEPTANCE_TUNNEL_REFERENCE` is unset
-- sanitized `tunnel-client profiles list --json` parsed successfully and exposed no `tunnel_...` candidate
-- sanitized `tunnel-client runtimes list --json` parsed successfully and exposed no `tunnel_...` candidate
-- no dedicated SUD_D tunnel-client profile/reference is configured in the checked environment
+- `CONTROL_PLANE_API_KEY` available locally; value was not read/reported
+- `CONTROL_PLANE_TUNNEL_ID` available from the local user environment; value was not read/reported
+- SUD_D acceptance used a temporary SUD_D-owned data/runtime root
+- SUD_D acceptance used `health.listen_addr = 127.0.0.1:0`, so it did not bind or collide with Serena's `127.0.0.1:8080`
+- active `serena-sudd-work` tunnel was not stopped, modified, or reused
 
-The real production adapter acceptance was not started because the adapter requires a non-secret tunnel ID/reference from trusted config plus a credential reference. Creating or guessing a tunnel ID would exceed the acceptance step and hardcoding any value would violate M0.5 requirements.
+Initial acceptance exposed a Windows command parsing issue in the generated tunnel-client profile: an absolute quoted `node.exe` path with spaces was parsed by `tunnel-client doctor` as an invalid executable. The fix keeps a fixed `node` executable token, validates a trusted `node.exe` before profile generation, and quotes only the forward-slash normalized SUD_D gateway script argument.
 
-To run the real M0.5 acceptance later, provide/configure a **dedicated SUD_D tunnel ID/reference** (non-secret). The existing Work-PC control-plane credential can remain in the local environment; do not paste it into chat or config.
+Final acceptance output:
 
-Once a dedicated tunnel exists, the acceptance target is:
+```text
+preflight_tunnel_id=SET
+preflight_api_key=SET
+health_listen_addr=127.0.0.1:0
+runtime_initial_tunnelReady=false
+tunnel_client_ready=PASS
+runtime_status=healthy
+stdio_initialize=PASS
+tools_list_empty=PASS
+stdout_protocol_json=PASS
+gateway_stderr_banner=PASS
+acceptance=PASS
+runtime_stop=PASS
+```
+
+Acceptance path verified:
 
 ```text
 SUD_D production adapter
 → tunnel-client starts from SUD_D-owned profile
-→ fixed SUD_D MCP Gateway launches over stdio
+→ fixed SUD_D MCP Gateway entrypoint is validated over stdio
 → /readyz reports ready
 → MCP initialize succeeds
 → tools/list = []
@@ -407,12 +420,11 @@ Exit code 0
 
 ## Open Issues
 
-1. Real production tunnel acceptance still needs a dedicated SUD_D tunnel ID/profile; the current Serena tunnel is intentionally not reused.
-2. The M0.5 production adapter reaches `waiting_for_client` after tunnel readiness. A production cross-process client-connected signal is not yet wired; a fixed signal seam exists for later integration.
-3. Credential storage remains session-only environment-backed; secure persistent Windows credential storage is still deferred and must preserve the existing no-getter/no-plaintext-persistence rule.
-4. The current fixed gateway entry is JavaScript and therefore resolves a trusted installed `node.exe`; future packaged runtime distribution may choose a bundled/fixed runtime, but renderer-controlled executable selection must remain forbidden.
-5. Windows process cleanup uses fixed internal `taskkill.exe /T /F` because the current M0.3 lifecycle port is synchronous; no generic process-control API is exposed.
-6. `.serena/` remains local tooling state and must not be committed.
+1. The M0.5 production adapter reaches `waiting_for_client` after tunnel readiness. A production cross-process client-connected signal is not yet wired; a fixed signal seam exists for later integration.
+2. Credential storage remains session-only environment-backed; secure persistent Windows credential storage is still deferred and must preserve the existing no-getter/no-plaintext-persistence rule.
+3. The current fixed gateway entry is JavaScript and therefore validates a trusted installed `node.exe`, while the tunnel profile command uses the `node` executable token for `tunnel-client` Windows command parsing compatibility. Future packaged runtime distribution may choose a bundled/fixed runtime, but renderer-controlled executable selection must remain forbidden.
+4. Windows process cleanup uses fixed internal `taskkill.exe /T /F` because the current M0.3 lifecycle port is synchronous; no generic process-control API is exposed.
+5. `.serena/` remains local tooling state and must not be committed.
 
 ## Recommendation for M0.6
 
@@ -426,11 +438,17 @@ Recommended M0.6 boundary:
 - show safe `configured | missing` credential state and safe typed connection/tunnel errors only
 - do not let renderer choose executable/argv/cwd/env/profile path
 - keep MCP Gateway tools empty until later Tool Kernel + Policy + Approval + Recovery milestones
-- surface the local acceptance prerequisite clearly if a dedicated SUD_D tunnel has not been configured
+- surface local tunnel setup/acceptance status without exposing secret or tunnel identifier values
 
 ## Last Commit SHA
 
-M0.5 implementation commit: **PENDING — filled after the verified implementation commit is created.**
+M0.5 implementation commit:
+
+`a8dae31780ca68a893fce475f8c467d133af76fd` — `feat: complete M0.5 secure tunnel adapter`
+
+M0.5 local acceptance compatibility fix:
+
+`a113b70221c48ce1d93a1e6d2589e33919d5a350` — `fix: make M0.5 tunnel profile command compatible`
 
 M0.4 implementation commit:
 
