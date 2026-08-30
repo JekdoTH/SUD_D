@@ -1,4 +1,4 @@
-import type { AppError } from './result.js';
+import type { AppError, ConnectionRuntimeFailureCode } from './result.js';
 import type { ConnectionState } from './types.js';
 
 export type ConnectionProvider = 'openai_secure_mcp_tunnel';
@@ -47,6 +47,21 @@ export interface ConnectionSessionContext {
   readonly deviceName: string;
   readonly tunnelReference?: string;
 }
+
+
+export interface RuntimeReadiness {
+  readonly tunnelReady: boolean;
+  readonly clientConnected: boolean;
+}
+
+export type ConnectionRuntimeEvent =
+  | { readonly type: 'tunnel_ready' }
+  | { readonly type: 'client_connected' }
+  | { readonly type: 'client_disconnected' }
+  | {
+      readonly type: 'runtime_failed';
+      readonly code: ConnectionRuntimeFailureCode;
+    };
 
 export interface ConnectionServiceStatus {
   readonly state: ConnectionState;

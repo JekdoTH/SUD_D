@@ -4,279 +4,326 @@ Long-term plan: see `SUD_D_ROADMAP.md`.
 
 ## Current Milestone
 
-**M0.4 — Inert MCP Gateway**
+**M0.5 — OpenAI Secure Tunnel Adapter**
 
-**Status: COMPLETE — verified 2026-08-30.**
+**Status: COMPLETE — automated verification passed 2026-08-30.**
 
-M0.4 adds a real SUD_D-owned MCP server over stdio while keeping privileged capability exposure at zero. It does **not** implement M0.5 tunnel-client integration, a production RuntimeSupervisor, filesystem/process/network AI tools, Tool Kernel, Policy execution, Approval, Recovery, or Desktop Connection UI.
+Local production acceptance was **not started** because Work-PC has a control-plane credential available but no dedicated SUD_D tunnel ID/reference in the checked environment. `CONTROL_PLANE_TUNNEL_ID`, `SUD_D_TUNNEL_REFERENCE`, and `SUD_D_ACCEPTANCE_TUNNEL_REFERENCE` were unset; sanitized `profiles list` / `runtimes list` checks found no `tunnel_...` candidate. This is an acceptance-environment blocker only; no secret or user-managed profile was read, printed, changed, or reused.
 
-## M0.4 Status
+M0.5 connects the M0.3 runtime boundary to a fixed-purpose OpenAI Secure Tunnel runtime and the M0.4 SUD_D MCP Gateway. It does **not** implement M0.6 Desktop Connection UI, privileged MCP tools, Tool Kernel, Policy execution, Approval, Recovery, Git tools, cloud/relay infrastructure, or Windows Credential Manager/DPAPI.
 
-Implemented an inert MCP Gateway that can:
+## M0.5 Status
 
-- speak MCP over stdio using the official TypeScript server SDK
-- complete MCP initialize/handshake
-- expose stable minimal server identity
-- declare only an empty tools capability
-- return `tools: []` from `tools/list`
-- reject `tools/call` for unknown/unregistered tools safely
-- reject malformed request parameters safely
-- reject unknown MCP methods without crashing
-- start/stop deterministically through a fixed-purpose gateway lifecycle API
-- keep protocol stdout free of application logs
-- run through a fixed real stdio entrypoint
+Implemented the approved production direction:
 
-The milestone ends at the gateway boundary. No tunnel-client or privileged tool path was added.
+```text
+ChatGPT
+→ OpenAI Secure MCP Tunnel
+→ tunnel-client
+→ stdio
+→ SUD_D MCP Gateway
+```
+
+The Work-PC installed tunnel client inspected during M0.5 is:
+
+```text
+tunnel-client 0.0.12+881c9a8fed7cccbe6607cd419863bbca506b8215
+```
+
+The installed CLI documents stdio MCP commands, profile-based launch, `env:` secret references, `/healthz` / `/readyz`, health URL files, and fixed `channel=main` for the stdio sample. M0.5 uses only those documented local runtime surfaces.
 
 ## Files Added / Changed
 
-- `packages/mcp-gateway/package.json`
-  - Added the dedicated `@sud-d/mcp-gateway` package.
-  - Added official `@modelcontextprotocol/server@2.0.0` runtime dependency.
-  - Added `@types/node@24.13.3` only for the Node stdio package type boundary.
-- `packages/mcp-gateway/tsconfig.json`
-  - Added package build/typecheck configuration following existing package conventions.
-- `packages/mcp-gateway/src/metadata.ts`
-  - Added stable non-secret MCP server identity (`SUD-D`, package version).
-- `packages/mcp-gateway/src/server.ts`
-  - Added internal inert `McpServer` factory with only empty tools capability.
-- `packages/mcp-gateway/src/gateway.ts`
-  - Added fixed-purpose deterministic gateway start/stop lifecycle and safe lifecycle errors.
-- `packages/mcp-gateway/src/stdio.ts`
-  - Added stdio-only server transport factory.
-- `packages/mcp-gateway/src/stdio-entry.ts`
-  - Added fixed real SUD_D MCP stdio entrypoint.
-- `packages/mcp-gateway/src/index.ts`
-  - Exported only safe lifecycle/metadata/stdio surfaces; raw MCP server registration is not part of the public package API.
-- `packages/tests/src/m0.4.test.ts`
-  - Added M0.4 protocol, lifecycle, security-boundary, static architecture, and real-entrypoint tests.
-- `packages/tests/package.json`
-  - Added workspace dependency on `@sud-d/mcp-gateway` for tests.
-- `package.json`
-  - Added gateway to root build.
-  - Root tests now build `domain → mcp-gateway` before Vitest so real-entrypoint integration tests use fresh dist output rather than stale artifacts.
-- `tsconfig.check.json`
-  - Added gateway source/path to root typecheck.
-- `vitest.config.ts`
-  - Added the gateway source alias following existing package test aliases.
-- `pnpm-lock.yaml`
-  - Added lock entries required by the MCP server SDK and gateway Node typings.
+- `packages/domain/src/result.ts`
+  - Added safe typed tunnel/runtime failure codes and `ConnectionRuntimeFailure` with fixed non-secret messages.
+- `packages/domain/src/connection.ts`
+  - Added shared runtime readiness and runtime-event vocabulary for the production adapter boundary.
+- `packages/contracts/src/index.ts`
+  - Added M0.5 tunnel failure codes to the strict renderer-facing ConnectionService status error schema.
+- `packages/application/src/connection-runtime-port.ts`
+  - Extended the fixed-purpose port with typed runtime event subscription while preserving `start(context)` / `stop()`.
+- `packages/application/src/connection-service.ts`
+  - Maps safe typed runtime start/stop failures and consumes tunnel readiness/client/runtime-failure events through the existing M0.1 state machine.
+- `packages/infrastructure/src/credential-store.ts`
+  - Added session-only environment-backed tunnel credential storage with deterministic per-profile environment-variable references and no plaintext getter.
+- `packages/infrastructure/src/secure-tunnel-profile.ts`
+  - Added SUD_D-owned non-secret tunnel profile generation/materialization for a fixed stdio gateway command.
+- `packages/infrastructure/src/secure-tunnel-process.ts`
+  - Added trusted executable resolution, fixed tunnel launch-plan construction, Windows child-process launch, and deterministic process-tree stop.
+- `packages/infrastructure/src/secure-tunnel-health.ts`
+  - Added loopback-only `/readyz` monitoring using the tunnel client's generated health URL file.
+- `packages/infrastructure/src/openai-secure-tunnel-runtime.ts`
+  - Added the production OpenAI Secure Tunnel runtime adapter plus process/health/client-signal test seams.
+- `packages/infrastructure/src/index.ts`
+  - Exported the M0.5 production adapter boundary.
+- `packages/tests/src/fakes/fake-connection-runtime.ts`
+  - Extended the M0.3 deterministic fake with runtime-event subscription for regression compatibility.
+- `packages/tests/src/m0.5.test.ts`
+  - Added M0.5 configuration, lifecycle, security, process/health, ConnectionService integration, and M0.4 gateway regression coverage.
 - `SUD_D_HANDOFF.md`
   - Updated milestone status and verification record.
 
-`SUD_D_ROADMAP.md` was not changed because M0.4 implements an already approved roadmap milestone and adds no new approved long-term product direction.
+`SUD_D_ROADMAP.md` was not changed because M0.5 implements the already approved Secure Tunnel adapter milestone and introduces no new approved long-term product direction.
 
-## MCP Gateway Design
+## Tunnel Adapter Design
 
-The gateway is a separate package boundary: `@sud-d/mcp-gateway`.
-
-This keeps the protocol-facing component separate from:
-
-- persistence repositories
-- Desktop renderer/main process
-- workspace mutation implementation
-- process execution implementation
-- future Tool Kernel / Policy / Approval / Recovery implementation
-
-Internal MCP server construction is not exported from the public package index. The public lifecycle surface is intentionally fixed-purpose:
+Production entry:
 
 ```text
-InertMcpGateway
-- getStatus()
-- start(transport)
+createOpenAiSecureTunnelRuntime()
+```
+
+Public runtime surface remains fixed-purpose:
+
+```text
+- start(connectionSessionContext)
 - stop()
+- subscribe(runtimeEventListener)
+- getStatus()
 ```
 
-It exposes no generic execution or dynamic capability-registration surface.
+It exposes no generic executable, argv, shell command, cwd, environment map, arbitrary profile path, or process-runner API.
 
-Gateway lifecycle status reuses the existing M0.1 component vocabulary:
+The production factory resolves only trusted SUD_D/runtime components:
 
-- gateway: `stopped | starting | healthy | error`
-- client: `disconnected | connected`
+- `tunnel-client.exe` through fixed Windows executable discovery and basename/file validation
+- a Node runtime (`node.exe`) for the current JS gateway entrypoint
+- the fixed M0.4 entrypoint `packages/mcp-gateway/dist/stdio-entry.js`
 
-No second connection state machine was introduced.
-
-## Transport Decision
-
-M0.4 supports **stdio only**.
-
-The gateway uses `@modelcontextprotocol/server/stdio` from the official MCP TypeScript SDK.
-
-Rules enforced by design/tests:
-
-- stdin = MCP request channel
-- stdout = MCP JSON-RPC response channel only
-- diagnostics/banner = stderr
-- no HTTP server
-- no localhost listener
-- no WebSocket
-- no arbitrary port binding
-
-The fixed entrypoint is:
+The trusted launch plan is always:
 
 ```text
-packages/mcp-gateway/dist/stdio-entry.js
+<tunnel-client.exe>
+run
+--profile-file
+<SUD_D-owned profile path>
 ```
 
-Package bin name:
+`spawn` uses `shell: false`; renderer/client input never participates in executable/argv/cwd/env construction.
+
+## Runtime Supervision Design
+
+M0.5 adds only the process supervision required by the Secure Tunnel adapter:
+
+- launch one fixed `tunnel-client` child
+- retain its PID/process handle internally
+- prevent duplicate runtime spawn
+- observe unexpected process exit
+- stop the health watcher during cleanup
+- terminate the tunnel-client process tree on Windows using a fixed `taskkill.exe /PID <internal pid> /T /F` operation
+- map raw process failures to fixed safe typed errors
+- discard tunnel stdout/stderr instead of forwarding raw runtime output into renderer/audit/protocol responses
+
+No generic process runner, arbitrary process tree API, or shell execution surface was added.
+
+## Profile / Config Ownership
+
+M0.5 generates only SUD_D-owned non-secret runtime profiles under:
 
 ```text
-sud-d-mcp-gateway
+%LOCALAPPDATA%\SUD-D\runtime\secure-tunnel\profiles\<profileId>.yaml
 ```
 
-Desktop does not launch this entrypoint in M0.4.
-
-## MCP SDK Decision
-
-No MCP SDK existed in the repository before M0.4.
-
-Selected dependency:
+Health URL files are SUD_D-owned under:
 
 ```text
-@modelcontextprotocol/server 2.0.0
+%LOCALAPPDATA%\SUD-D\runtime\secure-tunnel\health\<profileId>.url
 ```
 
-Reasons:
+The generated profile contains only trusted/non-secret configuration:
 
-- official current TypeScript MCP server package
-- stable v2 line
-- Node engine requirement `>=20`, compatible with SUD_D Node `>=24`
-- provides the required stdio server transport/entrypoint
-- avoids installing client/framework/HTTP adapters not needed by M0.4
+- `control_plane.base_url = https://api.openai.com`
+- validated `tunnel_<reference>` from the persisted connection profile
+- credential **reference**, not value
+- loopback ephemeral health listener (`127.0.0.1:0`)
+- SUD_D-owned health URL file
+- `channel: main`
+- fixed stdio MCP command pointing to the SUD_D gateway
 
-The SDK brings its own required MCP core/Zod v4 runtime dependencies. Existing SUD_D contract Zod usage was not upgraded or refactored.
+The profile does **not** contain an HTTP/localhost MCP upstream, arbitrary executable, arbitrary shell, user-controlled cwd/env, or plaintext credential.
 
-## Capabilities Exposed
+User-managed tunnel profiles outside SUD_D ownership are not read/rewritten by the production adapter.
 
-Actual initialize capability declaration:
+## Credential Handling
 
-```json
-{
-  "tools": {
-    "listChanged": false
-  }
-}
-```
+M0.5 preserves the no-plaintext-getter rule.
 
-Actual `tools/list` result:
-
-```json
-{
-  "tools": []
-}
-```
-
-Not exposed:
-
-- resources
-- prompts
-- logging capability
-- filesystem read/write/delete/search
-- shell/process
-- git
-- network
-- workspace mutation
-- credential access
-- arbitrary command execution
-
-No tools, resources, or prompts are registered in M0.4.
-
-## Security Boundary
-
-The MCP Gateway is treated as an untrusted-client protocol boundary even though M0.4 transport is local stdio.
-
-Security decisions:
-
-- official SDK parses/validates MCP JSON-RPC messages before handlers execute
-- malformed tool-list parameters return a protocol error; the server remains usable afterward
-- unknown methods return a safe protocol error and do not crash the gateway
-- unknown `tools/call` cannot execute anything because there are zero registered tools
-- no dynamic tool/resource/prompt registration is present in SUD_D gateway source
-- public gateway lifecycle API contains no executable/argv/command/cwd/env/network controls
-- gateway source does not import `node:fs`, `node:child_process`, `node:net`, HTTP server modules, `@sud-d/infrastructure`, `@sud-d/application`, or Desktop code
-- server identity contains only `name` and version; no workspace path, username, credential, tunnel id, or environment metadata
-- lifecycle start errors are mapped to fixed typed safe errors rather than forwarding raw transport/system text
-- stdout is reserved for MCP JSON-RPC only; gateway diagnostics use stderr
-- privileged capability exposure remains zero until later Tool Kernel + Policy + Approval + Recovery gates are ready
-
-## Entry Point
-
-M0.4 includes a real fixed stdio entrypoint:
+A new session-only environment-backed `CredentialStore` implementation stores each profile credential in a deterministic variable name derived from the profile ID, for example conceptually:
 
 ```text
-packages/mcp-gateway/src/stdio-entry.ts
-→ packages/mcp-gateway/dist/stdio-entry.js
+SUD_D_CONTROL_PLANE_API_KEY_<PROFILE_ID>
 ```
 
-Behavior is fixed:
+The SUD_D-owned tunnel profile contains only:
 
-- creates only the inert SUD_D MCP server
-- uses stdio only
-- no CLI-supplied executable/argv/cwd/env behavior
-- no tunnel-client integration
-- no network listener
-- no privileged tools
+```text
+env:<derived variable name>
+```
 
-## ConnectionService / RuntimePort Integration Seam
+Properties:
 
-No production `ConnectionService` / `ConnectionRuntimePort` integration was added in M0.4.
+- no credential getter was added
+- secret value is not in SQLite
+- secret value is not in generated YAML
+- secret value is not in tunnel argv/launch plan
+- secret value is not in renderer-facing status DTOs
+- secret value is not in audit metadata
+- secret value is not in safe errors
+- delete removes the session environment value through the existing `CredentialStore` boundary
 
-Reason: Desktop does not launch the gateway process yet, and wiring the real stdio process into M0.3 at this point would pull production process supervision into M0.4, which is explicitly out of scope.
+This is still session-only credential handling. Windows Credential Manager/DPAPI remains out of scope.
 
-The gateway therefore remains a fixed independently runnable SUD_D-owned component. A later runtime/tunnel milestone can adapt this fixed entrypoint behind the existing M0.3 runtime boundary without allowing renderer/client-provided executable/argv/cwd/env controls.
+## ConnectionService Integration
+
+M0.3 `ConnectionRuntimePort` remains fixed-purpose and synchronous at the lifecycle-call boundary. M0.5 adds a thin event seam rather than replacing the existing state machine or converting the whole service to a new async orchestration model.
+
+Runtime events:
+
+- `tunnel_ready`
+- `client_connected`
+- `client_disconnected`
+- `runtime_failed` with a safe typed code
+
+ConnectionService continues to use `transitionConnectionState()` from M0.1.
+
+Production lifecycle:
+
+```text
+start()
+→ stopped → starting → waiting_for_tunnel
+→ tunnel-client child starts
+→ /readyz becomes ready
+→ runtime emits tunnel_ready
+→ waiting_for_client
+```
+
+If a future fixed gateway/client signal is supplied, `client_connected` advances:
+
+```text
+waiting_for_client → connected
+```
+
+No production cross-process gateway-client signal is wired in M0.5, so the real adapter safely remains `waiting_for_client` after tunnel readiness until a later approved integration provides that signal.
+
+Unexpected tunnel failure maps the active connection to `error` through existing transition rules. Stop still follows:
+
+```text
+<active/error> → stopping → stopped
+```
+
+## Health / Readiness Mapping
+
+M0.5 uses the tunnel client's documented local health surface without coupling to undocumented control-plane internals.
+
+The generated profile requests:
+
+```text
+health.listen_addr = 127.0.0.1:0
+health.url_file = <SUD_D-owned health URL file>
+```
+
+The adapter:
+
+- waits only for the SUD_D-owned health URL file
+- accepts only an `http://127.0.0.1/...` base URL
+- probes `/readyz`
+- maps HTTP success with body `ready` to `tunnel_ready`
+- retries transient startup races only until a fixed timeout
+- maps timeout/invalid health URL/readiness failure to `TUNNEL_HEALTH_FAILED`
+- never forwards raw response/body/system errors to renderer/audit
+
+The adapter does not create its own HTTP server or external listener; the loopback ephemeral health listener belongs to `tunnel-client`.
+
+## Error Handling
+
+New safe typed runtime errors:
+
+- `TUNNEL_CLIENT_NOT_FOUND` — `OpenAI Secure Tunnel client is not available`
+- `TUNNEL_PROFILE_INVALID` — `Secure Tunnel profile configuration is invalid`
+- `TUNNEL_START_FAILED` — `Secure Tunnel runtime failed to start`
+- `TUNNEL_HEALTH_FAILED` — `Secure Tunnel runtime failed readiness checks`
+- `TUNNEL_EXITED_UNEXPECTEDLY` — `Secure Tunnel runtime exited unexpectedly`
+- `TUNNEL_STOP_FAILED` — `Secure Tunnel runtime failed to stop`
+- `MCP_GATEWAY_ENTRY_NOT_FOUND` — `SUD-D MCP Gateway entrypoint is unavailable`
+
+ConnectionService preserves existing `CONNECTION_CREDENTIAL_MISSING` when the credential store reports missing before runtime start.
+
+Raw spawn/taskkill/path/environment/stack error text is not forwarded.
+
+## Security Decisions
+
+- MCP Gateway remains inert and exposes zero privileged tools.
+- Tunnel adapter is not a generic process runner.
+- Renderer/client cannot choose executable/argv/command/cwd/env/profile path.
+- Tunnel ID/reference comes from validated persisted non-secret connection profile state.
+- Gateway command is generated only from trusted runtime paths.
+- Tunnel profile is written only under SUD_D-owned app data.
+- No `http://127.0.0.1:<port>/mcp` upstream is generated.
+- Secret is referenced through environment and never serialized into profile/argv/DTO/audit/error.
+- Health URL is constrained to loopback `127.0.0.1`.
+- Runtime stdout/stderr is not forwarded raw.
+- M0.1 connection transition rules remain the only state machine.
+- No filesystem/process/network AI tool capability was added to the MCP Gateway.
 
 ## Tests Added
 
-`packages/tests/src/m0.4.test.ts` contains 16 tests covering:
+`packages/tests/src/m0.5.test.ts` contains 23 tests covering:
 
-1. MCP initialize/handshake succeeds with stable SUD_D identity
-2. identity contains no sensitive machine metadata
-3. only minimal tools capability is declared and `tools/list` is empty
-4. unregistered `tools/call` is rejected without execution side effects
-5. malformed MCP request params fail safely and gateway remains healthy
-6. unknown MCP method returns safe error and gateway remains healthy
-7. deterministic start/stop and gateway/client state mapping
-8. duplicate start/stop idempotency
-9. transport start failure maps to typed safe error without leaking raw text
-10. protocol responses do not contain secret/raw stack internals
-11. resources/prompts/logging capabilities are not exposed
-12. public lifecycle API has no arbitrary execution controls
-13. static source boundary has no privileged imports or capability registrations
-14. in-memory stdio stdout contains only parseable JSON-RPC
-15. real compiled stdio entrypoint initializes and lists zero tools
-16. real entrypoint keeps stdout parseable and diagnostics on stderr
+1. fixed trusted SUD_D-owned tunnel profile/launch plan
+2. stdio gateway command and no localhost HTTP MCP upstream
+3. fixed-purpose runtime public API without executable/argv/cwd/env controls
+4. missing credential rejected before process start
+5. missing tunnel reference rejected before process start
+6. missing tunnel-client maps to safe typed error
+7. successful process launch leaves ConnectionService at `waiting_for_tunnel`
+8. health ready advances to `waiting_for_client`
+9. health failure maps fail-closed to `error`
+10. unexpected child exit maps to safe typed error
+11. stop cleans child + health watcher and ends at `stopped`
+12. duplicate start does not spawn another tunnel process
+13. duplicate stop does not stop process twice
+14. restart stops old tunnel before a single fresh launch
+15. Windows paths with spaces use fixed argv + quoted stdio gateway command
+16. deterministic environment credential reference without plaintext serialization
+17. no secret in DTO/audit/launch plan/profile/safe error
+18. generated profile contains no arbitrary HTTP upstream
+19. production gateway entrypoint resolves to M0.4 `dist/stdio-entry.js`
+20. raw process start failure maps to safe tunnel error
+21. raw process stop failure maps to safe tunnel error
+22. renderer-facing ConnectionService status accepts new tunnel error codes and remains secret-free
+23. real M0.4 stdio gateway still returns `tools/list = []`
 
-The existing M0.1/M0.2/M0.3 tests remain unchanged.
+TDD RED was observed before production implementation: 23/23 M0.5 tests failed because the M0.5 adapter exports did not exist.
 
 ## Relevant Tests Result
 
-M0.4 focused command:
+M0.5 focused command:
 
 ```text
-corepack pnpm test packages/tests/src/m0.4.test.ts
+corepack pnpm test packages/tests/src/m0.5.test.ts
 ```
 
 Result:
 
 ```text
 Test Files  1 passed (1)
-Tests       16 passed (16)
+Tests       23 passed (23)
 Exit code   0
 ```
 
 ## Regression Result
 
-M0.1 + M0.2 + M0.3 command:
+M0.1 + M0.2 + M0.3 + M0.4 command:
 
 ```text
-corepack pnpm test packages/tests/src/phase1.test.ts packages/tests/src/m0.2.test.ts packages/tests/src/m0.3.test.ts
+corepack pnpm test packages/tests/src/phase1.test.ts packages/tests/src/m0.2.test.ts packages/tests/src/m0.3.test.ts packages/tests/src/m0.4.test.ts
 ```
 
 Result:
 
 ```text
-Test Files  3 passed (3)
-Tests       119 passed (119)
+Test Files  4 passed (4)
+Tests       135 passed (135)
 Exit code   0
 ```
 
@@ -295,33 +342,62 @@ corepack pnpm typecheck
 Exit code 0
 ```
 
+One initial typecheck failure was test-only: `m0.5.test.ts` imported the `CredentialStore` type from the domain package instead of infrastructure. The import was corrected to the existing package boundary; no production/security behavior was weakened.
+
 ## Full Suite Result
 
 ```text
 corepack pnpm test
-Test Files  4 passed (4)
-Tests       135 passed (135)
+Test Files  5 passed (5)
+Tests       158 passed (158)
 Exit code   0
 ```
 
-## stdio Smoke Test Result
-
-Direct compiled-entrypoint smoke command sent real newline-delimited MCP JSON-RPC over stdin.
-
-Observed stdout:
-
-```json
-{"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"SUD-D","version":"0.1.0"}},"jsonrpc":"2.0","id":900}
-{"result":{"tools":[]},"jsonrpc":"2.0","id":901}
-```
-
-Observed stderr:
+## Build Result
 
 ```text
-SUD-D MCP Gateway running on stdio
+corepack pnpm build
+Exit code 0
 ```
 
-Result: exit code 0. No application log text was mixed into stdout.
+Built successfully:
+
+- domain
+- contracts
+- infrastructure
+- application
+- mcp-gateway
+- desktop renderer/main/preload production bundles
+
+## Local Acceptance Result
+
+**BLOCKED SAFELY / NOT STARTED.**
+
+Work-PC environment inspection found:
+
+- `tunnel-client` installed and runnable (`0.0.12+881c9a8...`)
+- `CONTROL_PLANE_API_KEY` is set (value was not read/reported)
+- `CONTROL_PLANE_TUNNEL_ID` is unset
+- `SUD_D_TUNNEL_REFERENCE` is unset
+- `SUD_D_ACCEPTANCE_TUNNEL_REFERENCE` is unset
+- sanitized `tunnel-client profiles list --json` parsed successfully and exposed no `tunnel_...` candidate
+- sanitized `tunnel-client runtimes list --json` parsed successfully and exposed no `tunnel_...` candidate
+- no dedicated SUD_D tunnel-client profile/reference is configured in the checked environment
+
+The real production adapter acceptance was not started because the adapter requires a non-secret tunnel ID/reference from trusted config plus a credential reference. Creating or guessing a tunnel ID would exceed the acceptance step and hardcoding any value would violate M0.5 requirements.
+
+To run the real M0.5 acceptance later, provide/configure a **dedicated SUD_D tunnel ID/reference** (non-secret). The existing Work-PC control-plane credential can remain in the local environment; do not paste it into chat or config.
+
+Once a dedicated tunnel exists, the acceptance target is:
+
+```text
+SUD_D production adapter
+→ tunnel-client starts from SUD_D-owned profile
+→ fixed SUD_D MCP Gateway launches over stdio
+→ /readyz reports ready
+→ MCP initialize succeeds
+→ tools/list = []
+```
 
 ## git diff --check Result
 
@@ -331,42 +407,41 @@ Exit code 0
 
 ## Open Issues
 
-1. M0.4 gateway lifecycle is intentionally an in-process/fixed-entrypoint boundary; Desktop/process supervision is not implemented.
-2. M0.4 uses the official MCP server SDK's stdio transport and supports the SDK's protocol negotiation/legacy compatibility; M0.5 still needs the actual OpenAI Secure Tunnel/tunnel-client adapter.
-3. Client connected/disconnected status in the standalone lifecycle wrapper maps the controlled transport lifecycle. No production runtime health/event stream was added.
-4. Privileged tool exposure is intentionally zero; Tool Kernel + Policy + Approval + Recovery remain future gates.
-5. Dependency installation initially encountered an environment-only `EPERM` while root postinstall tried to replace the already-loaded `better-sqlite3` native binary. MCP dependencies were resolved successfully, install metadata was completed with scripts disabled, and the full Electron-mode test suite passed without changing tracked native artifacts.
+1. Real production tunnel acceptance still needs a dedicated SUD_D tunnel ID/profile; the current Serena tunnel is intentionally not reused.
+2. The M0.5 production adapter reaches `waiting_for_client` after tunnel readiness. A production cross-process client-connected signal is not yet wired; a fixed signal seam exists for later integration.
+3. Credential storage remains session-only environment-backed; secure persistent Windows credential storage is still deferred and must preserve the existing no-getter/no-plaintext-persistence rule.
+4. The current fixed gateway entry is JavaScript and therefore resolves a trusted installed `node.exe`; future packaged runtime distribution may choose a bundled/fixed runtime, but renderer-controlled executable selection must remain forbidden.
+5. Windows process cleanup uses fixed internal `taskkill.exe /T /F` because the current M0.3 lifecycle port is synchronous; no generic process-control API is exposed.
 6. `.serena/` remains local tooling state and must not be committed.
 
-## Recommendation for M0.5
+## Recommendation for M0.6
 
-Next milestone is **M0.5 — OpenAI Secure Tunnel adapter**, but it has **not** been started.
+Next milestone is **M0.6 — Desktop Connection + Overview UI**, but it has **not** been started.
 
-Recommended M0.5 boundary:
+Recommended M0.6 boundary:
 
-- connect the approved OpenAI Secure Tunnel / `tunnel-client` path to this fixed stdio gateway
-- keep tunnel process details behind a fixed-purpose adapter/runtime seam
-- do not let renderer/client provide executable, argv, cwd, shell, or arbitrary env values
-- preserve M0.3 immutable workspace/session binding and credential readiness checks
-- keep gateway tool exposure at zero during tunnel integration
-- do not start M0.6 Desktop Connection UI as part of M0.5
+- consume existing ConnectionService status/start/stop/restart only through strict IPC contracts
+- hide tunnel-client/profile/env/CLI details from normal UX
+- never send plaintext credential back to renderer
+- show safe `configured | missing` credential state and safe typed connection/tunnel errors only
+- do not let renderer choose executable/argv/cwd/env/profile path
+- keep MCP Gateway tools empty until later Tool Kernel + Policy + Approval + Recovery milestones
+- surface the local acceptance prerequisite clearly if a dedicated SUD_D tunnel has not been configured
 
 ## Last Commit SHA
+
+M0.5 implementation commit: **PENDING — filled after the verified implementation commit is created.**
 
 M0.4 implementation commit:
 
 `8046f04239bb20392b7449295dd9ed6ed071790f` — `feat: complete M0.4 inert MCP gateway`
 
-M0.3 implementation commit:
+Current pushed baseline before M0.5:
 
-`4807338a1b562b39ec71fd7c9af8f8002104a241` — `feat: complete M0.3 connection service`
-
-Current pushed baseline before M0.4:
-
-`47a616ed0a6d8cbc8d89437481331d7cc7a23303` — `docs: update M0.3 handoff`
+`191cc52b49af8e8734b92cfeedf2980845c84108` — `docs: update M0.4 handoff`
 
 ## Stop Gate
 
-M0.4 is complete only as the inert stdio MCP gateway milestone described above.
+M0.5 is complete only as the fixed-purpose Secure Tunnel adapter/runtime milestone described above.
 
-Do **not** start M0.5 tunnel-client integration, tunnel process management, production RuntimeSupervisor work, Desktop Connection UI, or privileged MCP tools without a new explicit implementation session.
+Do **not** start M0.6 Desktop Connection UI/visual design work or expose privileged MCP tools without a new explicit implementation session.

@@ -1,4 +1,5 @@
 import type {
+  ConnectionRuntimeEvent,
   ConnectionRuntimePort,
   RuntimeReadiness,
 } from '@sud-d/application';
@@ -12,6 +13,7 @@ export class FakeConnectionRuntime implements ConnectionRuntimePort {
   startError: Error | null = null;
   stopError: Error | null = null;
   onStart: (() => void) | null = null;
+  private readonly listeners = new Set<(event: ConnectionRuntimeEvent) => void>();
 
   start(context: ConnectionSessionContext): RuntimeReadiness {
     this.startCalls += 1;
@@ -24,5 +26,14 @@ export class FakeConnectionRuntime implements ConnectionRuntimePort {
   stop(): void {
     this.stopCalls += 1;
     if (this.stopError) throw this.stopError;
+  }
+
+  subscribe(listener: (event: ConnectionRuntimeEvent) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  emit(event: ConnectionRuntimeEvent): void {
+    for (const listener of [...this.listeners]) listener(event);
   }
 }

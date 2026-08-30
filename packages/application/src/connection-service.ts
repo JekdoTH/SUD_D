@@ -11,6 +11,8 @@ import type {
 } from '@sud-d/domain';
 import {
   appError,
+  ConnectionRuntimeFailure,
+  connectionRuntimeFailureAppError,
   err,
   ok,
   transitionConnectionState,
@@ -22,7 +24,10 @@ import type {
   WorkspaceRepository,
 } from '@sud-d/infrastructure';
 import { validateWorkspaceRoot } from '@sud-d/infrastructure';
-import type { ConnectionRuntimePort } from './connection-runtime-port.js';
+import type {
+  ConnectionRuntimeEvent,
+  ConnectionRuntimePort,
+} from './connection-runtime-port.js';
 
 const DESKTOP_SESSION = { id: 'desktop', type: 'desktop' as const };
 
@@ -248,12 +253,11 @@ export function createConnectionService(
     let readiness;
     try {
       readiness = runtime.start(candidateSession);
-    } catch {
-      return failStart(
-        appError('CONNECTION_RUNTIME_START_FAILED', 'Connection runtime failed to start'),
-        profileId,
-        workspace.id,
-      );
+    } catch (error) {
+      const mapped = error instanceof ConnectionRuntimeFailure
+        ? connectionRuntimeFailureAppError(error.code)
+        : appError('CONNECTION_RUNTIME_START_FAILED', 'Connection runtime failed to start');
+      return failStart(mapped, profileId, workspace.id);
     }
 
     if (readiness.clientConnected && !readiness.tunnelReady) {
@@ -303,11 +307,13 @@ export function createConnectionService(
 
     try {
       runtime.stop();
-    } catch {
-      const stopError = appError(
-        'CONNECTION_RUNTIME_STOP_FAILED',
-        'Connection runtime failed to stop',
-      );
+    } catch (error) {
+      const stopError = error instanceof ConnectionRuntimeFailure
+        ? connectionRuntimeFailureAppError(error.code)
+        : appError(
+            'CONNECTION_RUNTIME_STOP_FAILED',
+            'Connection runtime failed to stop',
+          );
       const errored = transitionTo('error');
       if (!errored.ok) return fail(errored.error);
       lastError = stopError;
@@ -353,6 +359,68 @@ export function createConnectionService(
       lifecycleBusy = false;
     }
   };
+
+  const handleRuntimeEvent = (event: ConnectionRuntimeEvent): void => {
+    if (event.type === 'tunnel_ready') {
+      if (state !== 'waiting_for_tunnel') return;
+      const moved = transitionTo('waiting_for_client');
+      if (!moved.ok) {
+        lastError = moved.error;
+        return;
+      }
+      lastError = null;
+      audit('tunnel.ready', 'OK', {
+        ...(session ? {
+          profileId: session.profileId,
+          workspaceId: session.workspaceId,
+          connectionSessionId: session.connectionSessionId,
+        } : {}),
+      });
+      return;
+    }
+
+    if (event.type === 'client_connected') {
+      if (state !== 'waiting_for_client' && state !== 'degraded') return;
+      const moved = transitionTo('connected');
+      if (!moved.ok) {
+        lastError = moved.error;
+        return;
+      }
+      lastError = null;
+      return;
+    }
+
+    if (event.type === 'client_disconnected') {
+      if (state !== 'connected') return;
+      const moved = transitionTo('degraded');
+      if (!moved.ok) {
+        lastError = moved.error;
+      }
+      return;
+    }
+
+    if (event.type === 'runtime_failed') {
+      if (state === 'stopped' || state === 'stopping') return;
+      const failure = connectionRuntimeFailureAppError(event.code);
+      if (state !== 'error') {
+        const moved = transitionTo('error');
+        if (!moved.ok) {
+          lastError = moved.error;
+          return;
+        }
+      }
+      lastError = failure;
+      audit('tunnel.failed', failure.code, {
+        ...(session ? {
+          profileId: session.profileId,
+          workspaceId: session.workspaceId,
+          connectionSessionId: session.connectionSessionId,
+        } : {}),
+      });
+    }
+  };
+
+  runtime.subscribe(handleRuntimeEvent);
 
   return {
     getStatus(): ConnectionServiceStatus {

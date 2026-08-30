@@ -1,11 +1,13 @@
-import type { ConnectionSessionContext } from '@sud-d/domain';
+import type {
+  ConnectionRuntimeEvent,
+  ConnectionSessionContext,
+  RuntimeReadiness,
+} from '@sud-d/domain';
 
-export interface RuntimeReadiness {
-  readonly tunnelReady: boolean;
-  readonly clientConnected: boolean;
-}
+export type { ConnectionRuntimeEvent, RuntimeReadiness } from '@sud-d/domain';
 
 export interface ConnectionRuntimePort {
   start(context: ConnectionSessionContext): RuntimeReadiness;
   stop(): void;
+  subscribe(listener: (event: ConnectionRuntimeEvent) => void): () => void;
 }
