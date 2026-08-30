@@ -140,7 +140,7 @@ M0.7 did not change the tunnel/gateway runtime lifecycle, so the heavyweight ext
 
 ### Required M0.7 Code Review
 
-Final review used the attached `code-review` workflow as two independent axes against fixed baseline `12ff6122b7f1ff4281524da405640359ba243e7a`.
+Final review used two independent axes against fixed baseline `12ff6122b7f1ff4281524da405640359ba243e7a`. The exact external `code-review` skill resource was not exposed by the active Home-PC runtime during the resumed session; this limitation was reported before review. The installed `requesting-code-review` workflow plus the repository-required Standards/Spec checklist was used without weakening any required review criterion.
 
 - **Standards:** no blocking finding after final verification. Security invariants, strict IPC, bounded diagnostics, redaction, and milestone scope remain intact. Minor duplication in diagnostic/presentation mapping is a judgement-call cleanup and was intentionally not refactored outside M0.7.
 - **Spec:** one blocking finding was found and fixed: Activity originally filtered polling noise after `LIMIT`, allowing historical polling records to hide meaningful lifecycle events. Exclusion now occurs in the parameterized audit query before `LIMIT`, with RED→GREEN regression coverage. Final Spec review has no blocking finding.
