@@ -78,6 +78,21 @@ These workflows constrain future milestone work; they do not authorize starting 
 - The Git repository is the source of truth.
 - `.serena/` is local tooling state, not project memory, and must not be committed.
 
+## Pre-Implementation Compliance Check
+
+Before implementation begins for any milestone or task that changes source code, publish a short check with all four headings below. Source code may be edited only after all four are reported:
+
+1. **Risk Level** — select `Security / Data Critical`, `Normal Functional`, or `Low-Risk UI / Cosmetic` using the Risk-Based Development policy. A mixed change uses its highest applicable tier.
+2. **Selected Skill(s)** — name each selected skill and give one short trigger reason. Write `None required` when no skill applies. Every skill named by `REQUIRED SKILL` in the milestone prompt must be used before its related step.
+3. **Verification Plan** — list only the checks required by the risk tier and milestone specification, such as focused tests, regression tests, lint, typecheck, full suite, build, smoke/acceptance, and `code-review`. A milestone prompt may add requirements.
+4. **STOP CONDITION** — state the boundary that ends or blocks the work, such as stopping after verification plus commit/push, before the next milestone, on a security blocker, or when an environment or credential dependency is missing.
+
+This report is a gate, not a request for extra approval: after all four headings are present and no blocker is identified, implementation may begin. Without it, production source must remain unchanged.
+
+Read-only investigation, documentation-only tasks, and environment setup that does not change source are exempt. A documentation task that changes agent, process, or security policy may use a lightweight version of this check.
+
+The check never transfers across a chat session, Home-PC/Work-PC device, or Serena/Codex runtime. After any such change, the new agent must read `AGENTS.md`, `SUD_D_CONTEXT.md`, `SUD_D_ROADMAP.md`, and `SUD_D_HANDOFF.md`, then publish a fresh check before changing source.
+
 ## Scope and Milestone Control
 
 - Work on one explicitly approved milestone at a time.

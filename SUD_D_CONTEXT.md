@@ -97,6 +97,8 @@ SUD_D uses an agent-skill workflow with progressive disclosure. Skill selection 
 
 SUD_D follows a risk-based development model: security and data-critical boundaries receive strict verification, while low-risk UI/cosmetic work favors lightweight verification and fast iteration.
 
+Before changing production source, agents must perform the Pre-Implementation Compliance Check defined in [AGENTS.md](AGENTS.md), covering risk level, selected skills, verification plan, and stop condition.
+
 - [AGENTS.md](AGENTS.md) — operating rules for every coding agent.
 - [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) — stable product, security, architecture, connection, and UX context.
 - [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md) — long-term plan, approved milestones, sequencing, gates, and future directions.

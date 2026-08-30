@@ -11,6 +11,7 @@ This integration changed agent documentation only at the time it was introduced.
 ## Architecture / Process Decision
 
 - Risk-Based Development is adopted: Security/Data Critical boundaries retain strict verification, while low-risk UI, cosmetic, and documentation work uses proportional verification and faster iteration.
+- Pre-Implementation Compliance Check is adopted before milestone implementation or any source-changing task.
 - M0.6 is COMPLETE.
 - M0.7 remains NEXT / NOT STARTED and requires a new explicit milestone instruction.
 
