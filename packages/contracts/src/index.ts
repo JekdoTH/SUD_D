@@ -121,3 +121,113 @@ export type IpcErr = {
   error: { code: string; message: string; metadata?: Record<string, string | number | boolean> };
 };
 export type IpcResult<T> = IpcOk<T> | IpcErr;
+
+export const ConnectionProviderSchema = z.enum(['openai_secure_mcp_tunnel']);
+export type ConnectionProvider = z.infer<typeof ConnectionProviderSchema>;
+
+export const ConnectionTransportSchema = z.enum(['stdio']);
+export type ConnectionTransport = z.infer<typeof ConnectionTransportSchema>;
+
+export const ConnectionStateSchema = z.enum([
+  'stopped',
+  'starting',
+  'waiting_for_tunnel',
+  'waiting_for_client',
+  'connected',
+  'degraded',
+  'stopping',
+  'error',
+]);
+export type ConnectionStateDto = z.infer<typeof ConnectionStateSchema>;
+
+export const RuntimeComponentSchema = z.enum(['runtime', 'gateway', 'tunnel', 'client']);
+export type RuntimeComponent = z.infer<typeof RuntimeComponentSchema>;
+
+export const RuntimeErrorCodeSchema = z.enum([
+  'START_FAILED',
+  'STOP_FAILED',
+  'GATEWAY_UNAVAILABLE',
+  'TUNNEL_UNAVAILABLE',
+  'CLIENT_DISCONNECTED',
+  'HEALTH_CHECK_FAILED',
+  'INTERNAL_ERROR',
+]);
+export type RuntimeErrorCode = z.infer<typeof RuntimeErrorCodeSchema>;
+
+export const RuntimeErrorDtoSchema = z.object({
+  code: RuntimeErrorCodeSchema,
+  message: z.string().min(1),
+  component: RuntimeComponentSchema,
+  recoverable: z.boolean(),
+}).strict();
+export type RuntimeErrorDto = z.infer<typeof RuntimeErrorDtoSchema>;
+
+const GatewayStoppedStatusDtoSchema = z.object({ state: z.literal('stopped') }).strict();
+const GatewayStartingStatusDtoSchema = z.object({ state: z.literal('starting') }).strict();
+const GatewayHealthyStatusDtoSchema = z.object({ state: z.literal('healthy') }).strict();
+const GatewayErrorStatusDtoSchema = z.object({
+  state: z.literal('error'),
+  error: RuntimeErrorDtoSchema,
+}).strict();
+
+export const GatewayStatusDtoSchema = z.discriminatedUnion('state', [
+  GatewayStoppedStatusDtoSchema,
+  GatewayStartingStatusDtoSchema,
+  GatewayHealthyStatusDtoSchema,
+  GatewayErrorStatusDtoSchema,
+]);
+export type GatewayStatusDto = z.infer<typeof GatewayStatusDtoSchema>;
+
+const TunnelStoppedStatusDtoSchema = z.object({ state: z.literal('stopped') }).strict();
+const TunnelStartingStatusDtoSchema = z.object({ state: z.literal('starting') }).strict();
+const TunnelHealthyStatusDtoSchema = z.object({ state: z.literal('healthy') }).strict();
+const TunnelErrorStatusDtoSchema = z.object({
+  state: z.literal('error'),
+  error: RuntimeErrorDtoSchema,
+}).strict();
+
+export const TunnelStatusDtoSchema = z.discriminatedUnion('state', [
+  TunnelStoppedStatusDtoSchema,
+  TunnelStartingStatusDtoSchema,
+  TunnelHealthyStatusDtoSchema,
+  TunnelErrorStatusDtoSchema,
+]);
+export type TunnelStatusDto = z.infer<typeof TunnelStatusDtoSchema>;
+
+export const ClientConnectionStatusDtoSchema = z.discriminatedUnion('state', [
+  z.object({ state: z.literal('disconnected') }).strict(),
+  z.object({ state: z.literal('connected') }).strict(),
+]);
+export type ClientConnectionStatusDto = z.infer<typeof ClientConnectionStatusDtoSchema>;
+
+export const RuntimeStartInputSchema = z.object({
+  workspaceId: WorkspaceIdSchema,
+  provider: ConnectionProviderSchema,
+  transport: ConnectionTransportSchema,
+}).strict();
+export type RuntimeStartInput = z.infer<typeof RuntimeStartInputSchema>;
+
+export const RuntimeStopInputSchema = z.object({}).strict();
+export type RuntimeStopInput = z.infer<typeof RuntimeStopInputSchema>;
+
+export const RuntimeRestartInputSchema = z.object({}).strict();
+export type RuntimeRestartInput = z.infer<typeof RuntimeRestartInputSchema>;
+
+export const ConnectionStatusDtoSchema = z.object({
+  state: ConnectionStateSchema,
+  provider: ConnectionProviderSchema,
+  transport: ConnectionTransportSchema,
+  workspaceId: WorkspaceIdSchema,
+  gateway: GatewayStatusDtoSchema,
+  tunnel: TunnelStatusDtoSchema,
+  client: ClientConnectionStatusDtoSchema,
+  error: RuntimeErrorDtoSchema.nullable(),
+  updatedAt: z.string().datetime(),
+}).strict();
+export type ConnectionStatusDto = z.infer<typeof ConnectionStatusDtoSchema>;
+
+export const ConnectionStatusChangedDtoSchema = z.object({
+  previousState: ConnectionStateSchema.nullable(),
+  current: ConnectionStatusDtoSchema,
+}).strict();
+export type ConnectionStatusChangedDto = z.infer<typeof ConnectionStatusChangedDtoSchema>;

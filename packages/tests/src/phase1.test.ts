@@ -30,6 +30,22 @@ import type { Db } from '@sud-d/infrastructure';
 // Helpers
 // ---------------------------------------------------------------------------
 
+import {
+  canTransitionConnectionState,
+  transitionConnectionState,
+} from '@sud-d/domain';
+import {
+  ClientConnectionStatusDtoSchema,
+  ConnectionStatusChangedDtoSchema,
+  ConnectionStatusDtoSchema,
+  GatewayStatusDtoSchema,
+  RuntimeErrorDtoSchema,
+  RuntimeRestartInputSchema,
+  RuntimeStartInputSchema,
+  RuntimeStopInputSchema,
+  TunnelStatusDtoSchema,
+} from '@sud-d/contracts';
+
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'sudd-test-'));
 }
@@ -42,6 +58,115 @@ function makeTestServices(dataDir: string, internalRoots: InternalRoot[] = []) {
   const workspaceService = createWorkspaceService(workspaceRepo, auditRepo, internalRoots);
   return { db, workspaceRepo, auditRepo, workspaceService };
 }
+
+describe('M0.1 — connection runtime state transitions', () => {
+  it.each([
+    ['stopped', 'starting'],
+    ['starting', 'waiting_for_tunnel'],
+    ['waiting_for_tunnel', 'waiting_for_client'],
+    ['waiting_for_client', 'connected'],
+    ['connected', 'stopping'],
+    ['stopping', 'stopped'],
+  ] as const)('allows %s → %s', (from, to) => {
+    expect(canTransitionConnectionState(from, to)).toBe(true);
+    expect(transitionConnectionState(from, to)).toEqual({ ok: true, state: to });
+  });
+
+  it('moves a connected runtime to degraded when a recoverable component failure occurs', () => {
+    expect(transitionConnectionState('connected', 'degraded')).toEqual({
+      ok: true,
+      state: 'degraded',
+    });
+  });
+
+  it('moves active startup/runtime states to error on fatal failure', () => {
+    for (const from of ['starting', 'waiting_for_tunnel', 'waiting_for_client', 'connected', 'degraded', 'stopping'] as const) {
+      expect(canTransitionConnectionState(from, 'error')).toBe(true);
+    }
+  });
+
+  it('rejects invalid transitions with a typed fail-closed error', () => {
+    const result = transitionConnectionState('stopped', 'connected');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toEqual({
+        code: 'INVALID_CONNECTION_STATE_TRANSITION',
+        from: 'stopped',
+        to: 'connected',
+        message: 'Invalid connection state transition: stopped → connected',
+      });
+    }
+  });
+
+  it('does not treat same-state transitions as valid lifecycle transitions', () => {
+    expect(canTransitionConnectionState('stopped', 'stopped')).toBe(false);
+    expect(canTransitionConnectionState('connected', 'connected')).toBe(false);
+  });
+});
+
+describe('M0.1 — connection contracts', () => {
+  const runtimeError = {
+    code: 'TUNNEL_UNAVAILABLE',
+    message: 'Secure tunnel is unavailable',
+    component: 'tunnel' as const,
+    recoverable: true,
+  };
+
+  it('accepts the stdio-first OpenAI Secure MCP Tunnel runtime start contract', () => {
+    expect(RuntimeStartInputSchema.parse({
+      workspaceId: '00000000-0000-4000-8000-000000000000',
+      provider: 'openai_secure_mcp_tunnel',
+      transport: 'stdio',
+    })).toEqual({
+      workspaceId: '00000000-0000-4000-8000-000000000000',
+      provider: 'openai_secure_mcp_tunnel',
+      transport: 'stdio',
+    });
+  });
+
+  it('rejects arbitrary process/path configuration in runtime lifecycle inputs', () => {
+    expect(RuntimeStartInputSchema.safeParse({
+      workspaceId: '00000000-0000-4000-8000-000000000000',
+      provider: 'openai_secure_mcp_tunnel',
+      transport: 'stdio',
+      command: 'cmd.exe',
+    }).success).toBe(false);
+    expect(RuntimeStopInputSchema.safeParse({ executable: 'anything.exe' }).success).toBe(false);
+    expect(RuntimeRestartInputSchema.safeParse({ cwd: 'C:\\' }).success).toBe(false);
+  });
+
+  it('uses discriminated component status contracts', () => {
+    expect(GatewayStatusDtoSchema.parse({ state: 'healthy' })).toEqual({ state: 'healthy' });
+    expect(TunnelStatusDtoSchema.parse({ state: 'error', error: runtimeError })).toEqual({ state: 'error', error: runtimeError });
+    expect(ClientConnectionStatusDtoSchema.parse({ state: 'connected' })).toEqual({ state: 'connected' });
+    expect(ClientConnectionStatusDtoSchema.safeParse({ state: 'healthy' }).success).toBe(false);
+  });
+
+  it('requires a typed runtime error for error component states', () => {
+    expect(RuntimeErrorDtoSchema.parse(runtimeError)).toEqual(runtimeError);
+    expect(GatewayStatusDtoSchema.safeParse({ state: 'error' }).success).toBe(false);
+    expect(TunnelStatusDtoSchema.safeParse({ state: 'error', error: { message: 'raw' } }).success).toBe(false);
+  });
+
+  it('validates aggregate connection status and status-change events', () => {
+    const status = {
+      state: 'waiting_for_client' as const,
+      provider: 'openai_secure_mcp_tunnel' as const,
+      transport: 'stdio' as const,
+      workspaceId: '00000000-0000-4000-8000-000000000000',
+      gateway: { state: 'healthy' as const },
+      tunnel: { state: 'healthy' as const },
+      client: { state: 'disconnected' as const },
+      error: null,
+      updatedAt: '2026-08-29T12:00:00.000Z',
+    };
+    expect(ConnectionStatusDtoSchema.parse(status)).toEqual(status);
+    expect(ConnectionStatusChangedDtoSchema.parse({
+      previousState: 'waiting_for_tunnel',
+      current: status,
+    })).toEqual({ previousState: 'waiting_for_tunnel', current: status });
+  });
+});
 
 function cleanupTempDir(db: Db | null, tmpDir: string): void {
   try { db?.close(); } catch { /* ignore */ }
