@@ -8,6 +8,12 @@ The repository now defines progressive-disclosure skill routing in `AGENTS.md` a
 
 This integration changed agent documentation only at the time it was introduced. M0.6 was subsequently implemented in the explicitly approved Desktop Connection + Overview UI milestone recorded below.
 
+## Architecture / Process Decision
+
+- Risk-Based Development is adopted: Security/Data Critical boundaries retain strict verification, while low-risk UI, cosmetic, and documentation work uses proportional verification and faster iteration.
+- M0.6 is COMPLETE.
+- M0.7 remains NEXT / NOT STARTED and requires a new explicit milestone instruction.
+
 ## Current Milestone
 
 **M0.6 — Desktop Connection + Overview UI**
@@ -516,11 +522,9 @@ Before any M0.7 implementation, review the M0.6 architecture/results and obtain 
 
 ## Last Commit SHA
 
-M0.6 completion is recorded in the commit containing this handoff with message:
+M0.6 completion:
 
-`feat: complete M0.6 desktop connection UI`
-
-Use `git log -1` for its immutable SHA after the commit is created; a commit cannot embed its own final SHA without changing that SHA.
+`bbe9e887b9dbfaf61d30def272a3ad56b03809c1` — `feat: complete M0.6 desktop connection UI`
 
 Baseline immediately before M0.6 implementation:
 

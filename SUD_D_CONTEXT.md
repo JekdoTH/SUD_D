@@ -95,6 +95,8 @@ Until an approved Workspace Memory milestone exists, Git is the continuity mecha
 
 SUD_D uses an agent-skill workflow with progressive disclosure. Skill selection and trigger rules are defined in [AGENTS.md](AGENTS.md).
 
+SUD_D follows a risk-based development model: security and data-critical boundaries receive strict verification, while low-risk UI/cosmetic work favors lightweight verification and fast iteration.
+
 - [AGENTS.md](AGENTS.md) — operating rules for every coding agent.
 - [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) — stable product, security, architecture, connection, and UX context.
 - [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md) — long-term plan, approved milestones, sequencing, gates, and future directions.

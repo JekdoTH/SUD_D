@@ -48,9 +48,9 @@ An agent may select a skill automatically when its trigger matches. When package
 
 | Trigger | Skill | Invocation |
 | --- | --- | --- |
-| UI/UX uncertainty or a state/logic design question that needs a throwaway artifact | `prototype` | Automatic |
-| Completed milestone implementation, architecture-sensitive change, branch, PR, or diff review | `code-review` | Automatic |
-| Core domain or security terminology changes, ubiquitous language, or a qualifying architectural decision | `domain-modeling` | Automatic |
+| High UI/UX uncertainty or a state/logic design question that needs a throwaway artifact; skip small cosmetic tweaks | `prototype` | Automatic |
+| Security/Data Critical work, prompt-required review, or architecture/shared-contract/cross-package behavior changes; skip routine docs/cosmetic commits | `code-review` | Automatic |
+| Core domain or security terminology, ubiquitous language, or a qualifying architectural decision; skip simple UI work | `domain-modeling` | Automatic |
 | Session, device, or agent handoff | `handoff` | Explicit/user-invoked |
 | `AGENTS.md`, agent context, skill, or other agent-facing documentation changes | `writing-for-agents` | Automatic |
 | Work too large for one session that needs an issue-backed decision map | `wayfinder` | Explicit/user-invoked |
@@ -87,6 +87,52 @@ These workflows constrain future milestone work; they do not authorize starting 
 - Use test-driven development where behavior changes: demonstrate the relevant failure, implement the smallest scoped change, then demonstrate the passing result. Match verification effort to risk and scope.
 - Preserve existing user changes. Do not stage, amend, revert, or reformat files outside the approved scope.
 
+## Risk-Based Development
+
+SUD_D is a personal-first project for one primary owner and approximately one occasional tester. Before planning verification, classify the change by the highest applicable risk tier; a mixed change inherits its highest-risk part. Keep one milestone checkpoint at a time, but choose its verification plan from the risk tier instead of applying one heavyweight checklist to every change. A milestone prompt may override or add verification, and every `REQUIRED verification` instruction is mandatory; no override or tier may weaken a security invariant.
+
+### A. Security / Data Critical
+
+Use this tier for workspace boundaries, path containment, credentials or secrets, privileged MCP Gateway exposure, Tool Kernel, Policy, Approval, Delete, Recovery, process execution, network permissions, privileged-action IPC, audit redaction, and anything that could cause data loss, workspace escape, destructive behavior, secret leakage, or privilege escalation.
+
+Required verification:
+
+- TDD with focused tests
+- relevant regression tests
+- lint
+- typecheck
+- full test suite
+- build when the changed boundary is built or packaged
+- `git diff --check`
+- `code-review`
+- a real smoke or acceptance test when a runtime boundary changes
+
+Resolve known security, secret-leak, data-loss, workspace-escape, destructive-behavior, and privilege-escalation issues before milestone completion; they are blocking and may not be deferred.
+
+### B. Normal Functional
+
+Use this tier for application services, connection-state behavior, Activity, Doctor, non-privileged IPC, and ordinary feature logic.
+
+- During development, run focused tests plus lint and/or typecheck as applicable to the affected area.
+- At milestone completion, run relevant regression tests, the full suite, the necessary build, and `git diff --check`.
+- Use `code-review` when architecture or a shared contract changes, behavior spans multiple packages, or the milestone prompt requires it.
+- A heavyweight acceptance test is optional when no runtime or integration boundary changed.
+
+### C. Low-Risk UI / Cosmetic / Docs
+
+Use this tier for spacing, typography, card layout, wording, non-functional visual polish, and documentation.
+
+- UI changes need a focused test only when logic changes, plus typecheck, build, and an app/UI smoke check. Full regression is not required during each visual iteration.
+- Documentation-only changes need `git diff` and `git diff --check`. Run the full test suite only when documentation changes generated or runtime configuration.
+
+### Debug Time Budget
+
+For a low-risk, non-security issue without a root cause after approximately 30 minutes, classify it as blocking or non-blocking. It may be recorded as a Known Issue in `SUD_D_HANDOFF.md` and deferred only when it has no security impact, no data-loss risk, the primary acceptance criteria still pass, and the core flow remains usable. Record a short reproduction and impact before continuing the milestone. This budget never applies to Security/Data Critical issues.
+
+### No Perfectionism
+
+Prefer **simple → secure → working → maintainable** before **generic → scalable → enterprise-ready**. SUD_D does not currently target enterprise SaaS scale. Keep solutions proportional to the approved personal-first requirements: avoid speculative abstractions, hypothetical scale infrastructure or cloud work, beauty-only refactors of working code, and milestone blocks caused only by cosmetic imperfections that do not affect acceptance.
+
 ## Security Invariants
 
 - Privileged operations must follow this path and may not bypass a gate:
@@ -109,7 +155,7 @@ See [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) and [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md
 - `.serena/` is local tooling state. It is not project memory or a source of truth and must never be committed.
 - Do not edit package versions or the lockfile to solve a machine/environment problem unless the approved task explicitly requires a dependency change.
 - Before committing, inspect the complete staged and unstaged diff and confirm every changed path is in scope.
-- Before any commit, run the scope-appropriate focused tests, lint, typecheck, full test suite, build or other milestone-specific checks, and `git diff --check`. For documentation-only work, run the documentation and diff checks required by the task and explicitly confirm that no production source changed.
+- Before any commit, run the checks required by the selected risk tier and milestone prompt, plus `git diff --check`. For documentation-only work, run the documentation and diff checks required by the task and explicitly confirm that no production source changed.
 - Do not claim a check passed without fresh command output and a successful exit code. Record verification results in the handoff when the session changes current project state.
 - Keep commits narrow, reviewable, and limited to the approved milestone or documentation task.
 
