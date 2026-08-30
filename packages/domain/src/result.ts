@@ -21,6 +21,7 @@ export function err<E>(error: E): Err<E> {
 export type AppErrorCode =
   | 'WORKSPACE_NOT_FOUND'
   | 'WORKSPACE_INVALID'
+  | 'CONNECTION_PROFILE_NOT_FOUND'
   | 'INVALID_PATH'
   | 'PATH_OUTSIDE_WORKSPACE'
   | 'DEVICE_PATH_DENIED'

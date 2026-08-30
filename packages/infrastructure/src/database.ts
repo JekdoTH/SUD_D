@@ -38,6 +38,21 @@ const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_events(timestamp DESC);
   CREATE INDEX IF NOT EXISTS idx_audit_workspace  ON audit_events(workspace_id);
   `,
+  // Migration 002 — non-secret connection profile configuration only
+  `
+  CREATE TABLE IF NOT EXISTS connection_profiles (
+    profile_id       TEXT PRIMARY KEY,
+    display_name     TEXT NOT NULL,
+    provider         TEXT NOT NULL CHECK(provider = 'openai_secure_mcp_tunnel'),
+    transport        TEXT NOT NULL CHECK(transport = 'stdio'),
+    device_name      TEXT NOT NULL,
+    auto_start       INTEGER NOT NULL DEFAULT 0 CHECK(auto_start IN (0, 1)),
+    auto_restart     INTEGER NOT NULL DEFAULT 0 CHECK(auto_restart IN (0, 1)),
+    tunnel_reference TEXT,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
+  );
+  `,
 ];
 
 export function openDatabase(dbPath: string): Db {

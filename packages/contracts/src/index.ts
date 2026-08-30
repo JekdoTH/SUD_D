@@ -128,6 +128,57 @@ export type ConnectionProvider = z.infer<typeof ConnectionProviderSchema>;
 export const ConnectionTransportSchema = z.enum(['stdio']);
 export type ConnectionTransport = z.infer<typeof ConnectionTransportSchema>;
 
+export const ConnectionProfileIdSchema = z.string().uuid();
+export const ConnectionCredentialStatusSchema = z.enum(['configured', 'missing']);
+export type ConnectionCredentialStatus = z.infer<typeof ConnectionCredentialStatusSchema>;
+
+const ConnectionDeviceNameSchema = z.string().min(1).max(200);
+const TunnelReferenceSchema = z.string().min(1).max(500);
+
+export const ConnectionProfileCreateInputSchema = z.object({
+  displayName: DisplayNameSchema,
+  provider: ConnectionProviderSchema,
+  transport: ConnectionTransportSchema,
+  deviceName: ConnectionDeviceNameSchema,
+  autoStart: z.boolean(),
+  autoRestart: z.boolean(),
+  tunnelReference: TunnelReferenceSchema.optional(),
+}).strict();
+export type ConnectionProfileCreateInput = z.infer<typeof ConnectionProfileCreateInputSchema>;
+
+export const ConnectionProfileUpdateInputSchema = z.object({
+  profileId: ConnectionProfileIdSchema,
+  displayName: DisplayNameSchema.optional(),
+  deviceName: ConnectionDeviceNameSchema.optional(),
+  autoStart: z.boolean().optional(),
+  autoRestart: z.boolean().optional(),
+  tunnelReference: TunnelReferenceSchema.nullable().optional(),
+}).strict().refine(
+  (value) => Object.keys(value).some((key) => key !== 'profileId'),
+  { message: 'At least one connection profile field must be updated' },
+);
+export type ConnectionProfileUpdateInput = z.infer<typeof ConnectionProfileUpdateInputSchema>;
+
+export const ConnectionProfileDtoSchema = z.object({
+  profileId: ConnectionProfileIdSchema,
+  displayName: DisplayNameSchema,
+  provider: ConnectionProviderSchema,
+  transport: ConnectionTransportSchema,
+  deviceName: ConnectionDeviceNameSchema,
+  autoStart: z.boolean(),
+  autoRestart: z.boolean(),
+  tunnelReference: TunnelReferenceSchema.optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+}).strict();
+export type ConnectionProfileDto = z.infer<typeof ConnectionProfileDtoSchema>;
+
+export const ConnectionCredentialStatusDtoSchema = z.object({
+  profileId: ConnectionProfileIdSchema,
+  status: ConnectionCredentialStatusSchema,
+}).strict();
+export type ConnectionCredentialStatusDto = z.infer<typeof ConnectionCredentialStatusDtoSchema>;
+
 export const ConnectionStateSchema = z.enum([
   'stopped',
   'starting',
