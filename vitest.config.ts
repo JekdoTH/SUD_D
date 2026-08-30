@@ -16,6 +16,7 @@ export default defineConfig({
       '@sud-d/contracts': path.join(__dirname, 'packages/contracts/src/index.ts'),
       '@sud-d/infrastructure': path.join(__dirname, 'packages/infrastructure/src/index.ts'),
       '@sud-d/application': path.join(__dirname, 'packages/application/src/index.ts'),
+      '@sud-d/mcp-gateway': path.join(__dirname, 'packages/mcp-gateway/src/index.ts'),
     },
   },
 });

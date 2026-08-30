@@ -11,6 +11,7 @@
     "@sud-d/domain": "workspace:*",
     "@sud-d/infrastructure": "workspace:*",
     "@sud-d/contracts": "workspace:*",
+    "@sud-d/mcp-gateway": "workspace:*",
     "better-sqlite3": "^11.10.0"
   },
   "devDependencies": {

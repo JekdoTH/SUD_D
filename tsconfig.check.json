@@ -13,7 +13,8 @@
       "@sud-d/domain": ["./packages/domain/src/index.ts"],
       "@sud-d/contracts": ["./packages/contracts/src/index.ts"],
       "@sud-d/infrastructure": ["./packages/infrastructure/src/index.ts"],
-      "@sud-d/application": ["./packages/application/src/index.ts"]
+      "@sud-d/application": ["./packages/application/src/index.ts"],
+      "@sud-d/mcp-gateway": ["./packages/mcp-gateway/src/index.ts"]
     }
   },
   "include": [
@@ -21,6 +22,7 @@
     "packages/contracts/src",
     "packages/infrastructure/src",
     "packages/application/src",
+    "packages/mcp-gateway/src",
     "packages/desktop/electron",
     "packages/desktop/src",
     "packages/tests/src"
