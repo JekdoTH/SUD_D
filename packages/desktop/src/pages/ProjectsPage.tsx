@@ -48,8 +48,8 @@ export function ProjectsPage(): React.ReactElement {
   return (
     <>
       <div className="page-header">
-        <h1 className="page-title">Projects</h1>
-        <p className="page-subtitle">Manage registered Workspace roots</p>
+        <h1 className="page-title">Workspaces</h1>
+        <p className="page-subtitle">Add, select, and remove local Workspace registrations.</p>
       </div>
 
       <div className="card">

@@ -20,6 +20,12 @@ export const IPC_CHANNELS = {
   AUDIT_LIST: 'audit:list',
   DOCTOR_CHECK: 'doctor:check',
   DIALOG_OPEN_DIRECTORY: 'dialog:openDirectory',
+  CONNECTION_STATUS: 'connection:status',
+  CONNECTION_START: 'connection:start',
+  CONNECTION_STOP: 'connection:stop',
+  CONNECTION_RESTART: 'connection:restart',
+  CONNECTION_TUNNEL_SETUP: 'connection:tunnelSetup',
+  CONNECTION_PREFERENCES_UPDATE: 'connection:preferences:update',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -247,6 +253,62 @@ export const ConnectionServiceStatusDtoSchema = z.object({
     message: z.string().min(1),
   }).strict().nullable(),
 }).strict();
+
+
+export const DesktopConnectionProfileDtoSchema = z.object({
+  profileId: ConnectionProfileIdSchema,
+  displayName: DisplayNameSchema,
+  provider: ConnectionProviderSchema,
+  transport: ConnectionTransportSchema,
+  deviceName: ConnectionDeviceNameSchema,
+  autoStart: z.boolean(),
+  autoRestart: z.boolean(),
+  tunnelConfigured: z.boolean(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+}).strict();
+export type DesktopConnectionProfileDto = z.infer<typeof DesktopConnectionProfileDtoSchema>;
+
+export const DesktopConnectionRuntimeSessionDtoSchema = z.object({
+  connectionSessionId: z.string().uuid(),
+  profileId: ConnectionProfileIdSchema,
+  workspaceId: WorkspaceIdSchema,
+  startedAt: z.string().datetime(),
+  provider: ConnectionProviderSchema,
+  transport: ConnectionTransportSchema,
+  deviceName: ConnectionDeviceNameSchema,
+}).strict();
+export type DesktopConnectionRuntimeSessionDto = z.infer<typeof DesktopConnectionRuntimeSessionDtoSchema>;
+
+export const DesktopConnectionRuntimeStatusDtoSchema = z.object({
+  state: ConnectionStateSchema,
+  session: DesktopConnectionRuntimeSessionDtoSchema.nullable(),
+  error: z.object({
+    code: ConnectionServiceErrorCodeSchema,
+    message: z.string().min(1),
+  }).strict().nullable(),
+}).strict();
+export type DesktopConnectionRuntimeStatusDto = z.infer<typeof DesktopConnectionRuntimeStatusDtoSchema>;
+
+export const DesktopConnectionSnapshotDtoSchema = z.object({
+  profile: DesktopConnectionProfileDtoSchema.nullable(),
+  credentialStatus: ConnectionCredentialStatusSchema.nullable(),
+  runtime: DesktopConnectionRuntimeStatusDtoSchema,
+}).strict();
+export type DesktopConnectionSnapshotDto = z.infer<typeof DesktopConnectionSnapshotDtoSchema>;
+
+export const DesktopConnectionTunnelSetupInputSchema = z.object({
+  profileId: ConnectionProfileIdSchema,
+  tunnelReference: TunnelReferenceSchema,
+}).strict();
+export type DesktopConnectionTunnelSetupInput = z.infer<typeof DesktopConnectionTunnelSetupInputSchema>;
+
+export const DesktopConnectionPreferencesUpdateInputSchema = z.object({
+  profileId: ConnectionProfileIdSchema,
+  autoStart: z.boolean(),
+  autoRestart: z.boolean(),
+}).strict();
+export type DesktopConnectionPreferencesUpdateInput = z.infer<typeof DesktopConnectionPreferencesUpdateInputSchema>;
 export type ConnectionServiceStatusDto = z.infer<typeof ConnectionServiceStatusDtoSchema>;
 
 export const RuntimeComponentSchema = z.enum(['runtime', 'gateway', 'tunnel', 'client']);

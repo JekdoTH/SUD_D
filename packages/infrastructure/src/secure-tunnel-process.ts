@@ -24,6 +24,12 @@ export interface TunnelProcessLauncher {
   start(plan: TunnelLaunchPlan): TunnelProcessHandle;
 }
 
+
+interface ChildProcessEventSource {
+  on(event: 'error', listener: () => void): void;
+  on(event: 'exit', listener: () => void): void;
+}
+
 function systemExecutable(name: string): string {
   const systemRoot = process.env['SystemRoot'] ?? 'C:\\Windows';
   return path.join(systemRoot, 'System32', name);
@@ -99,9 +105,10 @@ export function createWindowsTunnelProcessLauncher(): TunnelProcessLauncher {
         throw new ConnectionRuntimeFailure('TUNNEL_START_FAILED');
       }
 
+      const childEvents = child as unknown as ChildProcessEventSource;
       child.stdout?.resume();
       child.stderr?.resume();
-      child.on('error', () => {
+      childEvents.on('error', () => {
         // The runtime maps lifecycle through exit/readiness surfaces; raw errors are intentionally dropped.
       });
 
@@ -110,7 +117,7 @@ export function createWindowsTunnelProcessLauncher(): TunnelProcessLauncher {
       }
 
       const listeners = new Set<() => void>();
-      child.on('exit', () => {
+      childEvents.on('exit', () => {
         for (const listener of [...listeners]) listener();
       });
 

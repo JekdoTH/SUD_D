@@ -37,12 +37,20 @@ function rowToConnectionProfile(row: ConnectionProfileRow): ConnectionProfile {
 }
 
 export interface ConnectionProfileRepository {
+  list(): ConnectionProfile[];
   findById(profileId: string): ConnectionProfile | undefined;
   save(input: NewConnectionProfile): ConnectionProfile;
   update(profileId: string, update: ConnectionProfileUpdate): ConnectionProfile | undefined;
 }
 
 export function createConnectionProfileRepository(db: Db): ConnectionProfileRepository {
+  const list = (): ConnectionProfile[] => {
+    const rows = db
+      .prepare('SELECT * FROM connection_profiles ORDER BY created_at ASC, profile_id ASC')
+      .all() as ConnectionProfileRow[];
+    return rows.map(rowToConnectionProfile);
+  };
+
   const findById = (profileId: string): ConnectionProfile | undefined => {
     const row = db
       .prepare('SELECT * FROM connection_profiles WHERE profile_id = ?')
@@ -51,6 +59,7 @@ export function createConnectionProfileRepository(db: Db): ConnectionProfileRepo
   };
 
   return {
+    list,
     findById,
 
     save(input: NewConnectionProfile): ConnectionProfile {

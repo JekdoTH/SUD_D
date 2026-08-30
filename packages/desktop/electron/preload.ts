@@ -9,6 +9,12 @@ import {
   type DoctorCheckDto,
   type IpcResult,
   type AuditListInput,
+  type ConnectionStartInput,
+  type ConnectionStopInput,
+  type ConnectionRestartInput,
+  type DesktopConnectionPreferencesUpdateInput,
+  type DesktopConnectionSnapshotDto,
+  type DesktopConnectionTunnelSetupInput,
 } from '@sud-d/contracts';
 
 // ---------------------------------------------------------------------------
@@ -37,6 +43,20 @@ const api = {
   audit: {
     list: (input?: AuditListInput): Promise<IpcResult<AuditEventDto[]>> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUDIT_LIST, input) as Promise<IpcResult<AuditEventDto[]>>,
+  },
+  connection: {
+    status: (): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_STATUS) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
+    start: (input: ConnectionStartInput): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_START, input) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
+    stop: (input: ConnectionStopInput): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_STOP, input) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
+    restart: (input: ConnectionRestartInput): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_RESTART, input) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
+    configureTunnel: (input: DesktopConnectionTunnelSetupInput): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_TUNNEL_SETUP, input) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
+    updatePreferences: (input: DesktopConnectionPreferencesUpdateInput): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_PREFERENCES_UPDATE, input) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
   },
   doctor: {
     check: (): Promise<IpcResult<DoctorCheckDto>> =>

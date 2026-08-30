@@ -8,13 +8,28 @@ import {
 } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from '@sud-d/infrastructure';
 import { createWorkspaceRepository } from '@sud-d/infrastructure';
 import { createAuditRepository } from '@sud-d/infrastructure';
 import { getDataRoot, canonicalizePath } from '@sud-d/infrastructure';
 import { checkDataDirectory, checkWorkspaceRoot } from '@sud-d/infrastructure';
-import { createWorkspaceService } from '@sud-d/application';
+import {
+  createConnectionProfileRepository,
+  createOpenAiSecureTunnelRuntime,
+  createTunnelEnvironmentCredentialStore,
+} from '@sud-d/infrastructure';
+import {
+  createConnectionConfigService,
+  createConnectionService,
+  createWorkspaceService,
+} from '@sud-d/application';
+import { createDesktopConnectionController } from './connection-controller.js';
+import {
+  registerDesktopConnectionIpcHandlers,
+  type DesktopIpcMain,
+} from './connection-ipc.js';
 import {
   WorkspaceAddInputSchema,
   WorkspaceSelectInputSchema,
@@ -48,6 +63,27 @@ const internalRoots: InternalRoot[] = dataRootCanonical.ok
   : [];
 
 const workspaceService = createWorkspaceService(workspaceRepo, auditRepo, internalRoots);
+const connectionProfileRepo = createConnectionProfileRepository(db);
+const connectionCredentialStore = createTunnelEnvironmentCredentialStore(process.env);
+const connectionConfigService = createConnectionConfigService(
+  connectionProfileRepo,
+  connectionCredentialStore,
+  auditRepo,
+);
+const connectionRuntime = createOpenAiSecureTunnelRuntime();
+const connectionService = createConnectionService(
+  connectionProfileRepo,
+  workspaceRepo,
+  connectionCredentialStore,
+  auditRepo,
+  connectionRuntime,
+);
+const connectionController = createDesktopConnectionController({
+  configService: connectionConfigService,
+  connectionService,
+  deviceName: os.hostname() || 'This Device',
+  environment: process.env,
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -93,6 +129,26 @@ let mainWindowContents: WebContents | null = null;
 
 function isSenderValid(senderContents: WebContents): boolean {
   return mainWindowContents !== null && senderContents.id === mainWindowContents.id;
+}
+
+function workspaceSelectionBlocked(workspaceId: string): AppError | null {
+  const status = connectionService.getStatus();
+  if (status.state === 'stopped') return null;
+  if (status.session?.workspaceId === workspaceId) return null;
+  return {
+    code: 'CONNECTION_WORKSPACE_REBIND_REQUIRES_RESTART',
+    message: 'Disconnect before changing the active workspace',
+  };
+}
+
+function workspaceRemovalBlocked(workspaceId: string): AppError | null {
+  const status = connectionService.getStatus();
+  if (status.state === 'stopped') return null;
+  if (status.session?.workspaceId !== workspaceId) return null;
+  return {
+    code: 'CONNECTION_WORKSPACE_REBIND_REQUIRES_RESTART',
+    message: 'Disconnect before removing the connected workspace',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -143,6 +199,8 @@ function registerIpcHandlers(): void {
     if (!parsed.success) {
       return ipcErr({ code: 'VALIDATION_FAILED', message: parsed.error.errors[0]?.message ?? 'Validation failed' });
     }
+    const blocked = workspaceSelectionBlocked(parsed.data.workspaceId);
+    if (blocked) return ipcErr(blocked);
     const result = workspaceService.select(parsed.data.workspaceId);
     if (!result.ok) return ipcErr(result.error);
     return ipcOk(null);
@@ -155,6 +213,8 @@ function registerIpcHandlers(): void {
     if (!parsed.success) {
       return ipcErr({ code: 'VALIDATION_FAILED', message: parsed.error.errors[0]?.message ?? 'Validation failed' });
     }
+    const blocked = workspaceRemovalBlocked(parsed.data.workspaceId);
+    if (blocked) return ipcErr(blocked);
     const result = workspaceService.remove(parsed.data.workspaceId);
     if (!result.ok) return ipcErr(result.error);
     return ipcOk(null);
@@ -205,6 +265,16 @@ function registerIpcHandlers(): void {
     };
     return ipcOk(dto);
   });
+
+  registerDesktopConnectionIpcHandlers(
+    ipcMain as unknown as DesktopIpcMain,
+    connectionController,
+    (sender) =>
+      typeof sender === 'object' &&
+      sender !== null &&
+      'id' in sender &&
+      isSenderValid(sender as WebContents),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -222,7 +292,7 @@ function createWindow(): BrowserWindow {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: '#0d0d12',
+    backgroundColor: '#f4f6f8',
     show: false,
     webPreferences: {
       nodeIntegration: false,

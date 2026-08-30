@@ -504,6 +504,7 @@ describe('M0.3 — ConnectionService lifecycle orchestration', () => {
       transport: 'invalid-transport' as ConnectionProfile['transport'],
     };
     const corruptedRepo: ConnectionProfileRepository = {
+      list: () => [invalidProfile],
       findById: () => invalidProfile,
       save: harness.profileRepo.save.bind(harness.profileRepo),
       update: harness.profileRepo.update.bind(harness.profileRepo),

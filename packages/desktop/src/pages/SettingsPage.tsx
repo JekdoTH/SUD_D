@@ -23,7 +23,7 @@ export function SettingsPage(): React.ReactElement {
   return (
     <>
       <div className="page-header">
-        <h1 className="page-title">Settings</h1>
+        <h1 className="page-title">Security</h1>
         <p className="page-subtitle">Baseline permission policy — read-only display</p>
       </div>
 

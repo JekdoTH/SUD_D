@@ -6,17 +6,92 @@ Long-term plan: see `SUD_D_ROADMAP.md`.
 
 The repository now defines progressive-disclosure skill routing in `AGENTS.md` and points to it from `SUD_D_CONTEXT.md`. The inspected local package, `Skill_Matt_pocock.zip`, contained no license or redistribution terms, so no upstream skill content was vendored. Skills remain external/local runtime workflows resolved by canonical name.
 
-This integration changes agent documentation only. It does not change production source, packages, dependencies, architecture, security requirements, or milestone scope. M0.6 remains not started.
+This integration changed agent documentation only at the time it was introduced. M0.6 was subsequently implemented in the explicitly approved Desktop Connection + Overview UI milestone recorded below.
 
 ## Current Milestone
 
-**M0.5 — OpenAI Secure Tunnel Adapter**
+**M0.6 — Desktop Connection + Overview UI**
 
-**Status: COMPLETE — automated verification and local production acceptance passed 2026-08-30.**
+**Status: COMPLETE — implementation, regression verification, production Desktop smoke test, and required two-axis code review passed 2026-08-30.**
 
-Local production adapter acceptance passed on Work-PC using a dedicated `CONTROL_PLANE_TUNNEL_ID` from the local user environment and an existing `CONTROL_PLANE_API_KEY` without printing either value. The acceptance run used a SUD_D-owned temporary runtime/profile area and an ephemeral loopback health port (`127.0.0.1:0`), and did not stop, reuse, or modify the active `serena-sudd-work` tunnel.
+M0.6 exposes safe connection lifecycle/status controls through the Desktop application while preserving the approved OpenAI Secure MCP Tunnel + stdio architecture. It does **not** start M0.7, add privileged MCP tools, implement Tool Kernel/Policy/Approval/Recovery execution, add cloud identity/relay infrastructure, or expose generic process control.
 
-M0.5 connects the M0.3 runtime boundary to a fixed-purpose OpenAI Secure Tunnel runtime and the M0.4 SUD_D MCP Gateway. It does **not** implement M0.6 Desktop Connection UI, privileged MCP tools, Tool Kernel, Policy execution, Approval, Recovery, Git tools, cloud/relay infrastructure, or Windows Credential Manager/DPAPI.
+## M0.6 Status
+
+Implemented:
+
+- status-first Desktop navigation: Overview, Workspaces, Connection, Activity, Security, Recovery, Environment / Doctor
+- Overview cards for This Device, ChatGPT connection status, active workspace, baseline security summary, pending-approval placeholder, recent activity, and Recovery placeholder
+- Connection page backed by the existing real `ConnectionService` and production Secure Tunnel runtime through a narrow controller + validated IPC boundary
+- fixed lifecycle actions only: status, start, stop, restart, Secure Tunnel setup, and safe preference update
+- renderer-safe snapshots that expose only configured/missing credential status and `tunnelConfigured`; plaintext credentials and raw tunnel references are not returned
+- strict `autoStart` / `autoRestart` preference update contract accepting only `profileId` plus two boolean flags; executable/argv/cwd/env/secret fields are rejected
+- auto-start / auto-restart are **saved preferences only** in M0.6; automatic lifecycle execution is not activated by this milestone
+- active-workspace rebind/removal protection while a connection session is active
+- Recovery page as an honest informational placeholder only; no recovery engine is implemented
+- light neutral, card-based UI with technical details hidden behind an expandable Advanced section
+- audit-neutral renderer status polling after initial local profile/credential bootstrap, avoiding repeated audit writes from unchanged status reads
+- bundled Electron-safe fixed MCP Gateway entry-path resolution discovered through the production smoke test
+
+### M0.6 Files Added / Changed
+
+Primary M0.6 paths:
+
+- `packages/contracts/src/index.ts`
+- `packages/application/src/connection-config-service.ts`
+- `packages/infrastructure/src/connection-profile-repository.ts`
+- `packages/desktop/electron/connection-controller.ts`
+- `packages/desktop/electron/connection-ipc.ts`
+- `packages/desktop/electron/main.ts`
+- `packages/desktop/electron/preload.ts`
+- `packages/desktop/src/App.tsx`
+- `packages/desktop/src/global.d.ts`
+- `packages/desktop/src/connection-ui-model.ts`
+- `packages/desktop/src/index.css`
+- `packages/desktop/src/pages/HomePage.tsx`
+- `packages/desktop/src/pages/ConnectionPage.tsx`
+- `packages/desktop/src/pages/RecoveryPage.tsx`
+- `packages/desktop/src/pages/ProjectsPage.tsx`
+- `packages/desktop/src/pages/SettingsPage.tsx`
+- `packages/desktop/src/pages/DoctorPage.tsx`
+- `packages/tests/src/m0.6.test.ts`
+
+Narrow regression/integration compatibility changes made while closing M0.6:
+
+- `packages/tests/src/m0.3.test.ts` — repository test double updated for the added profile-list seam
+- `packages/infrastructure/src/secure-tunnel-process.ts` — type-only child-process event compatibility shim; runtime behavior unchanged
+- `packages/infrastructure/src/secure-tunnel-profile.ts` and `packages/infrastructure/src/openai-secure-tunnel-runtime.ts` — fixed trusted gateway path resolution that works from both source and bundled Electron module locations
+
+`SUD_D_ROADMAP.md` was not changed because M0.6 implements already approved UI/connection direction and introduces no new long-term architecture decision.
+
+### M0.6 Security Boundaries
+
+- Renderer does not receive plaintext credentials or raw Secure Tunnel identifiers after setup.
+- Renderer does not choose arbitrary executable, argv, cwd, env, shell command, or privileged process behavior.
+- Connection IPC validates sender and strict Zod payloads before controller execution.
+- The selected workspace remains the authorization boundary; changing/removing a bound workspace requires disconnect/restart semantics.
+- MCP Gateway remains inert with zero privileged tools; M0.6 does not bypass future Tool Kernel → Policy → Approval → Execution gates.
+- `.serena/` remains local tooling state and is excluded from the milestone commit.
+
+### M0.6 Verification
+
+Fresh final verification after code-review fixes:
+
+- M0.6 focused tests: **20/20 passed**
+- M0.1–M0.5 regression group: **158/158 passed**
+- full test suite: **178/178 passed**
+- lint: **PASS**
+- typecheck: **PASS**
+- build: **PASS** for all packages and Desktop production bundle
+- `git diff --check`: **PASS**
+- Desktop production smoke: **PASS** — Electron process responsive, non-zero main window handle, title `SUD-D Control Center`
+
+### Required Code Review
+
+The final review used the approved two-axis `code-review` workflow against fixed base `origin/master` at `32a15844f5d9a1127dd91d365e2402c85b4cae36`.
+
+- **Standards review:** no blocking finding after fixing audit spam caused by 2-second renderer status polling. The controller now caches only safe local profile metadata and configured/missing credential status after bootstrap. Minor UI refresh duplication and repeated state mapping are judgement-call cleanup only and were intentionally not refactored in M0.6.
+- **Spec review:** no blocking finding after changing auto-start/auto-restart copy to state explicitly that M0.6 only saves preferences and does not activate automatic lifecycle behavior.
 
 ## M0.5 Status
 
@@ -431,22 +506,25 @@ Exit code 0
 3. The current fixed gateway entry is JavaScript and therefore validates a trusted installed `node.exe`, while the tunnel profile command uses the `node` executable token for `tunnel-client` Windows command parsing compatibility. Future packaged runtime distribution may choose a bundled/fixed runtime, but renderer-controlled executable selection must remain forbidden.
 4. Windows process cleanup uses fixed internal `taskkill.exe /T /F` because the current M0.3 lifecycle port is synchronous; no generic process-control API is exposed.
 5. `.serena/` remains local tooling state and must not be committed.
+6. M0.6 persists `autoStart` / `autoRestart` preferences only. Automatic lifecycle execution is intentionally not active and requires a separately reviewed future implementation; the renderer still cannot supply executable/argv/cwd/env.
 
-## Recommendation for M0.6
+## Immediate Next Action
 
-Next milestone is **M0.6 — Desktop Connection + Overview UI**, but it has **not** been started.
+M0.6 is complete. The next roadmap milestone is **M0.7 — Doctor + Activity Integration**, but it has **not** been started and is not authorized by this handoff.
 
-Recommended M0.6 boundary:
-
-- consume existing ConnectionService status/start/stop/restart only through strict IPC contracts
-- hide tunnel-client/profile/env/CLI details from normal UX
-- never send plaintext credential back to renderer
-- show safe `configured | missing` credential state and safe typed connection/tunnel errors only
-- do not let renderer choose executable/argv/cwd/env/profile path
-- keep MCP Gateway tools empty until later Tool Kernel + Policy + Approval + Recovery milestones
-- surface local tunnel setup/acceptance status without exposing secret or tunnel identifier values
+Before any M0.7 implementation, review the M0.6 architecture/results and obtain a new explicit milestone instruction. Preserve the existing narrow Connection IPC, credential boundary, workspace binding, inert MCP Gateway, and no-generic-process-control invariants.
 
 ## Last Commit SHA
+
+M0.6 completion is recorded in the commit containing this handoff with message:
+
+`feat: complete M0.6 desktop connection UI`
+
+Use `git log -1` for its immutable SHA after the commit is created; a commit cannot embed its own final SHA without changing that SHA.
+
+Baseline immediately before M0.6 implementation:
+
+`32a15844f5d9a1127dd91d365e2402c85b4cae36`
 
 M0.5 implementation commit:
 
@@ -466,6 +544,6 @@ Current pushed baseline before M0.5:
 
 ## Stop Gate
 
-M0.5 is complete only as the fixed-purpose Secure Tunnel adapter/runtime milestone described above.
+M0.6 is complete only as the Desktop Connection + Overview UI milestone described above.
 
-Do **not** start M0.6 Desktop Connection UI/visual design work or expose privileged MCP tools without a new explicit implementation session.
+Do **not** start M0.7 Doctor + Activity Integration, M0.8 acceptance expansion, privileged MCP tools, Tool Kernel, or any later milestone without a new explicit implementation instruction.

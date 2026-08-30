@@ -251,4 +251,7 @@ export function createOpenAiSecureTunnelRuntime(): OpenAiSecureTunnelRuntime {
   });
 }
 
-export { getDefaultMcpGatewayEntryPath } from './secure-tunnel-profile.js';
+export {
+  getDefaultMcpGatewayEntryPath,
+  resolveMcpGatewayEntryPath,
+} from './secure-tunnel-profile.js';

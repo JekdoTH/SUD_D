@@ -33,8 +33,13 @@ function validateTunnelReference(value: string | undefined): string {
   return value;
 }
 
+export function resolveMcpGatewayEntryPath(moduleUrl: string): string {
+  const moduleDirectory = path.dirname(fileURLToPath(moduleUrl));
+  return path.resolve(moduleDirectory, '../../mcp-gateway/dist/stdio-entry.js');
+}
+
 export function getDefaultMcpGatewayEntryPath(): string {
-  return fileURLToPath(new URL('../../mcp-gateway/dist/stdio-entry.js', import.meta.url));
+  return resolveMcpGatewayEntryPath(import.meta.url);
 }
 
 export function prepareSecureTunnelProfile(

@@ -1,31 +1,45 @@
 import React, { useState } from 'react';
 import { HomePage } from './pages/HomePage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { ConnectionPage } from './pages/ConnectionPage';
 import { ActivityPage } from './pages/ActivityPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { RecoveryPage } from './pages/RecoveryPage';
 import { DoctorPage } from './pages/DoctorPage';
 
-type Page = 'home' | 'projects' | 'activity' | 'settings' | 'doctor';
+export type AppPage =
+  | 'overview'
+  | 'workspaces'
+  | 'connection'
+  | 'activity'
+  | 'security'
+  | 'recovery'
+  | 'environment';
 
-const NAV_ITEMS: { id: Page; icon: string; label: string }[] = [
-  { id: 'home',     icon: '⌂',  label: 'Home'     },
-  { id: 'projects', icon: '◈',  label: 'Projects'  },
-  { id: 'activity', icon: '≋',  label: 'Activity'  },
-  { id: 'settings', icon: '⚙',  label: 'Settings'  },
-  { id: 'doctor',   icon: '✦',  label: 'Doctor'    },
+const NAV_ITEMS: { id: AppPage; icon: string; label: string }[] = [
+  { id: 'overview', icon: '◫', label: 'Overview' },
+  { id: 'workspaces', icon: '▣', label: 'Workspaces' },
+  { id: 'connection', icon: '↗', label: 'Connection' },
+  { id: 'activity', icon: '≋', label: 'Activity' },
+  { id: 'security', icon: '◇', label: 'Security' },
+  { id: 'recovery', icon: '↶', label: 'Recovery' },
+  { id: 'environment', icon: '✦', label: 'Environment / Doctor' },
 ];
 
 export function App(): React.ReactElement {
-  const [page, setPage] = useState<Page>('home');
+  const [page, setPage] = useState<AppPage>('overview');
 
   return (
     <div className="layout">
       <aside className="sidebar">
         <div className="sidebar-logo">
           <div className="sidebar-logo-mark">S</div>
-          <span className="sidebar-logo-name">SUD-D</span>
+          <div>
+            <div className="sidebar-logo-name">SUD-D</div>
+            <div className="sidebar-logo-caption">Local AI control center</div>
+          </div>
         </div>
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" aria-label="Main navigation">
           {NAV_ITEMS.map((item) => (
             <button
               key={item.id}
@@ -33,19 +47,25 @@ export function App(): React.ReactElement {
               className={`nav-item${page === item.id ? ' active' : ''}`}
               onClick={() => setPage(item.id)}
             >
-              <span className="nav-icon">{item.icon}</span>
-              {item.label}
+              <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+              <span>{item.label}</span>
             </button>
           ))}
         </nav>
+        <div className="sidebar-footer">
+          <span className="status-dot status-dot-success" />
+          Local-first · Windows
+        </div>
       </aside>
 
       <main className="main">
-        {page === 'home'     && <HomePage     onNavigate={setPage} />}
-        {page === 'projects' && <ProjectsPage />}
+        {page === 'overview' && <HomePage onNavigate={setPage} />}
+        {page === 'workspaces' && <ProjectsPage />}
+        {page === 'connection' && <ConnectionPage />}
         {page === 'activity' && <ActivityPage />}
-        {page === 'settings' && <SettingsPage />}
-        {page === 'doctor'   && <DoctorPage   />}
+        {page === 'security' && <SettingsPage />}
+        {page === 'recovery' && <RecoveryPage />}
+        {page === 'environment' && <DoctorPage />}
       </main>
     </div>
   );

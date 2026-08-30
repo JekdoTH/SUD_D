@@ -30,8 +30,8 @@ export function DoctorPage(): React.ReactElement {
   return (
     <>
       <div className="page-header">
-        <h1 className="page-title">Doctor</h1>
-        <p className="page-subtitle">System health checks</p>
+        <h1 className="page-title">Environment / Doctor</h1>
+        <p className="page-subtitle">Local environment readiness and system health checks.</p>
       </div>
 
       <div className="card">

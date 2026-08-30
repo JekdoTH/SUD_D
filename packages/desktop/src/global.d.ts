@@ -7,6 +7,12 @@ import type {
   DoctorCheckDto,
   IpcResult,
   AuditListInput,
+  ConnectionStartInput,
+  ConnectionStopInput,
+  ConnectionRestartInput,
+  DesktopConnectionPreferencesUpdateInput,
+  DesktopConnectionSnapshotDto,
+  DesktopConnectionTunnelSetupInput,
 } from '@sud-d/contracts';
 
 interface SudDApi {
@@ -24,6 +30,14 @@ interface SudDApi {
   };
   audit: {
     list(input?: AuditListInput): Promise<IpcResult<AuditEventDto[]>>;
+  };
+  connection: {
+    status(): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
+    start(input: ConnectionStartInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
+    stop(input: ConnectionStopInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
+    restart(input: ConnectionRestartInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
+    configureTunnel(input: DesktopConnectionTunnelSetupInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
+    updatePreferences(input: DesktopConnectionPreferencesUpdateInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
   };
   doctor: {
     check(): Promise<IpcResult<DoctorCheckDto>>;

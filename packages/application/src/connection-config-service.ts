@@ -16,6 +16,7 @@ import type {
 const DESKTOP_SESSION = { id: 'desktop', type: 'desktop' as const };
 
 export interface ConnectionConfigService {
+  listProfiles(): Result<ConnectionProfile[], AppError>;
   createProfile(input: NewConnectionProfile): Result<ConnectionProfile, AppError>;
   getProfile(profileId: string): Result<ConnectionProfile, AppError>;
   updateProfile(
@@ -59,6 +60,17 @@ export function createConnectionConfigService(
   };
 
   return {
+    listProfiles(): Result<ConnectionProfile[], AppError> {
+      const start = Date.now();
+      try {
+        const profiles = profileRepo.list();
+        audit('connection-profile:list', 'OK', { count: profiles.length }, start);
+        return ok(profiles);
+      } catch {
+        return err(appError('INTERNAL_ERROR', 'Failed to list connection profiles'));
+      }
+    },
+
     createProfile(input: NewConnectionProfile): Result<ConnectionProfile, AppError> {
       const start = Date.now();
       try {
