@@ -13,7 +13,8 @@ This integration changed agent documentation only at the time it was introduced.
 - Risk-Based Development is adopted: Security/Data Critical boundaries retain strict verification, while low-risk UI, cosmetic, and documentation work uses proportional verification and faster iteration.
 - Pre-Implementation Compliance Check is adopted before milestone implementation or any source-changing task.
 - M0.6 is COMPLETE.
-- M0.7 remains NEXT / NOT STARTED and requires a new explicit milestone instruction.
+- M0.7 is COMPLETE after Doctor + Activity integration, security/redaction verification, production Desktop smoke, and required final code review.
+- M0.8 remains NEXT / NOT STARTED and requires a new explicit milestone instruction.
 
 ## Approved Future Direction
 
@@ -21,11 +22,137 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Milestone
 
-**M0.6 — Desktop Connection + Overview UI**
+**M0.7 — Doctor + Activity Integration**
 
-**Status: COMPLETE — implementation, regression verification, production Desktop smoke test, and required two-axis code review passed 2026-08-30.**
+**Status: COMPLETE — implementation, security/redaction verification, M0.1–M0.6 regression, production Desktop smoke test, and required final code review passed 2026-08-31.**
 
-M0.6 exposes safe connection lifecycle/status controls through the Desktop application while preserving the approved OpenAI Secure MCP Tunnel + stdio architecture. It does **not** start M0.7, add privileged MCP tools, implement Tool Kernel/Policy/Approval/Recovery execution, add cloud identity/relay infrastructure, or expose generic process control.
+M0.7 connects Environment / Doctor and Activity to real local state and existing audit infrastructure through bounded read-only diagnostics surfaces. It does **not** start M0.8, add privileged MCP tools, implement Tool Kernel/Policy/Approval/Recovery execution, add cloud identity/relay infrastructure, or expose generic process control.
+
+## M0.7 Status
+
+Implemented the approved Doctor + Activity integration without adding a new runtime boundary or telemetry subsystem.
+
+### M0.7 Files Added / Changed
+
+- `packages/contracts/src/index.ts` — typed/sanitized Doctor DTOs plus strict read-only Activity DTO/input contract and `activity:list` IPC channel.
+- `packages/desktop/electron/diagnostics-controller.ts` — bounded read-only Doctor and Activity mapping over existing repositories, ConnectionService, and Secure Tunnel runtime status.
+- `packages/desktop/electron/diagnostics-ipc.ts` — sender-validated Doctor/Activity IPC handlers with strict Zod validation.
+- `packages/desktop/electron/main.ts` — wires real diagnostics dependencies and makes renderer `workspace:list` a read-only repository query so periodic Overview refresh does not create audit spam.
+- `packages/desktop/electron/preload.ts` and `packages/desktop/src/global.d.ts` — expose only typed read-only Activity access; no raw diagnostics/log/process surface.
+- `packages/desktop/src/pages/DoctorPage.tsx` — status-first Environment / Doctor summary and actionable safe checks.
+- `packages/desktop/src/pages/ActivityPage.tsx` — newest-first readable Activity view backed by real audit events and minimal renderer-safe metadata.
+- `packages/desktop/src/index.css` — narrow styling additions for Doctor/Activity using the existing M0.6 visual system.
+- `packages/infrastructure/src/audit-repository.ts` — strengthens persistence redaction for raw environment/payload/process-shaped metadata and supports parameterized action exclusion before query `LIMIT`.
+- `packages/infrastructure/src/openai-secure-tunnel-runtime.ts` — adds fixed-purpose read-only availability checks for the trusted tunnel client and fixed MCP Gateway entrypoint.
+- `packages/tests/src/m0.7.test.ts` — focused Doctor/Activity, redaction, no-spam, IPC, and renderer-surface coverage.
+- `SUD_D_HANDOFF.md` — records M0.7 completion while preserving the approved Team Mode / North Star documentation.
+
+`SUD_D_ROADMAP.md` was not changed by M0.7 because this milestone implements already approved integration scope and introduces no new architecture decision. The Team Mode / Personal AI Team Harness direction from the preceding Codex documentation commit remains unchanged.
+
+### Doctor Integration
+
+Environment / Doctor now reports real bounded local readiness for:
+
+- application data directory writability
+- SQLite readiness
+- active workspace selection and root validity
+- local connection-profile presence
+- credential `configured | missing` state only
+- Secure Tunnel reference configured/missing state without returning the reference
+- fixed MCP Gateway entrypoint availability
+- trusted `tunnel-client` availability
+- ConnectionService runtime state
+- gateway/tunnel/client presentation derived only from existing runtime/service status
+
+Doctor output uses strict typed `healthy | warning | error` checks, short safe messages, and optional actionable guidance. Typed runtime failures are mapped to fixed user-facing text; raw runtime error messages, stack traces, credentials, environment values, commands, argv, and control-plane payloads are not forwarded to the renderer.
+
+### Activity Integration
+
+Activity reuses the existing audit repository and displays only real stored events. Existing connection/tunnel lifecycle actions receive readable presentation, including:
+
+- `connection.start.requested`
+- `connection.started`
+- `connection.stop.requested`
+- `connection.stopped`
+- `connection.failed`
+- `tunnel.ready`
+- `tunnel.failed`
+
+No gateway/client event was invented where no real audit source exists. Renderer-facing Activity metadata is allowlisted to safe `operation` and connection `state` values only.
+
+Historical read/poll noise (`workspace:list`, `connection-profile:list`, `connection-profile:read`, `credential:status`) is excluded from the Activity query before `LIMIT`, so noise cannot starve meaningful lifecycle events. The underlying audit history is not deleted. Doctor/Activity refresh itself is read-only and does not append audit events.
+
+### IPC / Contracts Changes
+
+- Doctor continues to use the fixed `doctor:check` action with a richer strict typed DTO.
+- Activity uses new fixed read-only `activity:list` with strict `{ limit }` input.
+- Sender validation follows the existing Desktop pattern.
+- Renderer cannot supply executable, command, argv, cwd, env, raw-log, or secret fields.
+- No generic diagnostics command or process runner was added.
+
+### Security / Redaction Decisions
+
+Audit persistence still redacts the existing password/secret/token/API-key/auth/credential/private-key patterns and now also redacts keys representing environment, payload, raw data, stdout, stderr, command, argv, and cwd. Activity adds a second renderer boundary by allowlisting only minimal safe details.
+
+The availability checks added for Doctor are fixed-purpose and deterministic: the tunnel client uses the existing trusted resolver, and MCP Gateway availability checks only the fixed SUD_D `stdio-entry.js` path. No renderer-controlled executable/arguments and no new network probe were introduced.
+
+### M0.7 Tests
+
+Focused M0.7 coverage contains **12 tests**, including:
+
+1. healthy Doctor component/status mapping
+2. fixed safe runtime-error mapping without raw error leakage
+3. actionable missing workspace/profile/credential/tunnel setup states
+4. real lifecycle Activity mapping with safe metadata allowlist
+5. readable mapping for all currently sourced connection/tunnel lifecycle events
+6. renderer read/poll noise filtering without deleting audit history
+7. noise exclusion before query `LIMIT` so meaningful events are not starved
+8. persistence redaction for raw payload/environment/process-shaped metadata
+9. Doctor/Activity refresh does not append audit events
+10. renderer workspace polling bypasses the audited WorkspaceService list use case
+11. strict Activity IPC rejects arbitrary process-control payloads
+12. renderer diagnostics surfaces expose no arbitrary command/process controls
+
+TDD RED→GREEN evidence was observed for the two closing bugs: renderer `workspace:list` polling originally routed through the audited WorkspaceService, and Activity originally filtered historical noise only after the query `LIMIT`.
+
+### M0.7 Verification Results
+
+Fresh verification after the final code-review fix:
+
+- M0.7 focused tests: **12/12 passed**
+- M0.1–M0.6 regression: **178/178 passed**
+- lint: **PASS**
+- typecheck: **PASS**
+- full suite: **190/190 passed**
+- build: **PASS** for all packages and Desktop production bundles
+- `git diff --check`: **PASS**
+
+### M0.7 Desktop Smoke Result
+
+**PASS** from the production Desktop bundle. CDP-driven smoke navigation verified:
+
+- `Environment / Doctor` opens, its endpoint succeeds, and the status UI renders
+- `Activity` opens, its endpoint succeeds, and recent-event UI renders
+- existing `Connection` page still opens and renders `OpenAI Secure MCP Tunnel`
+- application title remains `SUD-D Control Center`
+
+M0.7 did not change the tunnel/gateway runtime lifecycle, so the heavyweight external Secure Tunnel acceptance from M0.5 was not repeated.
+
+### Required M0.7 Code Review
+
+Final review used the attached `code-review` workflow as two independent axes against fixed baseline `12ff6122b7f1ff4281524da405640359ba243e7a`.
+
+- **Standards:** no blocking finding after final verification. Security invariants, strict IPC, bounded diagnostics, redaction, and milestone scope remain intact. Minor duplication in diagnostic/presentation mapping is a judgement-call cleanup and was intentionally not refactored outside M0.7.
+- **Spec:** one blocking finding was found and fixed: Activity originally filtered polling noise after `LIMIT`, allowing historical polling records to hide meaningful lifecycle events. Exclusion now occurs in the parameterized audit query before `LIMIT`, with RED→GREEN regression coverage. Final Spec review has no blocking finding.
+
+### M0.7 Known Issues / Open Questions
+
+- Activity intentionally shows only events with real existing audit sources. Gateway-start/client-connect lifecycle events are not synthesized; they can be added only when a future approved milestone provides a real source.
+- M0.7 does not activate M0.8 end-to-end acceptance and does not change the existing M0.5/M0.6 runtime limitations recorded below.
+
+### Recommendation for M0.8
+
+Next roadmap milestone is **M0.8 — End-to-End Connection Acceptance**, but it is **NOT STARTED**. Preserve the current inert MCP Gateway and security boundaries; M0.8 should validate the already implemented connection path rather than introduce privileged tools or new product scope.
 
 ## M0.6 Status
 
@@ -521,11 +648,19 @@ Exit code 0
 
 ## Immediate Next Action
 
-M0.6 is complete. The next roadmap milestone is **M0.7 — Doctor + Activity Integration**, but it has **not** been started and is not authorized by this handoff.
+M0.7 is complete. The next roadmap milestone is **M0.8 — End-to-End Connection Acceptance**, but it has **not** been started and is not authorized by this handoff.
 
-Before any M0.7 implementation, review the M0.6 architecture/results and obtain a new explicit milestone instruction. Preserve the existing narrow Connection IPC, credential boundary, workspace binding, inert MCP Gateway, and no-generic-process-control invariants.
+Before any M0.8 implementation, obtain a new explicit milestone instruction. Preserve the existing narrow Connection/Diagnostics IPC, credential boundary, audit redaction, workspace binding, inert MCP Gateway, and no-generic-process-control invariants.
 
 ## Last Commit SHA
+
+M0.7 completion implementation:
+
+`9dace143b3130128190deb34afae806f9afc85af` — `feat: complete M0.7 doctor activity integration`
+
+M0.7 baseline documentation / Team Mode North Star preserved from:
+
+`12ff6122b7f1ff4281524da405640359ba243e7a` — `docs: define Team Mode product north star`
 
 M0.6 completion:
 
@@ -553,6 +688,6 @@ Current pushed baseline before M0.5:
 
 ## Stop Gate
 
-M0.6 is complete only as the Desktop Connection + Overview UI milestone described above.
+M0.7 is complete only as the Doctor + Activity Integration milestone described above.
 
-Do **not** start M0.7 Doctor + Activity Integration, M0.8 acceptance expansion, privileged MCP tools, Tool Kernel, or any later milestone without a new explicit implementation instruction.
+Do **not** start M0.8 End-to-End Connection Acceptance, privileged MCP tools, Tool Kernel, or any later milestone without a new explicit implementation instruction.
