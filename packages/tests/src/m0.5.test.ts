@@ -333,7 +333,7 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
     expect(service.start(profile.profileId).ok).toBe(true);
 
     const text = fs.readFileSync(processLauncher.plans[0].profilePath, 'utf8');
-    expect(profileCommand(text)).toContain(gatewayEntryPath);
+    expect(profileCommand(text)).toContain(gatewayEntryPath.replaceAll('\\', '/'));
     expect(text).not.toMatch(/mcp_server_url|server_url|http:\/\/127\.0\.0\.1|localhost.*\/mcp/i);
   });
 
@@ -471,7 +471,8 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
     expect(plan.args).toEqual(['run', '--profile-file', plan.profilePath]);
     expect(plan.workingDirectory).toContain('SUD-D');
     const command = profileCommand(fs.readFileSync(plan.profilePath, 'utf8'));
-    expect(command).toBe(`"${nodeExecutablePath}" "${gatewayEntryPath}"`);
+    expect(nodeExecutablePath.toLowerCase()).toMatch(/node\.exe$/);
+    expect(command).toBe(`node "${gatewayEntryPath.replaceAll('\\', '/')}"`);
   });
 
   it('uses a deterministic credential environment reference without serializing plaintext into profile or argv', async () => {

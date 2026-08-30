@@ -19,11 +19,11 @@ function yamlString(value: string): string {
   return JSON.stringify(value);
 }
 
-function quoteCommandPath(value: string): string {
+function quoteCommandArgument(value: string): string {
   if (value.includes('"') || value.includes('\r') || value.includes('\n')) {
     throw new ConnectionRuntimeFailure('TUNNEL_PROFILE_INVALID');
   }
-  return `"${value}"`;
+  return `"${value.replaceAll('\\', '/')}"`;
 }
 
 function validateTunnelReference(value: string | undefined): string {
@@ -54,8 +54,12 @@ export function prepareSecureTunnelProfile(
   const runtimeRoot = path.join(dataRoot, 'runtime', 'secure-tunnel');
   const profilePath = path.join(runtimeRoot, 'profiles', `${context.profileId}.yaml`);
   const healthUrlFile = path.join(runtimeRoot, 'health', `${context.profileId}.url`);
+  if (path.basename(nodeExecutablePath).toLowerCase() !== 'node.exe') {
+    throw new ConnectionRuntimeFailure('TUNNEL_PROFILE_INVALID');
+  }
+
   const credentialReference = `env:${credentialEnvVarNameForProfile(context.profileId)}`;
-  const gatewayCommand = `${quoteCommandPath(nodeExecutablePath)} ${quoteCommandPath(gatewayEntryPath)}`;
+  const gatewayCommand = `node ${quoteCommandArgument(gatewayEntryPath)}`;
 
   const content = [
     'config_version: 1',
