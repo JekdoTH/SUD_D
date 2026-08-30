@@ -93,6 +93,8 @@ Until an approved Workspace Memory milestone exists, Git is the continuity mecha
 
 ## Document Responsibilities
 
+SUD_D uses an agent-skill workflow with progressive disclosure. Skill selection and trigger rules are defined in [AGENTS.md](AGENTS.md).
+
 - [AGENTS.md](AGENTS.md) — operating rules for every coding agent.
 - [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) — stable product, security, architecture, connection, and UX context.
 - [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md) — long-term plan, approved milestones, sequencing, gates, and future directions.

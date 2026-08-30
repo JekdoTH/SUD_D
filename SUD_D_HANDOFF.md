@@ -2,6 +2,12 @@
 
 Long-term plan: see `SUD_D_ROADMAP.md`.
 
+## Documentation-only Agent Skill Integration
+
+The repository now defines progressive-disclosure skill routing in `AGENTS.md` and points to it from `SUD_D_CONTEXT.md`. The inspected local package, `Skill_Matt_pocock.zip`, contained no license or redistribution terms, so no upstream skill content was vendored. Skills remain external/local runtime workflows resolved by canonical name.
+
+This integration changes agent documentation only. It does not change production source, packages, dependencies, architecture, security requirements, or milestone scope. M0.6 remains not started.
+
 ## Current Milestone
 
 **M0.5 — OpenAI Secure Tunnel Adapter**
