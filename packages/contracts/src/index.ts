@@ -191,6 +191,57 @@ export const ConnectionStateSchema = z.enum([
 ]);
 export type ConnectionStateDto = z.infer<typeof ConnectionStateSchema>;
 
+export const ConnectionStartInputSchema = z.object({
+  profileId: ConnectionProfileIdSchema,
+}).strict();
+export type ConnectionStartInput = z.infer<typeof ConnectionStartInputSchema>;
+
+export const ConnectionStopInputSchema = z.object({}).strict();
+export type ConnectionStopInput = z.infer<typeof ConnectionStopInputSchema>;
+
+export const ConnectionRestartInputSchema = z.object({
+  profileId: ConnectionProfileIdSchema,
+}).strict();
+export type ConnectionRestartInput = z.infer<typeof ConnectionRestartInputSchema>;
+
+export const ConnectionSessionContextDtoSchema = z.object({
+  connectionSessionId: z.string().uuid(),
+  profileId: ConnectionProfileIdSchema,
+  workspaceId: WorkspaceIdSchema,
+  workspaceCanonicalRoot: z.string().min(1),
+  startedAt: z.string().datetime(),
+  provider: ConnectionProviderSchema,
+  transport: ConnectionTransportSchema,
+  deviceName: ConnectionDeviceNameSchema,
+  tunnelReference: TunnelReferenceSchema.optional(),
+}).strict();
+export type ConnectionSessionContextDto = z.infer<typeof ConnectionSessionContextDtoSchema>;
+
+export const ConnectionServiceErrorCodeSchema = z.enum([
+  'CONNECTION_PROFILE_NOT_FOUND',
+  'CONNECTION_CREDENTIAL_MISSING',
+  'CONNECTION_WORKSPACE_NOT_SELECTED',
+  'WORKSPACE_INVALID',
+  'CONNECTION_RUNTIME_START_FAILED',
+  'CONNECTION_RUNTIME_STOP_FAILED',
+  'INVALID_CONNECTION_STATE_TRANSITION',
+  'CONNECTION_WORKSPACE_REBIND_REQUIRES_RESTART',
+  'CONNECTION_LIFECYCLE_BUSY',
+  'VALIDATION_FAILED',
+  'INTERNAL_ERROR',
+]);
+export type ConnectionServiceErrorCode = z.infer<typeof ConnectionServiceErrorCodeSchema>;
+
+export const ConnectionServiceStatusDtoSchema = z.object({
+  state: ConnectionStateSchema,
+  session: ConnectionSessionContextDtoSchema.nullable(),
+  error: z.object({
+    code: ConnectionServiceErrorCodeSchema,
+    message: z.string().min(1),
+  }).strict().nullable(),
+}).strict();
+export type ConnectionServiceStatusDto = z.infer<typeof ConnectionServiceStatusDtoSchema>;
+
 export const RuntimeComponentSchema = z.enum(['runtime', 'gateway', 'tunnel', 'client']);
 export type RuntimeComponent = z.infer<typeof RuntimeComponentSchema>;
 
