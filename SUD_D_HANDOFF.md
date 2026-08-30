@@ -15,6 +15,10 @@ This integration changed agent documentation only at the time it was introduced.
 - M0.6 is COMPLETE.
 - M0.7 remains NEXT / NOT STARTED and requires a new explicit milestone instruction.
 
+## Approved Future Direction
+
+Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic Personal AI Team Harness direction. It remains above the secure SUD_D execution boundary, and Serena is optional rather than a core runtime dependency. Exact architecture, presets, runtime, scheduling, memory format, UI, and milestones remain deferred; this decision does not change the current milestone or authorize implementation.
+
 ## Current Milestone
 
 **M0.6 — Desktop Connection + Overview UI**

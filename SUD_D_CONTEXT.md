@@ -4,7 +4,9 @@ This document holds stable project context, not milestone progress. For approved
 
 ## Product and North Star
 
-SUD_D is a local-first Windows AI control gateway/runtime. Its North Star is to let ChatGPT and other approved AI clients work with local projects through bounded, understandable, and auditable capabilities without making an unrestricted shell the normal operating model. The desktop experience should hide infrastructure and CLI complexity, while security enforcement remains below the UI so it still holds if the renderer is bypassed or compromised.
+SUD_D is a local-first Windows AI control gateway/runtime whose secure core supports the long-term North Star: a domain-agnostic **Personal AI Team Harness / Orchestrator**. A user defines a goal and constraints; Team Mode coordinates planning, specialist work, verification, review, handoff, memory, and final artifacts for user review or approval.
+
+The MCP Gateway is a foundation rather than the final product destination. Team Mode remains above the existing secure execution boundary, every agent role uses the same Tool Kernel → Policy → Approval → Execution path, and Serena is an optional specialist integration rather than a required core runtime dependency. Detailed Team Mode architecture is deferred until the secure core is sufficiently ready.
 
 SUD_D is local-first by design: project state and continuity live in Git, device runtime state stays local, and cloud infrastructure is not a prerequisite for the core product.
 

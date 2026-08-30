@@ -12,7 +12,16 @@ For current execution status, verification, open issues, immediate next action, 
 
 ## 1. North Star
 
-SUD_D is a **local-first personal AI control gateway/runtime for Windows**.
+SUD_D is a **local-first Personal AI Team Harness / Orchestrator for Windows**, built on a secure personal AI control gateway/runtime. The MCP Gateway is an important integration boundary, not the final product destination.
+
+The long-term product flow is:
+
+```text
+User defines a Goal and constraints
+→ SUD_D forms and coordinates an AI team
+→ the team plans, delegates, works, verifies, reviews, hands off, and preserves context
+→ SUD_D returns artifacts and a Final Result for user review or approval
+```
 
 Goals:
 
@@ -21,6 +30,7 @@ Goals:
 - Keep CLI out of the normal user workflow.
 - Make AI actions bounded and auditable.
 - Support continuity across ChatGPT sessions and, eventually, across devices.
+- Let the user direct outcomes through goals, constraints, sensitive-action approvals, and final review instead of micro-managing every agent.
 
 SUD_D is not an unrestricted shell wrapper. Security decisions must be enforced below the UI and remain effective even if the UI is bypassed or compromised.
 
@@ -252,6 +262,150 @@ Privileged MCP tools must **not** be exposed before Tool Kernel + Policy + Appro
 
 ---
 
+## Future Program — Team Mode / Agent Orchestration
+
+**STATUS: APPROVED PRODUCT DIRECTION; DETAILED ARCHITECTURE AND IMPLEMENTATION DEFERRED.**
+
+Team Mode is the domain-agnostic orchestration layer above SUD_D's secure execution foundation. It coordinates specialized agents toward a user goal and produces inspectable workspace artifacts and results. This direction does not authorize Team Mode implementation or change the current milestone sequence.
+
+### Core Team Model
+
+```text
+User
+ ↓ Goal
+SUD_D Team Mode
+ ↓
+Lead / Orchestrator
+ ├─ Planner
+ ├─ Worker / Specialist
+ ├─ Tester / Validator
+ ├─ Reviewer
+ └─ Handoff / Memory
+        ↓
+     Workspace / Artifacts
+```
+
+For a future Software Development preset, the conceptual roles are:
+
+```text
+Lead / Orchestrator
+ ├─ Planner
+ ├─ Developer
+ ├─ Tester
+ ├─ Reviewer
+ └─ Handoff / Memory
+```
+
+The Lead / Orchestrator coordinates work; it is not a security superuser. Role names and workflow details remain conceptual until Team Mode design begins.
+
+### Domain-Agnostic Presets
+
+Team Mode must not be coupled to software development. Future Team Presets may include:
+
+- Software Development
+- Podcast Production
+- Research
+- Content Writing
+- Custom Team
+
+A future Podcast Production preset might express this flow:
+
+```text
+User Brief
+→ Lead / Orchestrator
+→ Brief Analyst
+→ Research Agent
+→ Script Writer
+→ Editor
+→ Fact Checker
+→ QA Reviewer
+→ Final Script
+```
+
+These examples establish domain independence only; preset definitions and workflows are deferred.
+
+### Conceptual Orchestration Vocabulary
+
+Future Team Mode design is expected to reason about these concepts without creating schemas or domain implementation now:
+
+- Goal
+- Task
+- Subtask
+- Agent Role
+- Team / Team Preset
+- Work Queue
+- Artifact
+- Checkpoint
+- Workspace Memory
+- Task History
+- Review Result
+- Approval
+- Tool Access
+- Agent Status
+- Handoff
+- Final Result
+
+### Secure Execution Boundary
+
+Team Mode sits above, and never bypasses, the existing privileged path:
+
+```text
+Team / Agent
+→ SUD_D Tool Interface
+→ Tool Kernel
+→ Policy
+→ Approval
+→ Execution
+→ Audit / Recovery
+```
+
+Every role, including the Lead / Orchestrator, uses this same path. Agent roles do not gain direct filesystem or process access, bypass Policy or Approval, gain privilege through coordination status, or send arbitrary executable, `argv`, `cwd`, or `env` through the renderer.
+
+### Serena's Role
+
+Serena is a development-time and optional specialist integration. It currently helps develop SUD_D and may serve as a semantic coding specialist, but Team Mode must not require Serena as a core runtime dependency.
+
+A future Software Development team may choose either or both specialist paths:
+
+```text
+Developer Agent
+ ├─ SUD_D native code tools
+ └─ Serena adapter (optional)
+```
+
+Non-software presets such as Podcast Production and Research do not require Serena.
+
+### User and Harness Responsibilities
+
+The user should primarily define the Goal or Brief, set constraints, approve sensitive actions, and review the Final Result. SUD_D should own planning, delegation, coordination, verification, handoff, and progress tracking within those constraints.
+
+### Relationship to the Secure Core
+
+M0–M8 remain the required secure foundation and continue in their current order. Team Mode depends on Workspace Boundary, Tool Kernel, Policy, Approval, Audit, Recovery, file tools, process controls, and MCP/runtime foundations; it must not skip or weaken them. A detailed Team Mode roadmap will be designed only when the secure core is sufficiently ready.
+
+### Approved vs Deferred
+
+**Approved:**
+
+- Team Mode / Personal AI Team Harness is the long-term North Star.
+- Orchestration is domain-agnostic: user goal → team → artifacts and results.
+- The secure SUD_D core remains the execution boundary for every agent role.
+- Serena is optional and is not a required core runtime dependency.
+
+**Deferred until Team Mode design begins:**
+
+- exact agent runtime
+- model and provider selection
+- parallel execution design
+- task scheduler
+- conflict resolution
+- memory storage format
+- Team Preset format
+- detailed UI
+- detailed Team Mode milestone plan
+
+---
+
 ## 6. UI / UX Direction
 
 Use UI references the user likes as inspiration only. Do not copy branding or UI 1:1.
@@ -320,12 +474,15 @@ Normal users should not need to manage tunnel profile names, keys, executable pa
 
 Goal: a new ChatGPT session can continue project work without depending on the previous conversation transcript.
 
-Future Workspace Memory may include:
+Future Workspace Memory should support Team Mode continuity across chat sessions, devices, agent changes, and team handoffs. It may include:
 
-- Current Task
-- Task History
+- Current Goal
+- Current Task and Subtasks
+- Completed Tasks and Task History
 - Checkpoints
-- Architecture Decisions
+- Decisions
+- Artifacts
+- Review Results
 - Open Questions
 - Last Successful Verification
 - Last Commit
