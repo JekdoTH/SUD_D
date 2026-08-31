@@ -357,7 +357,6 @@ export type DesktopConnectionSnapshotDto = z.infer<typeof DesktopConnectionSnaps
 
 export const DesktopConnectionTunnelSetupInputSchema = z.object({
   profileId: ConnectionProfileIdSchema,
-  tunnelReference: TunnelReferenceSchema,
 }).strict();
 export type DesktopConnectionTunnelSetupInput = z.infer<typeof DesktopConnectionTunnelSetupInputSchema>;
 

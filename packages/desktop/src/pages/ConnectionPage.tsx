@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DesktopConnectionSnapshotDto, WorkspaceDto } from '@sud-d/contracts';
 import {
+  canRestartConnection,
   deriveConnectionComponentStatuses,
   getConnectionPrimaryAction,
   presentConnectionState,
@@ -37,7 +38,6 @@ export function ConnectionPage(): React.ReactElement {
   const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [tunnelReference, setTunnelReference] = useState('');
 
   const refresh = useCallback(async () => {
     const [connectionResult, workspaceResult] = await Promise.all([
@@ -91,18 +91,17 @@ export function ConnectionPage(): React.ReactElement {
     await performLifecycle(primaryAction.action);
   };
 
-  const saveTunnelReference = async (): Promise<void> => {
-    if (!snapshot?.profile || !tunnelReference.trim()) return;
+  const setupSecureTunnel = async (): Promise<void> => {
+    if (!snapshot?.profile) return;
     setBusy(true);
     setError('');
     const result = await window.sudD.connection.configureTunnel({
       profileId: snapshot.profile.profileId,
-      tunnelReference: tunnelReference.trim(),
     });
     setBusy(false);
     if (result.ok) {
       setSnapshot(result.value);
-      setTunnelReference('');
+      await refresh();
     } else {
       setError(result.error.message);
     }
@@ -185,7 +184,7 @@ export function ConnectionPage(): React.ReactElement {
                   ? 'Restart connection'
                   : 'Connect ChatGPT'}
           </button>
-          {snapshot && snapshot.runtime.state !== 'stopped' && snapshot.runtime.state !== 'stopping' && (
+          {snapshot && canRestartConnection(snapshot.runtime.state) && (
             <button
               className="btn btn-ghost"
               disabled={busy || !snapshot.profile}
@@ -225,6 +224,22 @@ export function ConnectionPage(): React.ReactElement {
               </dd>
             </div>
           </dl>
+          {snapshot?.profile && !snapshot.profile.tunnelConfigured && snapshot.credentialStatus === 'configured' && (
+            <div className="advanced-setup">
+              <p className="card-description">SUD-D found the tunnel configuration on this device. Set it up once to connect ChatGPT.</p>
+              <button
+                id="connection-tunnel-setup"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => void setupSecureTunnel()}
+              >
+                {busy ? 'Working…' : 'Set up Secure Tunnel'}
+              </button>
+            </div>
+          )}
+          {snapshot?.profile?.tunnelConfigured && (
+            <p className="fine-print">Secure Tunnel is ready.</p>
+          )}
         </section>
 
         <section className="card">
@@ -287,30 +302,6 @@ export function ConnectionPage(): React.ReactElement {
             </div>
           )}
 
-          {!snapshot?.profile?.tunnelConfigured && snapshot?.profile && (
-            <div className="advanced-setup">
-              <div className="field">
-                <label htmlFor="tunnel-reference">Secure Tunnel reference</label>
-                <input
-                  id="tunnel-reference"
-                  className="input"
-                  type="password"
-                  autoComplete="off"
-                  value={tunnelReference}
-                  onChange={(event) => setTunnelReference(event.target.value)}
-                  placeholder="Paste the device tunnel reference"
-                />
-              </div>
-              <button
-                className="btn btn-ghost"
-                disabled={busy || !tunnelReference.trim()}
-                onClick={() => void saveTunnelReference()}
-              >
-                Save tunnel setup
-              </button>
-              <p className="fine-print">The saved reference is treated as non-secret configuration and is not returned to the renderer after saving.</p>
-            </div>
-          )}
         </div>
       </details>
     </>

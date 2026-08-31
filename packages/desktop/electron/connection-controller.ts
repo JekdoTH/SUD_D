@@ -3,6 +3,7 @@ import type {
   ConnectionService,
 } from '@sud-d/application';
 import {
+  appError,
   err,
   ok,
   type AppError,
@@ -195,9 +196,12 @@ export function createDesktopConnectionController(
         return err({ code: 'CONNECTION_PROFILE_NOT_FOUND', message: 'Connection profile not found' });
       }
 
-      const updated = options.configService.updateProfile(input.profileId, {
-        tunnelReference: input.tunnelReference,
-      });
+      const tunnelReference = nonEmptyEnvironmentValue(environment, 'CONTROL_PLANE_TUNNEL_ID');
+      if (!tunnelReference) {
+        return err(appError('VALIDATION_FAILED', 'Restart SUD-D to load the tunnel configuration.'));
+      }
+
+      const updated = options.configService.updateProfile(input.profileId, { tunnelReference });
       if (!updated.ok) return err(updated.error);
       cachedProfile = updated.value;
       return getSnapshot();

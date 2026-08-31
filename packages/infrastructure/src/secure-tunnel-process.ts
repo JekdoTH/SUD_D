@@ -35,6 +35,25 @@ function systemExecutable(name: string): string {
   return path.join(systemRoot, 'System32', name);
 }
 
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function isTunnelProcessStopFailure(
+  taskkillStatus: number | null,
+  childExitCode: number | null,
+  pid: number,
+  processAlive: (pid: number) => boolean = isProcessAlive,
+): boolean {
+  if (taskkillStatus === 0 || childExitCode !== null) return false;
+  return processAlive(pid);
+}
+
 function resolveByWhere(command: string, expectedBasename: string): string | undefined {
   try {
     const output = execFileSync(systemExecutable('where.exe'), [command], {
@@ -115,6 +134,7 @@ export function createWindowsTunnelProcessLauncher(): TunnelProcessLauncher {
       if (child.pid === undefined) {
         throw new ConnectionRuntimeFailure('TUNNEL_START_FAILED');
       }
+      const childPid = child.pid;
 
       const listeners = new Set<() => void>();
       childEvents.on('exit', () => {
@@ -122,19 +142,19 @@ export function createWindowsTunnelProcessLauncher(): TunnelProcessLauncher {
       });
 
       return {
-        pid: child.pid,
+        pid: childPid,
 
         stop(): void {
           if (child.exitCode !== null) return;
           const result = spawnSync(
             systemExecutable('taskkill.exe'),
-            ['/PID', String(child.pid), '/T', '/F'],
+            ['/PID', String(childPid), '/T', '/F'],
             {
               windowsHide: true,
               stdio: 'ignore',
             },
           );
-          if (result.status !== 0 && child.exitCode === null) {
+          if (isTunnelProcessStopFailure(result.status, child.exitCode, childPid)) {
             throw new ConnectionRuntimeFailure('TUNNEL_STOP_FAILED');
           }
         },

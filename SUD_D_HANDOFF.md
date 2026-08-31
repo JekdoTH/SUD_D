@@ -14,7 +14,7 @@ This integration changed agent documentation only at the time it was introduced.
 - Pre-Implementation Compliance Check is adopted before milestone implementation or any source-changing task.
 - M0.6 is COMPLETE.
 - M0.7 is COMPLETE after Doctor + Activity integration, security/redaction verification, production Desktop smoke, and required final code review.
-- M0.8 remains NEXT / NOT STARTED and requires a new explicit milestone instruction.
+- M0.8 is COMPLETE after Secure Tunnel setup UX hardening, real Home-PC control-plane/tunnel acceptance, clean stop/fresh-start verification, regression coverage, production Desktop smoke, and required final code review.
 
 ## Approved Future Direction
 
@@ -22,11 +22,88 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Milestone
 
-**M0.7 — Doctor + Activity Integration**
+**M0.8 — End-to-End Connection Acceptance**
 
-**Status: COMPLETE — implementation, security/redaction verification, M0.1–M0.6 regression, production Desktop smoke test, and required final code review passed 2026-08-31.**
+**Status: COMPLETE — Secure Tunnel setup UX, Home-PC real control-plane/tunnel acceptance, clean stop/fresh-start lifecycle, M0 regression, production Desktop smoke, and required final code review passed 2026-08-31.**
 
-M0.7 connects Environment / Doctor and Activity to real local state and existing audit infrastructure through bounded read-only diagnostics surfaces. It does **not** start M0.8, add privileged MCP tools, implement Tool Kernel/Policy/Approval/Recovery execution, add cloud identity/relay infrastructure, or expose generic process control.
+M0.8 validates the existing ChatGPT → OpenAI Secure MCP Tunnel → `tunnel-client` → stdio → inert SUD_D MCP Gateway path on Home-PC without adding privileged tools or weakening the M0 security boundaries. M1 Tool Execution Kernel is **NOT STARTED**.
+
+## M0.8 Status
+
+### Secure Tunnel Setup UX / Root Cause
+
+The pre-M0.8 Connection UI could show `Tunnel setup = Missing` even after `CONTROL_PLANE_TUNNEL_ID` had been configured at User scope when the running Electron process predated that environment change. The profile stored no tunnel reference yet, while the renderer-facing setup action still expected the user to paste a raw tunnel reference.
+
+M0.8 keeps the existing fixed `connection:tunnelSetup` path but makes it fixed-purpose end to end:
+
+- `DesktopConnectionTunnelSetupInput` now accepts only `profileId`; strict validation rejects tunnel references, env, credentials, executable, argv, cwd, and other extra fields.
+- `DesktopConnectionController.configureTunnel()` resolves `CONTROL_PLANE_TUNNEL_ID` only from the trusted backend process environment and persists it through the existing `ConnectionConfigService.updateProfile()` boundary.
+- plaintext `CONTROL_PLANE_API_KEY`, raw environment state, and the raw tunnel reference are never returned to the renderer.
+- Connection shows a non-technical **Set up Secure Tunnel** action when credential state is configured but tunnel setup is missing.
+- when the current SUD_D process cannot see a recently configured tunnel environment value, the action returns the safe guidance `Restart SUD-D to load the tunnel configuration.`
+- after setup is persisted, the renderer sees only `tunnelConfigured: true`, displays `Secure Tunnel is ready.`, and enables **Connect ChatGPT** when workspace/credential prerequisites are also ready.
+- Overview routes its tunnel-setup CTA into the same Connection flow; no second setup API was introduced.
+- the auxiliary Restart button is now gated to `connected | degraded | error`, matching the states accepted by `ConnectionService.restart()` instead of offering Restart during transient states such as `waiting_for_client`.
+
+### Windows Stop Acceptance Fix
+
+Real M0.8 acceptance found a Windows process-tree race in the existing fixed internal `taskkill.exe /T /F` cleanup. `taskkill` can return a non-zero status when a descendant disappears during tree termination even though the owned tunnel-client root PID has already exited. The previous adapter interpreted that race as `TUNNEL_STOP_FAILED`, followed by `TUNNEL_EXITED_UNEXPECTEDLY`.
+
+The launcher now treats a non-zero `taskkill` result as failure only when the owned root PID is still alive. This remains a fixed internal process boundary: renderer input cannot select the executable, PID, arguments, cwd, or environment, and actual surviving-process failures remain fail-closed.
+
+### M0.8 Home-PC Acceptance
+
+Fresh production-bundle acceptance on Home-PC verified:
+
+1. active workspace configured
+2. `CONTROL_PLANE_API_KEY` configured without exposing plaintext
+3. dedicated SUD_D Home tunnel configured; Serena tooling tunnel was not reused
+4. production runtime start reaches `Waiting for ChatGPT` after local tunnel readiness
+5. `tunnel-client health --require-control-plane-poll` observes a real successful OpenAI control-plane poll
+6. generated SUD_D-owned tunnel profile targets the fixed `packages/mcp-gateway/dist/stdio-entry.js`
+7. MCP `initialize` returns server identity `SUD-D`
+8. `tools/list` returns `[]`, preserving the inert M0 gateway
+9. direct Disconnect produces a clean stopped state
+10. a fresh start after stop again reaches real control-plane/tunnel readiness and the SUD_D Gateway remains available
+
+The local acceptance harness used `CONTROL_PLANE_POLL_TIMEOUT=2s` only in the child-process test environment to shorten the default long-poll wait; production source, tunnel identity, endpoint, credential scope, and security policy were not changed for the acceptance.
+
+### M0.8 Security Boundaries
+
+- Renderer setup input is `profileId` only; no arbitrary tunnel ID or raw environment input crosses IPC.
+- Renderer still cannot select executable, argv, cwd, env, PID, or generic process operations.
+- Credentials remain session-only/environment-backed and are exposed to UI only as `configured | missing`.
+- Tunnel reference persistence continues through the existing non-secret connection-profile repository; renderer snapshots expose only `tunnelConfigured`.
+- Connection-profile audit metadata does not include tunnel reference or credential values.
+- The dedicated Home-PC SUD_D tunnel is resolved only from the configured backend reference; production code does not select or infer a tunnel by name and does not reuse the Serena tooling profile.
+- MCP Gateway remains inert with zero privileged tools. M1 policy/tool execution was not started.
+
+### M0.8 Verification Results
+
+Fresh verification after the final lifecycle/UI fixes:
+
+- focused M0.5 + M0.6 tests: **49/49 passed**
+- remaining M0 regression (M0.1–M0.4 + M0.7): **147/147 passed**
+- full suite: **196/196 passed**
+- lint: **PASS**
+- typecheck: **PASS**
+- build: **PASS** for all packages and Desktop production bundles
+- `git diff --check`: **PASS**
+- Desktop production smoke: **PASS** with persisted Secure Tunnel setup, safe configured-state UI, and enabled Connect action
+- real Home-PC M0.8 acceptance: **PASS** for control-plane poll, dedicated SUD_D tunnel, gateway target, MCP identity, inert `tools/list`, clean stop, and fresh start
+
+### Required M0.8 Code Review
+
+Final review used the attached `code-review` skill methodology against fixed baseline `6826f86df3944e51d6ad21755e21c60e5f8f45f7`, with separate Standards and Spec passes over the working-tree diff before commit.
+
+- **Standards:** no blocking finding. Strict IPC and secret boundaries remain intact; the Windows stop compatibility change stays inside the fixed internal runtime adapter. Minor duplicated tunnel-setup presentation conditions between Overview and Connection are a judgement-call smell and were intentionally not refactored outside M0.8.
+- **Spec:** no blocking finding after fixes. Acceptance discovered and closed the `taskkill` tree-race stop failure and the Restart-button/transient-state mismatch. The implementation reuses the existing M0.6 setup channel/service path and does not introduce generic tunnel/process configuration or privileged MCP behavior.
+
+### M0.8 Known Issues / Open Questions
+
+- The existing M0.5 client-connected signal seam is still not wired across the production tunnel-client process, so ConnectionService remains `waiting_for_client` instead of synthesizing a false `connected` state. M0.8 did not invent telemetry to hide that limitation.
+- Credential storage remains session-only/environment-backed; secure persistent Windows credential storage remains future work and must preserve the no-plaintext-persistence rule.
+- Further Connection UI/UX simplification is intentionally deferred to the separate post-M0.8 UX task requested by the user; M1 is not part of that work.
 
 ## M0.7 Status
 
@@ -152,7 +229,7 @@ Final review used two independent axes against fixed baseline `12ff6122b7f1ff428
 
 ### Recommendation for M0.8
 
-Next roadmap milestone is **M0.8 — End-to-End Connection Acceptance**, but it is **NOT STARTED**. Preserve the current inert MCP Gateway and security boundaries; M0.8 should validate the already implemented connection path rather than introduce privileged tools or new product scope.
+Historical M0.7 handoff recommendation: M0.8 should validate the already implemented connection path while preserving the inert MCP Gateway and security boundaries. M0.8 was subsequently completed in the milestone recorded above without introducing privileged tools or new product scope.
 
 ## M0.6 Status
 
@@ -648,9 +725,9 @@ Exit code 0
 
 ## Immediate Next Action
 
-M0.7 is complete. The next roadmap milestone is **M0.8 — End-to-End Connection Acceptance**, but it has **not** been started and is not authorized by this handoff.
+M0.8 is complete. **Do not start M1 Tool Execution Kernel without a new explicit milestone instruction.**
 
-Before any M0.8 implementation, obtain a new explicit milestone instruction. Preserve the existing narrow Connection/Diagnostics IPC, credential boundary, audit redaction, workspace binding, inert MCP Gateway, and no-generic-process-control invariants.
+The next requested work is a separate Connection UI/UX improvement task focused on making setup/connect/start/stop easier to test without PowerShell. That future UX task must preserve the existing narrow Connection IPC, credential/tunnel-reference boundary, audit redaction, workspace binding, inert MCP Gateway, and no-generic-process-control invariants; it does not authorize M1.
 
 ## Last Commit SHA
 
@@ -688,6 +765,6 @@ Current pushed baseline before M0.5:
 
 ## Stop Gate
 
-M0.7 is complete only as the Doctor + Activity Integration milestone described above.
+M0.8 is complete only as the End-to-End Connection Acceptance milestone described above.
 
-Do **not** start M0.8 End-to-End Connection Acceptance, privileged MCP tools, Tool Kernel, or any later milestone without a new explicit implementation instruction.
+Do **not** start M1 Tool Execution Kernel, privileged MCP tools, Policy/Approval execution, or any later milestone without a new explicit implementation instruction.

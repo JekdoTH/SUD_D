@@ -66,6 +66,12 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
     () => connection ? getConnectionPrimaryAction(connection, Boolean(activeWorkspace)) : null,
     [connection, activeWorkspace],
   );
+  const needsTunnelSetup = Boolean(
+    connection?.profile &&
+    connection.credentialStatus === 'configured' &&
+    !connection.profile.tunnelConfigured &&
+    connection.runtime.state === 'stopped',
+  );
 
   const runPrimaryAction = async (): Promise<void> => {
     if (!connection?.profile || !primaryAction?.enabled) return;
@@ -132,16 +138,18 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
             <button
               id="overview-primary-connection-action"
               className="btn btn-primary"
-              disabled={busy || !primaryAction?.enabled}
-              onClick={() => void runPrimaryAction()}
+              disabled={busy || (!needsTunnelSetup && !primaryAction?.enabled)}
+              onClick={() => needsTunnelSetup ? onNavigate('connection') : void runPrimaryAction()}
             >
               {busy
                 ? 'Working…'
-                : primaryAction?.action === 'disconnect'
-                  ? 'Disconnect'
-                  : primaryAction?.action === 'restart'
-                    ? 'Restart'
-                    : 'Connect ChatGPT'}
+                : needsTunnelSetup
+                  ? 'Set up Secure Tunnel'
+                  : primaryAction?.action === 'disconnect'
+                    ? 'Disconnect'
+                    : primaryAction?.action === 'restart'
+                      ? 'Restart'
+                      : 'Connect ChatGPT'}
             </button>
             <button className="btn btn-ghost" onClick={() => onNavigate('connection')}>Connection details</button>
           </div>

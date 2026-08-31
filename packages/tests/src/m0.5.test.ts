@@ -430,6 +430,21 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
     expect(healthProbe.stopCalls).toBe(1);
   });
 
+  it('treats a Windows taskkill tree race as a clean stop when the root PID is already gone', async () => {
+    const api = await import('../../infrastructure/src/secure-tunnel-process.js') as unknown as {
+      isTunnelProcessStopFailure(
+        taskkillStatus: number | null,
+        childExitCode: number | null,
+        pid: number,
+        isProcessAlive: (pid: number) => boolean,
+      ): boolean;
+    };
+
+    expect(api.isTunnelProcessStopFailure(255, null, 1234, () => false)).toBe(false);
+    expect(api.isTunnelProcessStopFailure(255, null, 1234, () => true)).toBe(true);
+    expect(api.isTunnelProcessStopFailure(0, null, 1234, () => true)).toBe(false);
+  });
+
   it('does not spawn a duplicate tunnel process on duplicate start', async () => {
     const { profile, processLauncher, service } = await makeHarness();
     expect(service.start(profile.profileId).ok).toBe(true);

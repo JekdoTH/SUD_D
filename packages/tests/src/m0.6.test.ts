@@ -26,6 +26,7 @@ import { FakeConnectionRuntime } from './fakes/fake-connection-runtime.js';
 import { createDesktopConnectionController } from '../../desktop/electron/connection-controller.js';
 import { registerDesktopConnectionIpcHandlers } from '../../desktop/electron/connection-ipc.js';
 import {
+  canRestartConnection,
   deriveConnectionComponentStatuses,
   getConnectionPrimaryAction,
   presentConnectionState,
@@ -125,24 +126,21 @@ describe('M0.6 — renderer-facing connection contracts', () => {
     }
   });
 
-  it('rejects arbitrary command/process fields from the safe tunnel setup input', () => {
+  it('accepts only profileId for fixed-purpose Secure Tunnel setup', () => {
     const profileId = '00000000-0000-4000-8000-000000000606';
-    expect(DesktopConnectionTunnelSetupInputSchema.parse({
-      profileId,
-      tunnelReference: 'tunnel_home',
-    })).toEqual({ profileId, tunnelReference: 'tunnel_home' });
+    expect(DesktopConnectionTunnelSetupInputSchema.parse({ profileId })).toEqual({ profileId });
 
     for (const extra of [
+      { tunnelReference: 'tunnel_home' },
       { command: 'cmd.exe' },
       { executable: 'powershell.exe' },
       { cwd: 'C:\\' },
       { argv: ['--unsafe'] },
-      { env: { SECRET: 'value' } },
+      { env: { CONTROL_PLANE_TUNNEL_ID: 'tunnel_home' } },
       { credential: 'plaintext-secret' },
     ]) {
       expect(DesktopConnectionTunnelSetupInputSchema.safeParse({
         profileId,
-        tunnelReference: 'tunnel_home',
         ...extra,
       }).success).toBe(false);
     }
@@ -237,21 +235,40 @@ describe('M0.6 — Desktop connection controller', () => {
     expect(runtime.stopCalls).toBe(1);
   });
 
-  it('can store a non-secret tunnel reference without ever returning its raw value', () => {
+  it('resolves the configured tunnel reference from the trusted backend environment', () => {
+    const environment: NodeJS.ProcessEnv = { CONTROL_PLANE_API_KEY: 'sk-session-only' };
+    const { controller } = makeHarness(environment);
+    const initial = controller.getSnapshot();
+    expect(initial.ok).toBe(true);
+    if (!initial.ok || !initial.value.profile) return;
+    expect(initial.value.profile.tunnelConfigured).toBe(false);
+
+    environment.CONTROL_PLANE_TUNNEL_ID = 'tunnel_home';
+    const updated = controller.configureTunnel({
+      profileId: initial.value.profile.profileId,
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    expect(updated.value.profile?.tunnelConfigured).toBe(true);
+    expect(getConnectionPrimaryAction(updated.value, true)).toEqual({ action: 'connect', enabled: true });
+    expect(JSON.stringify(updated.value)).not.toContain('tunnel_home');
+  });
+
+  it('returns safe restart guidance when the backend process cannot see tunnel configuration', () => {
     const { controller } = makeHarness({ CONTROL_PLANE_API_KEY: 'sk-session-only' });
     const initial = controller.getSnapshot();
     expect(initial.ok).toBe(true);
     if (!initial.ok || !initial.value.profile) return;
     expect(initial.value.profile.tunnelConfigured).toBe(false);
 
-    const updated = controller.configureTunnel({
-      profileId: initial.value.profile.profileId,
-      tunnelReference: 'tunnel_home',
+    const result = controller.configureTunnel({ profileId: initial.value.profile.profileId });
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: 'VALIDATION_FAILED',
+        message: 'Restart SUD-D to load the tunnel configuration.',
+      },
     });
-    expect(updated.ok).toBe(true);
-    if (!updated.ok) return;
-    expect(updated.value.profile?.tunnelConfigured).toBe(true);
-    expect(JSON.stringify(updated.value)).not.toContain('tunnel_home');
   });
 
   it('does not append audit events when the renderer polls an unchanged snapshot', () => {
@@ -384,6 +401,33 @@ describe('M0.6 — Desktop connection IPC wiring', () => {
     expect(result).toEqual({ ok: true, value: snapshot });
   });
 
+  it('accepts fixed-purpose tunnel setup and rejects raw tunnel/process input', async () => {
+    const { handlers, configureTunnel } = makeIpcHarness();
+    const input = { profileId: '00000000-0000-4000-8000-000000000606' };
+
+    const valid = await handlers.get(IPC_CHANNELS.CONNECTION_TUNNEL_SETUP)?.(
+      { sender: { id: 1 } },
+      input,
+    );
+    expect(configureTunnel).toHaveBeenCalledWith(input);
+    expect(valid).toEqual({ ok: true, value: snapshot });
+
+    configureTunnel.mockClear();
+    const invalid = await handlers.get(IPC_CHANNELS.CONNECTION_TUNNEL_SETUP)?.(
+      { sender: { id: 1 } },
+      {
+        ...input,
+        tunnelReference: 'tunnel_home',
+        executable: 'powershell.exe',
+        argv: ['x'],
+        cwd: 'C:\\',
+        env: { CONTROL_PLANE_TUNNEL_ID: 'tunnel_home' },
+      },
+    );
+    expect(invalid).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
+    expect(configureTunnel).not.toHaveBeenCalled();
+  });
+
   it('validates safe preference updates before forwarding to the controller', async () => {
     const { handlers, updatePreferences } = makeIpcHarness();
     const input = {
@@ -435,6 +479,17 @@ describe('M0.6 — connection presentation model', () => {
     expect(deriveConnectionComponentStatuses('error')).toEqual({
       gateway: 'error', tunnel: 'error', client: 'disconnected',
     });
+  });
+
+  it('shows Restart only in states that ConnectionService.restart accepts', () => {
+    expect(canRestartConnection('connected')).toBe(true);
+    expect(canRestartConnection('degraded')).toBe(true);
+    expect(canRestartConnection('error')).toBe(true);
+    expect(canRestartConnection('stopped')).toBe(false);
+    expect(canRestartConnection('starting')).toBe(false);
+    expect(canRestartConnection('waiting_for_tunnel')).toBe(false);
+    expect(canRestartConnection('waiting_for_client')).toBe(false);
+    expect(canRestartConnection('stopping')).toBe(false);
   });
 
   it('enables Connect only when workspace, tunnel, and credential prerequisites are ready', () => {
@@ -497,6 +552,27 @@ describe('M0.6 — renderer page safety surfaces', () => {
     expect(source).toContain('stdio');
     expect(source).toContain('Advanced details');
     expect(source).not.toMatch(/raw command|executable path|argv|cwd|environment variable values/i);
+  });
+
+  it('offers non-technical Secure Tunnel setup without renderer tunnel input', () => {
+    const source = fs.readFileSync(
+      path.join(process.cwd(), 'packages/desktop/src/pages/ConnectionPage.tsx'),
+      'utf8',
+    );
+    expect(source).toContain('Set up Secure Tunnel');
+    expect(source).toContain('SUD-D found the tunnel configuration on this device.');
+    expect(source).toContain('Secure Tunnel is ready.');
+    expect(source).not.toMatch(/tunnelReference|Secure Tunnel reference|Paste the device tunnel reference/i);
+  });
+
+  it('routes Overview tunnel setup CTA to the safe Connection flow', () => {
+    const source = fs.readFileSync(
+      path.join(process.cwd(), 'packages/desktop/src/pages/HomePage.tsx'),
+      'utf8',
+    );
+    expect(source).toContain('Set up Secure Tunnel');
+    expect(source).toContain("onNavigate('connection')");
+    expect(source).not.toMatch(/tunnelReference|CONTROL_PLANE_TUNNEL_ID/);
   });
 
   it('defines Recovery as an honest unavailable milestone instead of a fake recovery engine', () => {

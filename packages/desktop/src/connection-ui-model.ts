@@ -47,6 +47,10 @@ export function presentConnectionState(state: ConnectionStateDto): ConnectionSta
   }
 }
 
+export function canRestartConnection(state: ConnectionStateDto): boolean {
+  return state === 'connected' || state === 'degraded' || state === 'error';
+}
+
 export function deriveConnectionComponentStatuses(state: ConnectionStateDto): ConnectionComponentStatuses {
   switch (state) {
     case 'stopped':
