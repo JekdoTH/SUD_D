@@ -18,7 +18,7 @@ import { checkDataDirectory, checkWorkspaceRoot } from '@sud-d/infrastructure';
 import {
   createConnectionProfileRepository,
   createOpenAiSecureTunnelRuntime,
-  createTunnelEnvironmentCredentialStore,
+  createWindowsCredentialStore,
   isMcpGatewayEntryAvailable,
   isOpenAiSecureTunnelClientAvailable,
 } from '@sud-d/infrastructure';
@@ -70,7 +70,7 @@ const internalRoots: InternalRoot[] = dataRootCanonical.ok
 
 const workspaceService = createWorkspaceService(workspaceRepo, auditRepo, internalRoots);
 const connectionProfileRepo = createConnectionProfileRepository(db);
-const connectionCredentialStore = createTunnelEnvironmentCredentialStore(process.env);
+const connectionCredentialStore = createWindowsCredentialStore(process.env);
 const connectionConfigService = createConnectionConfigService(
   connectionProfileRepo,
   connectionCredentialStore,

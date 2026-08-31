@@ -17,18 +17,60 @@ Verification for this clarification: the complete documentation diff was reviewe
 - M0.6 is COMPLETE.
 - M0.7 is COMPLETE after Doctor + Activity integration, security/redaction verification, production Desktop smoke, and required final code review.
 - M0.8 is COMPLETE after Secure Tunnel setup UX hardening, real Home-PC control-plane/tunnel acceptance, clean stop/fresh-start verification, regression coverage, production Desktop smoke, and required final code review.
+- Post-M0.8 Secure Runtime API Key Setup is COMPLETE: SUD-D now supports Windows Credential Manager persistence through a Windows-native credential prompt, fixed profileId-only IPC, stopped-only credential mutation, stored-before-environment runtime preparation, and safe Set / Replace / Remove UI controls without exposing plaintext credentials to the renderer.
 
 ## Approved Future Direction
 
 Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic Personal AI Team Harness direction. It remains above the secure SUD_D execution boundary, and Serena is optional rather than a core runtime dependency. Exact architecture, presets, runtime, scheduling, memory format, UI, and milestones remain deferred; this decision does not change the current milestone or authorize implementation.
 
-## Current Milestone
+## Current Execution State
 
-**M0.8 — End-to-End Connection Acceptance**
+**Post-M0.8 Foundation — Secure Runtime API Key Setup**
 
-**Status: COMPLETE — Secure Tunnel setup UX, Home-PC real control-plane/tunnel acceptance, clean stop/fresh-start lifecycle, M0 regression, production Desktop smoke, and required final code review passed 2026-08-31.**
+**Status: COMPLETE — Windows Credential Manager persistence, Windows-native credential prompt, fixed profileId-only credential IPC, safe lifecycle gating, regression/security verification, production native-prompt cancellation smoke, and final review passed 2026-08-31.**
 
-M0.8 validates the existing ChatGPT → OpenAI Secure MCP Tunnel → `tunnel-client` → stdio → inert SUD_D MCP Gateway path on Home-PC without adding privileged tools or weakening the M0 security boundaries. M1 Tool Execution Kernel is **NOT STARTED**.
+This is a post-M0.8 foundation task, not M1. It unblocks the separately requested Connection UI/UX Simplification work while preserving the inert MCP Gateway and all M0 security boundaries. M1 Tool Execution Kernel is **NOT STARTED**.
+
+## Post-M0.8 Secure Runtime API Key Setup
+
+SUD-D now provides a Windows-first persistent Runtime API Key boundary without requiring PowerShell or user-managed environment configuration for normal setup:
+
+- `connection:credentialSetup` and `connection:credentialRemove` are fixed-purpose renderer actions with strict `{ profileId }` schemas; secret/process-shaped extra fields are rejected.
+- The renderer never sends an API Key string, never receives a plaintext credential, and exposes only `credentialStatus = configured | missing`.
+- Electron main uses `ConnectionConfigService` and a managed credential-store boundary backed by Windows Credential Manager.
+- The native setup action uses a Windows credential prompt and writes the credential directly to Windows Credential Manager; no credential getter or generic vault IPC exists.
+- Set / Replace / Remove are allowed only while the connection runtime is `stopped`; active states fail closed with safe guidance to disconnect first.
+- Runtime start prefers a stored Windows credential, then an already-derived session credential, then legacy backend `CONTROL_PLANE_API_KEY` as a session-only fallback. Legacy environment credentials are never copied into Windows Credential Manager automatically.
+- Secure Tunnel generated profiles continue to reference the fixed derived environment variable; plaintext keys do not enter SQLite, profile persistence, argv, renderer DTOs, audit metadata, or normal errors.
+- Remove deletes the Windows-stored credential and derived session value without retrieving the old secret. If a legacy backend environment fallback still exists, effective renderer status correctly remains `configured` and audit does not falsely claim `missing`.
+- Koffi `3.1.6` is used only inside the trusted infrastructure/main-process boundary to call the fixed Win32 CredUI / Credential Manager APIs. The native loader remains external in the Electron main bundle and is declared as a Desktop runtime dependency so its prebuilt Windows binary resolves correctly.
+
+### Verification / Acceptance
+
+Fresh final verification after the final audit-correctness fix:
+
+- focused secure Runtime API Key tests: **18/18 passed**
+- full suite: **214/214 passed**
+- lint: **PASS**
+- typecheck: **PASS**
+- build: **PASS** for all packages and Desktop renderer/main/preload bundles
+- `git diff --check`: **PASS**
+- isolated Windows Credential Manager integration: **PASS** for write → materialize → delete with cleanup
+- manual production native-prompt smoke: **PASS** — `Replace API Key` launched the native Windows prompt; user Cancel returned safely without crash, renderer action recovered, no password input/raw credential text appeared, test Electron processes were cleaned, and no isolated `SUD_D/Test` credential targets remained
+- secret scan: **PASS** — no configured environment credential/tunnel values, derived credential values, long `sk-...` token patterns, or private-key markers found in the source/doc diff
+
+### Final Review
+
+The repository-routed canonical `code-review` skill was not exposed in this runtime. Final review therefore used the established repository fallback: installed `requesting-code-review` methodology plus separate Standards and Spec passes over the working-tree diff.
+
+- **Standards:** no blocking findings after review. Renderer/IPC trust boundaries remain narrow, credential storage is Windows-native, secret-bearing values are not persisted or surfaced, native FFI is internal-only, and packaging keeps the Koffi native loader external and resolvable.
+- **Spec:** one blocking correctness finding was found and fixed before completion: credential removal audit previously claimed `status: missing` even when legacy environment fallback kept the effective credential configured. A RED regression test was added, the audit metadata was corrected, and all final gates were rerun successfully.
+
+### Known Issue / Compatibility Note
+
+- Legacy `CONTROL_PLANE_API_KEY` remains supported as a backend session-only migration/development fallback. Removing a Windows-stored credential does not modify a User environment variable; therefore effective status can remain configured until that legacy environment configuration is removed outside SUD-D.
+- The existing M0.5 production client-connected signal limitation remains unchanged: the runtime can remain `waiting_for_client` until a real client-connected signal is wired in a future separately approved task.
+- Connection UI/UX Simplification remains the next requested product task. It is not part of this implementation and M1 remains not started.
 
 ## M0.8 Status
 
@@ -74,7 +116,7 @@ The local acceptance harness used `CONTROL_PLANE_POLL_TIMEOUT=2s` only in the ch
 
 - Renderer setup input is `profileId` only; no arbitrary tunnel ID or raw environment input crosses IPC.
 - Renderer still cannot select executable, argv, cwd, env, PID, or generic process operations.
-- Credentials remain session-only/environment-backed and are exposed to UI only as `configured | missing`.
+- At M0.8 completion, credentials remained session-only/environment-backed and were exposed to UI only as `configured | missing`; the post-M0.8 Secure Runtime API Key Setup section above supersedes that storage limitation with Windows Credential Manager while preserving the same renderer-facing status boundary.
 - Tunnel reference persistence continues through the existing non-secret connection-profile repository; renderer snapshots expose only `tunnelConfigured`.
 - Connection-profile audit metadata does not include tunnel reference or credential values.
 - The dedicated Home-PC SUD_D tunnel is resolved only from the configured backend reference; production code does not select or infer a tunnel by name and does not reuse the Serena tooling profile.
@@ -104,7 +146,7 @@ Final review used the attached `code-review` skill methodology against fixed bas
 ### M0.8 Known Issues / Open Questions
 
 - The existing M0.5 client-connected signal seam is still not wired across the production tunnel-client process, so ConnectionService remains `waiting_for_client` instead of synthesizing a false `connected` state. M0.8 did not invent telemetry to hide that limitation.
-- Credential storage remains session-only/environment-backed; secure persistent Windows credential storage remains future work and must preserve the no-plaintext-persistence rule.
+- Historical note: credential storage was still session-only/environment-backed at M0.8 completion. The post-M0.8 Secure Runtime API Key Setup section above now supersedes this limitation with Windows Credential Manager persistence while preserving the no-plaintext-persistence/no-getter rules.
 - Further Connection UI/UX simplification is intentionally deferred to the separate post-M0.8 UX task requested by the user; M1 is not part of that work.
 
 ## M0.7 Status
@@ -719,7 +761,7 @@ Exit code 0
 ## Open Issues
 
 1. The M0.5 production adapter reaches `waiting_for_client` after tunnel readiness. A production cross-process client-connected signal is not yet wired; a fixed signal seam exists for later integration.
-2. Credential storage remains session-only environment-backed; secure persistent Windows credential storage is still deferred and must preserve the existing no-getter/no-plaintext-persistence rule.
+2. Persistent Runtime API Key storage is now Windows Credential Manager-backed. Legacy `CONTROL_PLANE_API_KEY` remains only as a backend session-only migration/development fallback and is never silently persisted; removing the Windows-stored credential does not modify a User environment variable.
 3. The current fixed gateway entry is JavaScript and therefore validates a trusted installed `node.exe`, while the tunnel profile command uses the `node` executable token for `tunnel-client` Windows command parsing compatibility. Future packaged runtime distribution may choose a bundled/fixed runtime, but renderer-controlled executable selection must remain forbidden.
 4. Windows process cleanup uses fixed internal `taskkill.exe /T /F` because the current M0.3 lifecycle port is synchronous; no generic process-control API is exposed.
 5. `.serena/` remains local tooling state and must not be committed.
@@ -727,9 +769,9 @@ Exit code 0
 
 ## Immediate Next Action
 
-M0.8 is complete. **Do not start M1 Tool Execution Kernel without a new explicit milestone instruction.**
+M0.8 and the post-M0.8 Secure Runtime API Key Setup foundation are complete. **Do not start M1 Tool Execution Kernel without a new explicit milestone instruction.**
 
-The next requested work is a separate Connection UI/UX improvement task focused on making setup/connect/start/stop easier to test without PowerShell. That future UX task must preserve the existing narrow Connection IPC, credential/tunnel-reference boundary, audit redaction, workspace binding, inert MCP Gateway, and no-generic-process-control invariants; it does not authorize M1.
+The next requested work remains the separate Connection UI/UX Simplification task focused on making workspace/key/tunnel setup and connect/start/stop/restart flows easier for normal use and development testing without PowerShell. That future UX task must reuse the fixed credential setup/remove actions and existing tunnel lifecycle IPC, preserve credential/tunnel-reference boundaries, audit redaction, workspace binding, inert MCP Gateway, and no-generic-process-control invariants; it does not authorize M1.
 
 ## Last Commit SHA
 

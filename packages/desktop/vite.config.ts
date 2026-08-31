@@ -24,9 +24,9 @@ export default defineConfig({
           resolve: { alias: workspaceAliases },
           build: {
             outDir: path.join(__dirname, 'dist-electron'),
-            // better-sqlite3 is a native addon — must remain external
+            // Native addons and native FFI loaders must remain external so their prebuilt binaries resolve at runtime.
             rollupOptions: {
-              external: ['better-sqlite3'],
+              external: ['better-sqlite3', 'koffi'],
             },
           },
         },

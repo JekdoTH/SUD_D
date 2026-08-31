@@ -25,6 +25,8 @@ export const IPC_CHANNELS = {
   CONNECTION_STOP: 'connection:stop',
   CONNECTION_RESTART: 'connection:restart',
   CONNECTION_TUNNEL_SETUP: 'connection:tunnelSetup',
+  CONNECTION_CREDENTIAL_SETUP: 'connection:credentialSetup',
+  CONNECTION_CREDENTIAL_REMOVE: 'connection:credentialRemove',
   CONNECTION_PREFERENCES_UPDATE: 'connection:preferences:update',
   ACTIVITY_LIST: 'activity:list',
 } as const;
@@ -359,6 +361,16 @@ export const DesktopConnectionTunnelSetupInputSchema = z.object({
   profileId: ConnectionProfileIdSchema,
 }).strict();
 export type DesktopConnectionTunnelSetupInput = z.infer<typeof DesktopConnectionTunnelSetupInputSchema>;
+
+export const DesktopConnectionCredentialSetupInputSchema = z.object({
+  profileId: ConnectionProfileIdSchema,
+}).strict();
+export type DesktopConnectionCredentialSetupInput = z.infer<typeof DesktopConnectionCredentialSetupInputSchema>;
+
+export const DesktopConnectionCredentialRemoveInputSchema = z.object({
+  profileId: ConnectionProfileIdSchema,
+}).strict();
+export type DesktopConnectionCredentialRemoveInput = z.infer<typeof DesktopConnectionCredentialRemoveInputSchema>;
 
 export const DesktopConnectionPreferencesUpdateInputSchema = z.object({
   profileId: ConnectionProfileIdSchema,

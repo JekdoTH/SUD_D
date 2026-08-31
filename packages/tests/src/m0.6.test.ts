@@ -218,7 +218,9 @@ describe('M0.6 — Desktop connection controller', () => {
     expect(Object.keys(controller).sort()).toEqual([
       'configureTunnel',
       'getSnapshot',
+      'removeCredential',
       'restart',
+      'setupCredential',
       'start',
       'stop',
       'updatePreferences',
@@ -332,6 +334,8 @@ describe('M0.6 — Desktop connection IPC wiring', () => {
     const start = vi.fn(() => ({ ok: true as const, value: snapshot }));
     const stop = vi.fn(() => ({ ok: true as const, value: snapshot }));
     const restart = vi.fn(() => ({ ok: true as const, value: snapshot }));
+    const setupCredential = vi.fn(() => ({ ok: true as const, value: snapshot }));
+    const removeCredential = vi.fn(() => ({ ok: true as const, value: snapshot }));
     const configureTunnel = vi.fn(() => ({ ok: true as const, value: snapshot }));
     const updatePreferences = vi.fn(() => ({ ok: true as const, value: snapshot }));
     const getSnapshot = vi.fn(() => ({ ok: true as const, value: snapshot }));
@@ -345,11 +349,11 @@ describe('M0.6 — Desktop connection IPC wiring', () => {
           handlers.set(channel, listener);
         },
       },
-      { getSnapshot, start, stop, restart, configureTunnel, updatePreferences },
+      { getSnapshot, start, stop, restart, setupCredential, removeCredential, configureTunnel, updatePreferences },
       () => senderValid,
     );
 
-    return { handlers, start, stop, restart, configureTunnel, updatePreferences, getSnapshot };
+    return { handlers, start, stop, restart, setupCredential, removeCredential, configureTunnel, updatePreferences, getSnapshot };
   }
 
   it('registers only the approved fixed connection actions', () => {
@@ -359,6 +363,8 @@ describe('M0.6 — Desktop connection IPC wiring', () => {
       IPC_CHANNELS.CONNECTION_START,
       IPC_CHANNELS.CONNECTION_STATUS,
       IPC_CHANNELS.CONNECTION_STOP,
+      IPC_CHANNELS.CONNECTION_CREDENTIAL_SETUP,
+      IPC_CHANNELS.CONNECTION_CREDENTIAL_REMOVE,
       IPC_CHANNELS.CONNECTION_TUNNEL_SETUP,
       IPC_CHANNELS.CONNECTION_PREFERENCES_UPDATE,
     ].sort());

@@ -23,7 +23,7 @@ import type {
   CredentialStore,
   WorkspaceRepository,
 } from '@sud-d/infrastructure';
-import { validateWorkspaceRoot } from '@sud-d/infrastructure';
+import { isManagedCredentialStore, validateWorkspaceRoot } from '@sud-d/infrastructure';
 import type {
   ConnectionRuntimeEvent,
   ConnectionRuntimePort,
@@ -227,7 +227,21 @@ export function createConnectionService(
     }
     const profile = profileResult.value;
 
-    if (!credentialStore.hasCredential(profileId)) {
+    let credentialReady: boolean;
+    try {
+      credentialReady = isManagedCredentialStore(credentialStore)
+        ? credentialStore.prepareCredential(profileId)
+        : credentialStore.hasCredential(profileId);
+    } catch {
+      const unavailableCredential = appError(
+        'INTERNAL_ERROR',
+        'Runtime API Key is unavailable',
+      );
+      audit('connection.failed', unavailableCredential.code, { operation: 'start', profileId });
+      return fail(unavailableCredential);
+    }
+
+    if (!credentialReady) {
       const missingCredential = appError(
         'CONNECTION_CREDENTIAL_MISSING',
         'Connection credential is not configured',

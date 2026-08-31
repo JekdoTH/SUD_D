@@ -91,6 +91,38 @@ export function ConnectionPage(): React.ReactElement {
     await performLifecycle(primaryAction.action);
   };
 
+  const setupRuntimeKey = async (): Promise<void> => {
+    if (!snapshot?.profile) return;
+    setBusy(true);
+    setError('');
+    const result = await window.sudD.connection.setupCredential({
+      profileId: snapshot.profile.profileId,
+    });
+    setBusy(false);
+    if (result.ok) {
+      setSnapshot(result.value);
+      await refresh();
+    } else {
+      setError(result.error.message);
+    }
+  };
+
+  const removeRuntimeKey = async (): Promise<void> => {
+    if (!snapshot?.profile) return;
+    setBusy(true);
+    setError('');
+    const result = await window.sudD.connection.removeCredential({
+      profileId: snapshot.profile.profileId,
+    });
+    setBusy(false);
+    if (result.ok) {
+      setSnapshot(result.value);
+      await refresh();
+    } else {
+      setError(result.error.message);
+    }
+  };
+
   const setupSecureTunnel = async (): Promise<void> => {
     if (!snapshot?.profile) return;
     setBusy(true);
@@ -208,7 +240,7 @@ export function ConnectionPage(): React.ReactElement {
             <div><dt>Provider</dt><dd>OpenAI Secure MCP Tunnel</dd></div>
             <div><dt>Transport</dt><dd>stdio</dd></div>
             <div>
-              <dt>Credential</dt>
+              <dt>Runtime Key</dt>
               <dd>
                 <span className={`badge ${snapshot?.credentialStatus === 'configured' ? 'badge-green' : 'badge-yellow'}`}>
                   {snapshot?.credentialStatus === 'configured' ? 'Configured' : 'Missing'}
@@ -224,6 +256,31 @@ export function ConnectionPage(): React.ReactElement {
               </dd>
             </div>
           </dl>
+          {snapshot?.profile && (
+            <div className="button-row">
+              <button
+                id="connection-credential-setup"
+                className="btn btn-ghost"
+                disabled={busy || snapshot.runtime.state !== 'stopped'}
+                onClick={() => void setupRuntimeKey()}
+              >
+                {snapshot.credentialStatus === 'configured' ? 'Replace API Key' : 'Set up API Key'}
+              </button>
+              {snapshot.credentialStatus === 'configured' && (
+                <button
+                  id="connection-credential-remove"
+                  className="btn btn-ghost"
+                  disabled={busy || snapshot.runtime.state !== 'stopped'}
+                  onClick={() => void removeRuntimeKey()}
+                >
+                  Remove API Key
+                </button>
+              )}
+            </div>
+          )}
+          {snapshot?.profile && snapshot.runtime.state !== 'stopped' && (
+            <p className="fine-print">Disconnect ChatGPT before changing the Runtime API Key.</p>
+          )}
           {snapshot?.profile && !snapshot.profile.tunnelConfigured && snapshot.credentialStatus === 'configured' && (
             <div className="advanced-setup">
               <p className="card-description">SUD-D found the tunnel configuration on this device. Set it up once to connect ChatGPT.</p>

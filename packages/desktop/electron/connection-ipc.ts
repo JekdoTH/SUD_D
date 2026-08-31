@@ -2,6 +2,8 @@ import {
   ConnectionRestartInputSchema,
   ConnectionStartInputSchema,
   ConnectionStopInputSchema,
+  DesktopConnectionCredentialRemoveInputSchema,
+  DesktopConnectionCredentialSetupInputSchema,
   DesktopConnectionPreferencesUpdateInputSchema,
   DesktopConnectionTunnelSetupInputSchema,
   IPC_CHANNELS,
@@ -70,6 +72,20 @@ export function registerDesktopConnectionIpcHandlers(
     const parsed = ConnectionRestartInputSchema.safeParse(raw);
     if (!parsed.success) return validationError('Invalid connection restart request');
     return ipcResult<DesktopConnectionSnapshotDto>(controller.restart(parsed.data));
+  });
+
+  ipcMain.handle(IPC_CHANNELS.CONNECTION_CREDENTIAL_SETUP, (event, raw) => {
+    if (!isSenderValid(event.sender)) return invalidSender();
+    const parsed = DesktopConnectionCredentialSetupInputSchema.safeParse(raw);
+    if (!parsed.success) return validationError('Invalid Runtime API Key setup request');
+    return ipcResult<DesktopConnectionSnapshotDto>(controller.setupCredential(parsed.data));
+  });
+
+  ipcMain.handle(IPC_CHANNELS.CONNECTION_CREDENTIAL_REMOVE, (event, raw) => {
+    if (!isSenderValid(event.sender)) return invalidSender();
+    const parsed = DesktopConnectionCredentialRemoveInputSchema.safeParse(raw);
+    if (!parsed.success) return validationError('Invalid Runtime API Key remove request');
+    return ipcResult<DesktopConnectionSnapshotDto>(controller.removeCredential(parsed.data));
   });
 
   ipcMain.handle(IPC_CHANNELS.CONNECTION_TUNNEL_SETUP, (event, raw) => {

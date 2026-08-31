@@ -16,6 +16,8 @@ import type {
   ConnectionRestartInput,
   ConnectionStartInput,
   ConnectionStopInput,
+  DesktopConnectionCredentialRemoveInput,
+  DesktopConnectionCredentialSetupInput,
   DesktopConnectionPreferencesUpdateInput,
   DesktopConnectionRuntimeStatusDto,
   DesktopConnectionSnapshotDto,
@@ -34,6 +36,8 @@ export interface DesktopConnectionController {
   start(input: ConnectionStartInput): Result<DesktopConnectionSnapshotDto, AppError>;
   stop(input: ConnectionStopInput): Result<DesktopConnectionSnapshotDto, AppError>;
   restart(input: ConnectionRestartInput): Result<DesktopConnectionSnapshotDto, AppError>;
+  setupCredential(input: DesktopConnectionCredentialSetupInput): Result<DesktopConnectionSnapshotDto, AppError>;
+  removeCredential(input: DesktopConnectionCredentialRemoveInput): Result<DesktopConnectionSnapshotDto, AppError>;
   configureTunnel(input: DesktopConnectionTunnelSetupInput): Result<DesktopConnectionSnapshotDto, AppError>;
   updatePreferences(input: DesktopConnectionPreferencesUpdateInput): Result<DesktopConnectionSnapshotDto, AppError>;
 }
@@ -186,6 +190,40 @@ export function createDesktopConnectionController(
 
       const restarted = options.connectionService.restart(input.profileId);
       if (!restarted.ok) return err(restarted.error);
+      return getSnapshot();
+    },
+
+    setupCredential(input: DesktopConnectionCredentialSetupInput): Result<DesktopConnectionSnapshotDto, AppError> {
+      const profile = ensureProfile();
+      if (!profile.ok) return err(profile.error);
+      if (profile.value.profileId !== input.profileId) {
+        return err({ code: 'CONNECTION_PROFILE_NOT_FOUND', message: 'Connection profile not found' });
+      }
+      if (options.connectionService.getStatus().state !== 'stopped') {
+        return err(appError('VALIDATION_FAILED', 'Disconnect ChatGPT before changing the Runtime API Key.'));
+      }
+
+      const configured = options.configService.setupCredential(input.profileId);
+      if (!configured.ok) return err(configured.error);
+      if (configured.value === 'configured') cachedCredentialStatus = 'configured';
+      return getSnapshot();
+    },
+
+    removeCredential(input: DesktopConnectionCredentialRemoveInput): Result<DesktopConnectionSnapshotDto, AppError> {
+      const profile = ensureProfile();
+      if (!profile.ok) return err(profile.error);
+      if (profile.value.profileId !== input.profileId) {
+        return err({ code: 'CONNECTION_PROFILE_NOT_FOUND', message: 'Connection profile not found' });
+      }
+      if (options.connectionService.getStatus().state !== 'stopped') {
+        return err(appError('VALIDATION_FAILED', 'Disconnect ChatGPT before changing the Runtime API Key.'));
+      }
+
+      const removed = options.configService.deleteCredential(input.profileId);
+      if (!removed.ok) return err(removed.error);
+      const status = options.configService.getCredentialStatus(input.profileId);
+      if (!status.ok) return err(status.error);
+      cachedCredentialStatus = status.value;
       return getSnapshot();
     },
 

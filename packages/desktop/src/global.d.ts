@@ -12,6 +12,8 @@ import type {
   ConnectionStartInput,
   ConnectionStopInput,
   ConnectionRestartInput,
+  DesktopConnectionCredentialRemoveInput,
+  DesktopConnectionCredentialSetupInput,
   DesktopConnectionPreferencesUpdateInput,
   DesktopConnectionSnapshotDto,
   DesktopConnectionTunnelSetupInput,
@@ -41,6 +43,8 @@ interface SudDApi {
     start(input: ConnectionStartInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
     stop(input: ConnectionStopInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
     restart(input: ConnectionRestartInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
+    setupCredential(input: DesktopConnectionCredentialSetupInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
+    removeCredential(input: DesktopConnectionCredentialRemoveInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
     configureTunnel(input: DesktopConnectionTunnelSetupInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
     updatePreferences(input: DesktopConnectionPreferencesUpdateInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
   };

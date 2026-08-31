@@ -18,6 +18,7 @@
   "dependencies": {
     "@sud-d/domain": "workspace:*",
     "better-sqlite3": "^11.10.0",
+    "koffi": "3.1.6",
     "uuid": "^10.0.0"
   },
   "devDependencies": {

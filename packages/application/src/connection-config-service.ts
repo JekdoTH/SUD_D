@@ -10,8 +10,10 @@ import { appError, err, ok } from '@sud-d/domain';
 import type {
   AuditRepository,
   ConnectionProfileRepository,
+  CredentialSetupOutcome,
   CredentialStore,
 } from '@sud-d/infrastructure';
+import { isManagedCredentialStore } from '@sud-d/infrastructure';
 
 const DESKTOP_SESSION = { id: 'desktop', type: 'desktop' as const };
 
@@ -25,6 +27,7 @@ export interface ConnectionConfigService {
   ): Result<ConnectionProfile, AppError>;
   getCredentialStatus(profileId: string): Result<ConnectionCredentialStatus, AppError>;
   setCredential(profileId: string, credential: string): Result<void, AppError>;
+  setupCredential(profileId: string): Result<CredentialSetupOutcome, AppError>;
   deleteCredential(profileId: string): Result<void, AppError>;
 }
 
@@ -185,6 +188,33 @@ export function createConnectionConfigService(
       }
     },
 
+    setupCredential(profileId: string): Result<CredentialSetupOutcome, AppError> {
+      const start = Date.now();
+      try {
+        const existing = requireProfile(profileId);
+        if (!existing.ok) {
+          audit('credential:setup', existing.error.code, { profileId }, start);
+          return err(existing.error);
+        }
+        if (!isManagedCredentialStore(credentialStore)) {
+          audit('credential:setup', 'INTERNAL_ERROR', { profileId }, start);
+          return err(appError('INTERNAL_ERROR', 'Runtime API Key setup is unavailable'));
+        }
+
+        const outcome = credentialStore.setupCredential(profileId);
+        audit(
+          'credential:setup',
+          outcome === 'configured' ? 'OK' : 'CANCELLED',
+          outcome === 'configured' ? { profileId, status: 'configured' } : { profileId },
+          start,
+        );
+        return ok(outcome);
+      } catch {
+        audit('credential:setup', 'INTERNAL_ERROR', { profileId }, start);
+        return err(appError('INTERNAL_ERROR', 'Runtime API Key setup failed'));
+      }
+    },
+
     deleteCredential(profileId: string): Result<void, AppError> {
       const start = Date.now();
       try {
@@ -195,7 +225,7 @@ export function createConnectionConfigService(
         }
 
         credentialStore.deleteCredential(profileId);
-        audit('credential:delete', 'OK', { profileId, status: 'missing' }, start);
+        audit('credential:delete', 'OK', { profileId }, start);
         return ok(undefined);
       } catch {
         return err(appError('INTERNAL_ERROR', 'Failed to delete credential'));
