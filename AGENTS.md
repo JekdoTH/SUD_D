@@ -167,6 +167,16 @@ Prefer **simple → secure → working → maintainable** before **generic → s
 
 See [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) and [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md) for the product security model; do not duplicate or reinterpret it in milestone code.
 
+## Output Delivery
+
+- Short results may be returned directly in chat.
+- Long design, review, verification, architecture, or handoff reports should be written to `.serena/reports/*.md` by default instead of being pasted in full into chat.
+- Use `.txt` for long raw logs, command output, or other plain-text evidence that does not benefit from Markdown.
+- The chat response for a long report should contain only a concise summary, status, blockers or open decisions, and the local report path.
+- Keep report filenames descriptive and task-specific, for example `.serena/reports/secure-api-key-design.md`.
+- `.serena/` remains local-only. Reports under `.serena/` must never be staged or committed.
+- If the active environment cannot create a local `.serena/reports/` file, report that limitation and provide the shortest useful chat summary rather than pretending a file exists.
+
 ## Repository Hygiene and Verification
 
 - `.serena/` is local tooling state. It is not project memory or a source of truth and must never be committed.
