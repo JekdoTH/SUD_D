@@ -32,6 +32,8 @@ If the documents disagree, use the roadmap for approved long-term direction, the
 
 ## Agent Skills Routing
 
+Follow this repository-defined routing autonomously. For every task, match the current work against the routing triggers, select and invoke every applicable automatic skill, and choose the supporting tools required by those workflows. Do not wait for the user to name individual skills, and do not skip a routed skill merely because the prompt did not mention it.
+
 Use progressive disclosure:
 
 ```text
@@ -42,9 +44,9 @@ Task
 → continue to obey SUD_D scope, specification, and security rules
 ```
 
-The selected skills are external/local runtime resources, not repository-owned files. Resolve them by the exact canonical name through the active agent runtime. The repository intentionally does not vendor content from the inspected `Skill_Matt_pocock.zip` package because that archive provides no license or redistribution terms. If a required skill is unavailable, report that before the related step; do not invent a substitute or reference a nonexistent repository path.
+The selected skills are external/local runtime resources, not repository-owned files. Resolve them by the exact canonical name through the active agent runtime. The repository intentionally does not vendor content from the inspected `Skill_Matt_pocock.zip` package because that archive provides no license or redistribution terms. If a routed skill is unavailable, report that explicitly before the related step; do not invent a substitute or reference a nonexistent repository path. Continue without it only when this repository's rules, the active specification, and the security boundaries permit the fallback; otherwise stop.
 
-An agent may select a skill automatically when its trigger matches. When package metadata permits model invocation, load it automatically; when a selected skill is user-invoked only, identify it and require explicit invocation or a `REQUIRED SKILL` directive before running it. Do not load every skill for every task; load only what the current branch of work requires. If a milestone prompt declares `REQUIRED SKILL: <skill>`, read and use that exact skill before the related step. Without that declaration, use this router:
+When a trigger matches an automatic skill and the active runtime permits model invocation, load and use that skill without requiring a per-prompt instruction. When a selected skill is user-invoked only, identify it and require explicit invocation before running it. Load only the skills and required references relevant to the current branch of work; do not load every available skill. A user- or milestone-specified `REQUIRED SKILL: <skill>` is reserved for explicitly forcing that exact skill and takes precedence over a conflicting normal route for the related step. Without such a directive, apply this router autonomously:
 
 | Trigger | Skill | Invocation |
 | --- | --- | --- |

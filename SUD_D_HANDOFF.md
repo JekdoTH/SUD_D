@@ -2,11 +2,13 @@
 
 Long-term plan: see `SUD_D_ROADMAP.md`.
 
-## Documentation-only Agent Skill Integration
+## Documentation-only Agent Skill Routing
 
-The repository now defines progressive-disclosure skill routing in `AGENTS.md` and points to it from `SUD_D_CONTEXT.md`. The inspected local package, `Skill_Matt_pocock.zip`, contained no license or redistribution terms, so no upstream skill content was vendored. Skills remain external/local runtime workflows resolved by canonical name.
+`AGENTS.md` is the sole source of truth for detailed skill routing. It now states explicitly that development agents apply its triggers autonomously, invoke applicable automatic skills without waiting for per-prompt skill names, use progressive disclosure, and report unavailable routed skills before taking any permitted fallback. `SUD_D_CONTEXT.md` keeps only the high-level expectation and link; no routing table or detailed rules were copied there.
 
-This integration changed agent documentation only at the time it was introduced. M0.6 was subsequently implemented in the explicitly approved Desktop Connection + Overview UI milestone recorded below.
+`SUD_D_ROADMAP.md` and the rest of this handoff were reviewed for conflicting routing guidance; none required changes. The routed `writing-for-agents` skill was unavailable in the active runtime and that limitation was reported before editing. This clarification changes development-governance documentation only, does not change product architecture or behavior, and does not authorize M1.
+
+Verification for this clarification: the complete documentation diff was reviewed, changed-path scope was limited to `AGENTS.md`, `SUD_D_CONTEXT.md`, and this handoff, `git diff --check` passed, and the scoped secret-pattern scan found zero matches. No production source or tests changed.
 
 ## Architecture / Process Decision
 

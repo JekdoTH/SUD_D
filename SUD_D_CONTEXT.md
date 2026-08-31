@@ -95,7 +95,7 @@ Until an approved Workspace Memory milestone exists, Git is the continuity mecha
 
 ## Document Responsibilities
 
-SUD_D uses an agent-skill workflow with progressive disclosure. Skill selection and trigger rules are defined in [AGENTS.md](AGENTS.md).
+Development agents are expected to follow the repository-defined skill routing in [AGENTS.md](AGENTS.md) autonomously. `AGENTS.md` is the sole source of truth for routing details and progressive-disclosure rules.
 
 SUD_D follows a risk-based development model: security and data-critical boundaries receive strict verification, while low-risk UI/cosmetic work favors lightweight verification and fast iteration.
 
