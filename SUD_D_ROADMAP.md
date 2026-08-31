@@ -2,10 +2,6 @@
 
 > Master Plan / Source of Truth for long-term architecture, milestones, product direction, and approved future ideas.
 
-**Current approved milestone:** M0.2 — Non-secret Config + Credential Boundary
-**M0.1:** COMPLETE
-**M0.2 implementation:** NOT STARTED by this documentation alignment
-
 For current execution status, verification, open issues, immediate next action, and latest completed milestone commit, see `SUD_D_HANDOFF.md`.
 
 ---
@@ -171,7 +167,7 @@ M0.1 intentionally does not implement credential persistence, process supervisio
 
 ### M0.2 — Non-secret Config + Credential Boundary
 
-**STATUS: NEXT**
+**STATUS: COMPLETE**
 
 Purpose: establish a safe boundary between ordinary connection configuration and secret credential material before lifecycle orchestration begins.
 
@@ -184,8 +180,6 @@ Direction:
 - Missing/invalid credential state must fail closed.
 - Preserve current `openai_secure_mcp_tunnel` + `stdio` scope.
 - Do not add cloud identity, cloud relay, account sync, or privileged MCP tools.
-
-This roadmap entry defines scope only. **Do not implement M0.2 as part of documentation alignment.**
 
 ### M0.3 — ConnectionService + Test Doubles
 
