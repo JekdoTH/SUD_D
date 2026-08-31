@@ -18,6 +18,7 @@ Verification for this clarification: the complete documentation diff was reviewe
 - M0.7 is COMPLETE after Doctor + Activity integration, security/redaction verification, production Desktop smoke, and required final code review.
 - M0.8 is COMPLETE after Secure Tunnel setup UX hardening, real Home-PC control-plane/tunnel acceptance, clean stop/fresh-start verification, regression coverage, production Desktop smoke, and required final code review.
 - Post-M0.8 Secure Runtime API Key Setup is COMPLETE: SUD-D now supports Windows Credential Manager persistence through a Windows-native credential prompt, fixed profileId-only IPC, stopped-only credential mutation, stored-before-environment runtime preparation, and safe Set / Replace / Remove UI controls without exposing plaintext credentials to the renderer.
+- Post-M0.8 Connection UI/UX Simplification is COMPLETE: normal workspace/key/tunnel setup and ChatGPT connection readiness are managed from the SUD-D UI through fixed-purpose safe boundaries; M1 remains NOT STARTED.
 
 ## Approved Future Direction
 
@@ -25,11 +26,50 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Execution State
 
-**Post-M0.8 Foundation — Secure Runtime API Key Setup**
+**Post-M0.8 Connection UI/UX Simplification**
 
-**Status: COMPLETE — Windows Credential Manager persistence, Windows-native credential prompt, fixed profileId-only credential IPC, safe lifecycle gating, regression/security verification, production native-prompt cancellation smoke, and final review passed 2026-08-31.**
+**Status: COMPLETE — status-first Connection/Overview UX, in-app fixed-purpose Secure Tunnel ID setup, prerequisite-driven primary CTA, security/regression verification, production Desktop smoke, and final review passed 2026-09-01.**
 
-This is a post-M0.8 foundation task, not M1. It unblocks the separately requested Connection UI/UX Simplification work while preserving the inert MCP Gateway and all M0 security boundaries. M1 Tool Execution Kernel is **NOT STARTED**.
+Normal Windows setup can now proceed from SUD-D UI as: choose workspace → set up Runtime API Key via the existing Windows-native secure prompt → set up Secure Tunnel with a validated `tunnel_...` ID → Connect ChatGPT. Returning users see Workspace, Runtime Key, Secure Tunnel, Gateway, and ChatGPT readiness immediately. M1 Tool Execution Kernel is **NOT STARTED**.
+
+## Post-M0.8 Connection UI/UX Simplification
+
+- `connection:tunnelSetup` remains one fixed-purpose IPC path and now accepts only strict `{ profileId, tunnelReference }`; the Tunnel ID must match `^tunnel_[A-Za-z0-9_-]+$` with length 8–500.
+- Tunnel configuration persists through the existing `ConnectionConfigService.updateProfile()` path and may change only while the connection runtime is `stopped`.
+- Renderer snapshots continue to expose only `tunnelConfigured`; the stored raw Tunnel ID is not returned.
+- No executable, argv, cwd, environment map/name/value, generic process control, or secret payload was added to renderer IPC.
+- Legacy `CONTROL_PLANE_TUNNEL_ID` remains only as the existing trusted-backend seed for a missing reference and does not overwrite a persisted non-empty value.
+- Runtime API Key handling is unchanged and remains Windows Credential Manager-backed with no plaintext renderer/IPC getter.
+- Connection primary CTA order is Workspace → Runtime API Key → Secure Tunnel → Connect; active/waiting states use Disconnect, and Restart is shown only where existing ConnectionService semantics allow it.
+- Overview remains glance-only and routes setup into the same Workspaces/Connection flows.
+- The existing production `client_connected` limitation remains; no fake `Connected` state was synthesized.
+- No tunnel process/runtime adapter, MCP Gateway behavior, privileged tools, or M1 implementation changed.
+
+### Verification / Acceptance
+
+Fresh completion evidence:
+
+- focused M0.6 Connection/UI tests: **26/26 passed**
+- relevant secure Runtime API Key + M0.5 tunnel/runtime + M0.6 Connection/UI regressions: **68/68 passed**
+- full suite: **215/215 passed** across 8 test files
+- lint: **PASS**
+- typecheck: **PASS**
+- build: **PASS** for domain, contracts, infrastructure, application, MCP Gateway, and Desktop renderer/main/preload production bundles
+- `git diff --check`: **PASS**
+- changed-surface secret scan: **PASS**
+- production Desktop UI smoke: **PASS** — isolated production bundle showed readiness cards, accepted a Tunnel ID through UI/strict IPC, persisted it without returning the raw value, and advanced the primary CTA to `Connect ChatGPT`
+- real external tunnel/runtime acceptance was **not repeated** because the process/runtime boundary and lifecycle semantics did not change; M0.5 runtime regressions remained green
+
+### Final Review
+
+The repository-routed canonical `code-review` skill was not exposed in this runtime. The established fallback used the available review methodology plus separate Standards and Spec passes.
+
+- **Standards:** no blocking finding. Renderer trust boundaries remain narrow, tunnel mutation is stopped-only, raw Tunnel ID is absent from renderer snapshots/audit metadata, API-key plaintext remains outside renderer IPC/state, and no generic env/process control was introduced.
+- **Spec:** no blocking finding. First-time and returning-user flows match the requested status-first setup direction, Overview reuses the same flows, lifecycle controls follow existing service semantics, and fake ChatGPT telemetry was not introduced.
+
+### Known Limitation
+
+The existing M0.5 production client-connected signal is still not wired, so a healthy real runtime can remain `waiting_for_client`; this task intentionally does not synthesize `Connected`.
 
 ## Post-M0.8 Secure Runtime API Key Setup
 
@@ -70,7 +110,7 @@ The repository-routed canonical `code-review` skill was not exposed in this runt
 
 - Legacy `CONTROL_PLANE_API_KEY` remains supported as a backend session-only migration/development fallback. Removing a Windows-stored credential does not modify a User environment variable; therefore effective status can remain configured until that legacy environment configuration is removed outside SUD-D.
 - The existing M0.5 production client-connected signal limitation remains unchanged: the runtime can remain `waiting_for_client` until a real client-connected signal is wired in a future separately approved task.
-- Connection UI/UX Simplification remains the next requested product task. It is not part of this implementation and M1 remains not started.
+- Historical note: Connection UI/UX Simplification was the next requested task after this credential foundation and is now complete as recorded above. M1 remains not started.
 
 ## M0.8 Status
 
@@ -769,11 +809,15 @@ Exit code 0
 
 ## Immediate Next Action
 
-M0.8 and the post-M0.8 Secure Runtime API Key Setup foundation are complete. **Do not start M1 Tool Execution Kernel without a new explicit milestone instruction.**
+M0.8, Post-M0.8 Secure Runtime API Key Setup, and Post-M0.8 Connection UI/UX Simplification are complete. **STOP. Do not start M1 Tool Execution Kernel without a new explicit milestone instruction.**
 
-The next requested work remains the separate Connection UI/UX Simplification task focused on making workspace/key/tunnel setup and connect/start/stop/restart flows easier for normal use and development testing without PowerShell. That future UX task must reuse the fixed credential setup/remove actions and existing tunnel lifecycle IPC, preserve credential/tunnel-reference boundaries, audit redaction, workspace binding, inert MCP Gateway, and no-generic-process-control invariants; it does not authorize M1.
+The next action is only whatever the user explicitly authorizes next. Preserve the current credential/tunnel boundaries, audit redaction, workspace binding, inert MCP Gateway, and no-generic-process-control invariants.
 
 ## Last Commit SHA
+
+Post-M0.8 Connection UI/UX Simplification implementation:
+
+`5bfa78b83ade3af59fbff3333c4e5f4e368cd3d3` — `feat: simplify connection setup ux`
 
 M0.7 completion implementation:
 
