@@ -108,6 +108,19 @@ The check never transfers across a chat session, Home-PC/Work-PC device, or Sere
 
 SUD_D is a personal-first project for one primary owner and approximately one occasional tester. Before planning verification, classify the change by the highest applicable risk tier; a mixed change inherits its highest-risk part. Keep one milestone checkpoint at a time, but choose its verification plan from the risk tier instead of applying one heavyweight checklist to every change. A milestone prompt may override or add verification, and every `REQUIRED verification` instruction is mandatory; no override or tier may weaken a security invariant.
 
+### Verification Efficiency / Test Economy
+
+Use the smallest fresh verification set that gives trustworthy evidence for the current change. Do not repeatedly run expensive gates when narrower evidence is sufficient.
+
+- During implementation, prefer focused tests for changed behavior. Do not run the full suite after every edit.
+- Run only regressions relevant to the affected boundary during iteration. Expand coverage when a failure, shared contract, or cross-package change justifies it.
+- For Security / Data Critical work, the full suite and other required final gates remain mandatory, but normally run them once after the implementation is stable. Rerun only a gate whose evidence was invalidated by a later relevant change.
+- Treat lint, typecheck, build, smoke, acceptance, secret scans, and reviews the same way: keep fresh final evidence, but avoid repeating already-valid evidence without a reason.
+- When a runtime boundary changes, one conclusive real smoke/acceptance run is sufficient unless the related runtime code changes again or the result is inconclusive.
+- If a connector, terminal, or test harness fails without evidence of a SUD_D product failure, rerun only the missing or inconclusive gate rather than restarting the entire verification sequence.
+- Do not add enterprise-scale, load, multi-user, cross-platform matrix, or speculative compatibility testing unless the approved milestone or explicit user instruction requires it.
+- Verification efficiency must never weaken a security invariant, hide a real failure, or skip a mandatory final gate.
+
 ### A. Security / Data Critical
 
 Use this tier for workspace boundaries, path containment, credentials or secrets, privileged MCP Gateway exposure, Tool Kernel, Policy, Approval, Delete, Recovery, process execution, network permissions, privileged-action IPC, audit redaction, and anything that could cause data loss, workspace escape, destructive behavior, secret leakage, or privilege escalation.
@@ -170,10 +183,11 @@ See [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) and [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md
 ## Output Delivery
 
 - Short results may be returned directly in chat.
-- Long design, review, verification, architecture, or handoff reports should be written to `.serena/reports/*.md` by default instead of being pasted in full into chat.
+- Long progress updates, intermediate status reports, design reports, reviews, verification reports, architecture reports, or handoffs should be written to `.serena/reports/*.md` by default instead of being pasted in full into chat.
 - Long prompts, task specifications, implementation instructions, or agent-to-agent handoff instructions intended to be forwarded to another agent should be delivered as a `.md` file by default; use `.txt` when plain text is more appropriate.
 - Use `.txt` for long raw logs, command output, or other plain-text evidence that does not benefit from Markdown.
 - The chat response for a long report or forwardable task should contain only a concise summary, status, blockers or open decisions, and the local file path.
+- During long-running work, chat progress messages should remain brief; keep cumulative details in the report file instead of repeating them in the conversation.
 - Keep report and task filenames descriptive and task-specific, for example `.serena/reports/secure-api-key-design.md` or `.serena/reports/secure-api-key-implementation.md`.
 - `.serena/` remains local-only. Reports and task files under `.serena/` must never be staged or committed.
 - If the active environment cannot create a local `.serena/reports/` file, report that limitation and provide the shortest useful chat summary rather than pretending a file exists.
