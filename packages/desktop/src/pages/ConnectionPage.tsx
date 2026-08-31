@@ -1,11 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DesktopConnectionSnapshotDto, WorkspaceDto } from '@sud-d/contracts';
+import type { AppPage } from '../App';
 import {
   canRestartConnection,
   deriveConnectionComponentStatuses,
   getConnectionPrimaryAction,
   presentConnectionState,
 } from '../connection-ui-model';
+
+interface ConnectionPageProps {
+  onNavigate: (page: AppPage) => void;
+}
 
 function componentTone(state: string): string {
   if (state === 'ready' || state === 'connected') return 'badge-green';
@@ -17,7 +22,7 @@ function componentTone(state: string): string {
 function errorGuidance(code: string): string {
   switch (code) {
     case 'CONNECTION_CREDENTIAL_MISSING':
-      return 'Secure Tunnel credential is missing on this device.';
+      return 'Runtime API Key is missing on this device.';
     case 'CONNECTION_WORKSPACE_NOT_SELECTED':
       return 'Select an active workspace before connecting ChatGPT.';
     case 'TUNNEL_CLIENT_NOT_FOUND':
@@ -33,11 +38,25 @@ function errorGuidance(code: string): string {
   }
 }
 
-export function ConnectionPage(): React.ReactElement {
+function tunnelStatus(snapshot: DesktopConnectionSnapshotDto | null): { label: string; badge: string } {
+  if (!snapshot?.profile?.tunnelConfigured) return { label: 'Needs setup', badge: 'badge-yellow' };
+  if (snapshot.runtime.state === 'error') return { label: 'Error', badge: 'badge-red' };
+  if (snapshot.runtime.state === 'stopped') return { label: 'Ready', badge: 'badge-green' };
+  return { label: 'Running', badge: 'badge-green' };
+}
+
+function validTunnelReference(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed.length >= 8 && trimmed.length <= 500 && /^tunnel_[A-Za-z0-9_-]+$/.test(trimmed);
+}
+
+export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.ReactElement {
   const [snapshot, setSnapshot] = useState<DesktopConnectionSnapshotDto | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [tunnelReference, setTunnelReference] = useState('');
+  const [editingTunnel, setEditingTunnel] = useState(false);
 
   const refresh = useCallback(async () => {
     const [connectionResult, workspaceResult] = await Promise.all([
@@ -70,6 +89,8 @@ export function ConnectionPage(): React.ReactElement {
     () => snapshot ? getConnectionPrimaryAction(snapshot, Boolean(activeWorkspace)) : null,
     [snapshot, activeWorkspace],
   );
+  const secureTunnelStatus = tunnelStatus(snapshot);
+  const tunnelInputValid = validTunnelReference(tunnelReference);
 
   const performLifecycle = async (action: 'connect' | 'disconnect' | 'restart'): Promise<void> => {
     if (!snapshot?.profile) return;
@@ -84,11 +105,6 @@ export function ConnectionPage(): React.ReactElement {
     if (result.ok) setSnapshot(result.value);
     else setError(result.error.message);
     await refresh();
-  };
-
-  const runPrimaryAction = async (): Promise<void> => {
-    if (!primaryAction?.enabled) return;
-    await performLifecycle(primaryAction.action);
   };
 
   const setupRuntimeKey = async (): Promise<void> => {
@@ -125,14 +141,23 @@ export function ConnectionPage(): React.ReactElement {
 
   const setupSecureTunnel = async (): Promise<void> => {
     if (!snapshot?.profile) return;
+    const candidate = tunnelReference.trim();
+    if (!validTunnelReference(candidate)) {
+      setError('Enter a valid Tunnel ID beginning with tunnel_.');
+      return;
+    }
+
     setBusy(true);
     setError('');
     const result = await window.sudD.connection.configureTunnel({
       profileId: snapshot.profile.profileId,
+      tunnelReference: candidate,
     });
     setBusy(false);
     if (result.ok) {
       setSnapshot(result.value);
+      setTunnelReference('');
+      setEditingTunnel(false);
       await refresh();
     } else {
       setError(result.error.message);
@@ -153,14 +178,44 @@ export function ConnectionPage(): React.ReactElement {
     else setError(result.error.message);
   };
 
+  const runPrimaryAction = async (): Promise<void> => {
+    if (!primaryAction?.enabled) return;
+    switch (primaryAction.action) {
+      case 'choose_workspace':
+        onNavigate('workspaces');
+        return;
+      case 'setup_credential':
+        await setupRuntimeKey();
+        return;
+      case 'setup_tunnel':
+        await setupSecureTunnel();
+        return;
+      case 'connect':
+      case 'disconnect':
+      case 'restart':
+        await performLifecycle(primaryAction.action);
+    }
+  };
+
   const runtimeError = snapshot?.runtime.error;
+  const primaryLabel = primaryAction?.action === 'choose_workspace'
+    ? 'Choose Workspace'
+    : primaryAction?.action === 'setup_credential'
+      ? 'Set up API Key'
+      : primaryAction?.action === 'setup_tunnel'
+        ? 'Set up Secure Tunnel'
+        : primaryAction?.action === 'disconnect'
+          ? 'Disconnect'
+          : primaryAction?.action === 'restart'
+            ? 'Restart connection'
+            : 'Connect ChatGPT';
 
   return (
     <>
       <div className="page-header page-header-row">
         <div>
           <h1 className="page-title">Connection</h1>
-          <p className="page-subtitle">Connect ChatGPT without managing command-line details.</p>
+          <p className="page-subtitle">Set up and connect ChatGPT entirely from SUD-D.</p>
         </div>
         <div className={`status-chip tone-${presentation.tone}`}>
           <span className="status-dot" />
@@ -193,30 +248,41 @@ export function ConnectionPage(): React.ReactElement {
           </div>
           <div className="component-card">
             <span className="component-label">Secure Tunnel</span>
-            <span className={`badge ${componentTone(components.tunnel)}`}>{components.tunnel}</span>
+            <span className={`badge ${secureTunnelStatus.badge}`}>{secureTunnelStatus.label}</span>
           </div>
           <div className="component-card">
             <span className="component-label">ChatGPT</span>
-            <span className={`badge ${componentTone(components.client)}`}>{components.client}</span>
+            <span className={`badge ${componentTone(components.client)}`}>{presentation.label}</span>
           </div>
         </div>
+
+        {primaryAction?.action === 'setup_tunnel' && (
+          <div className="setup-form" aria-label="Secure Tunnel setup">
+            <label htmlFor="connection-tunnel-id"><strong>Tunnel ID</strong></label>
+            <input
+              id="connection-tunnel-id"
+              className="input"
+              value={tunnelReference}
+              onChange={(event) => setTunnelReference(event.target.value)}
+              placeholder="tunnel_..."
+              autoComplete="off"
+              spellCheck={false}
+              disabled={busy}
+            />
+            <p className="fine-print">Paste only the OpenAI Secure MCP Tunnel ID. It is stored locally as non-secret connection configuration.</p>
+          </div>
+        )}
 
         <div className="button-row">
           <button
             id="connection-primary-action"
             className="btn btn-primary"
-            disabled={busy || !primaryAction?.enabled}
+            disabled={busy || !primaryAction?.enabled || (primaryAction.action === 'setup_tunnel' && !tunnelInputValid)}
             onClick={() => void runPrimaryAction()}
           >
-            {busy
-              ? 'Working…'
-              : primaryAction?.action === 'disconnect'
-                ? 'Disconnect'
-                : primaryAction?.action === 'restart'
-                  ? 'Restart connection'
-                  : 'Connect ChatGPT'}
+            {busy ? 'Working…' : primaryLabel}
           </button>
-          {snapshot && canRestartConnection(snapshot.runtime.state) && (
+          {snapshot && canRestartConnection(snapshot.runtime.state) && primaryAction?.action !== 'restart' && (
             <button
               className="btn btn-ghost"
               disabled={busy || !snapshot.profile}
@@ -231,32 +297,38 @@ export function ConnectionPage(): React.ReactElement {
         )}
       </section>
 
-      <div className="two-column-grid">
-        <section className="card">
-          <div className="card-kicker">This Device</div>
-          <div className="card-heading">{snapshot?.profile?.deviceName ?? 'This Device'}</div>
-          <dl className="detail-list">
-            <div><dt>Profile</dt><dd>{snapshot?.profile?.displayName ?? 'Preparing local profile…'}</dd></div>
-            <div><dt>Provider</dt><dd>OpenAI Secure MCP Tunnel</dd></div>
-            <div><dt>Transport</dt><dd>stdio</dd></div>
-            <div>
-              <dt>Runtime Key</dt>
-              <dd>
-                <span className={`badge ${snapshot?.credentialStatus === 'configured' ? 'badge-green' : 'badge-yellow'}`}>
-                  {snapshot?.credentialStatus === 'configured' ? 'Configured' : 'Missing'}
-                </span>
-              </dd>
-            </div>
-            <div>
-              <dt>Tunnel setup</dt>
-              <dd>
-                <span className={`badge ${snapshot?.profile?.tunnelConfigured ? 'badge-green' : 'badge-yellow'}`}>
-                  {snapshot?.profile?.tunnelConfigured ? 'Configured' : 'Missing'}
-                </span>
-              </dd>
-            </div>
-          </dl>
-          {snapshot?.profile && (
+      <div className="setup-grid">
+        <section className="card setup-card">
+          <div className="card-kicker">Workspace</div>
+          <div className="setup-status-line">
+            <div className="card-heading">{activeWorkspace?.displayName ?? 'Workspace required'}</div>
+            <span className={`badge ${activeWorkspace ? 'badge-green' : 'badge-yellow'}`}>
+              {activeWorkspace ? 'Ready' : 'Needs setup'}
+            </span>
+          </div>
+          {activeWorkspace ? (
+            <div className="workspace-path">{activeWorkspace.canonicalRoot}</div>
+          ) : (
+            <p className="card-description">Choose the workspace ChatGPT is allowed to use.</p>
+          )}
+          <button className="btn btn-ghost" onClick={() => onNavigate('workspaces')}>
+            {activeWorkspace ? 'Change workspace' : 'Choose workspace'}
+          </button>
+          {snapshot?.runtime.session && (
+            <p className="fine-print">Disconnect before changing the workspace bound to the current session.</p>
+          )}
+        </section>
+
+        <section className="card setup-card">
+          <div className="card-kicker">Runtime API Key</div>
+          <div className="setup-status-line">
+            <div className="card-heading">Secure credential</div>
+            <span className={`badge ${snapshot?.credentialStatus === 'configured' ? 'badge-green' : 'badge-yellow'}`}>
+              {snapshot?.credentialStatus === 'configured' ? 'Configured' : 'Missing'}
+            </span>
+          </div>
+          <p className="card-description">The API Key is managed through the Windows-native secure prompt and is never displayed here.</p>
+          {snapshot?.profile && snapshot.credentialStatus === 'configured' && (
             <div className="button-row">
               <button
                 id="connection-credential-setup"
@@ -264,51 +336,68 @@ export function ConnectionPage(): React.ReactElement {
                 disabled={busy || snapshot.runtime.state !== 'stopped'}
                 onClick={() => void setupRuntimeKey()}
               >
-                {snapshot.credentialStatus === 'configured' ? 'Replace API Key' : 'Set up API Key'}
+                Replace API Key
               </button>
-              {snapshot.credentialStatus === 'configured' && (
-                <button
-                  id="connection-credential-remove"
-                  className="btn btn-ghost"
-                  disabled={busy || snapshot.runtime.state !== 'stopped'}
-                  onClick={() => void removeRuntimeKey()}
-                >
-                  Remove API Key
-                </button>
-              )}
+              <button
+                id="connection-credential-remove"
+                className="btn btn-ghost"
+                disabled={busy || snapshot.runtime.state !== 'stopped'}
+                onClick={() => void removeRuntimeKey()}
+              >
+                Remove API Key
+              </button>
             </div>
           )}
           {snapshot?.profile && snapshot.runtime.state !== 'stopped' && (
             <p className="fine-print">Disconnect ChatGPT before changing the Runtime API Key.</p>
           )}
-          {snapshot?.profile && !snapshot.profile.tunnelConfigured && snapshot.credentialStatus === 'configured' && (
-            <div className="advanced-setup">
-              <p className="card-description">SUD-D found the tunnel configuration on this device. Set it up once to connect ChatGPT.</p>
-              <button
-                id="connection-tunnel-setup"
-                className="btn btn-primary"
-                disabled={busy}
-                onClick={() => void setupSecureTunnel()}
-              >
-                {busy ? 'Working…' : 'Set up Secure Tunnel'}
-              </button>
-            </div>
-          )}
-          {snapshot?.profile?.tunnelConfigured && (
-            <p className="fine-print">Secure Tunnel is ready.</p>
-          )}
         </section>
 
-        <section className="card">
-          <div className="card-kicker">Workspace Boundary</div>
-          <div className="card-heading">{activeWorkspace?.displayName ?? 'Workspace required'}</div>
-          {activeWorkspace ? (
-            <div className="workspace-path">{activeWorkspace.canonicalRoot}</div>
-          ) : (
-            <p className="card-description">Select an active workspace before connecting. The selected workspace remains the authorization boundary.</p>
-          )}
-          {snapshot?.runtime.session && (
-            <p className="fine-print">The current connection is bound to its existing workspace session until disconnected or restarted.</p>
+        <section className="card setup-card">
+          <div className="card-kicker">Secure Tunnel</div>
+          <div className="setup-status-line">
+            <div className="card-heading">OpenAI Secure MCP Tunnel</div>
+            <span className={`badge ${secureTunnelStatus.badge}`}>{secureTunnelStatus.label}</span>
+          </div>
+          <p className="card-description">
+            {snapshot?.profile?.tunnelConfigured
+              ? 'Secure Tunnel is ready.'
+              : 'Enter the Tunnel ID in the primary setup step above.'}
+          </p>
+          {snapshot?.profile?.tunnelConfigured && (
+            <>
+              <button
+                className="btn btn-ghost"
+                disabled={busy || snapshot.runtime.state !== 'stopped'}
+                onClick={() => setEditingTunnel((current) => !current)}
+              >
+                Change Tunnel configuration
+              </button>
+              {snapshot.runtime.state !== 'stopped' && (
+                <p className="fine-print">Disconnect ChatGPT before changing Secure Tunnel configuration.</p>
+              )}
+              {editingTunnel && snapshot.runtime.state === 'stopped' && (
+                <div className="setup-form compact-setup-form">
+                  <label htmlFor="connection-tunnel-id-change"><strong>Tunnel ID</strong></label>
+                  <input
+                    id="connection-tunnel-id-change"
+                    className="input"
+                    value={tunnelReference}
+                    onChange={(event) => setTunnelReference(event.target.value)}
+                    placeholder="tunnel_..."
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    className="btn btn-ghost"
+                    disabled={busy || !tunnelInputValid}
+                    onClick={() => void setupSecureTunnel()}
+                  >
+                    Save Tunnel ID
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </section>
       </div>
@@ -320,7 +409,11 @@ export function ConnectionPage(): React.ReactElement {
             Normal use does not require command-line configuration. These details expose only safe connection metadata.
           </p>
           <dl className="detail-list">
+            <div><dt>Device</dt><dd>{snapshot?.profile?.deviceName ?? 'This Device'}</dd></div>
+            <div><dt>Provider</dt><dd>OpenAI Secure MCP Tunnel</dd></div>
+            <div><dt>Transport</dt><dd>stdio</dd></div>
             <div><dt>Runtime state</dt><dd>{snapshot?.runtime.state ?? 'checking'}</dd></div>
+            <div><dt>Gateway</dt><dd>{components.gateway}</dd></div>
             {runtimeError && <div><dt>Error code</dt><dd>{runtimeError.code}</dd></div>}
           </dl>
 
@@ -329,7 +422,7 @@ export function ConnectionPage(): React.ReactElement {
               <label className="preference-row">
                 <span>
                   <strong>Auto-start preference</strong>
-                  <small>Saved preference only. Automatic startup is not activated by M0.6.</small>
+                  <small>Saved preference only. Automatic startup is not activated yet.</small>
                 </span>
                 <input
                   type="checkbox"
@@ -344,7 +437,7 @@ export function ConnectionPage(): React.ReactElement {
               <label className="preference-row">
                 <span>
                   <strong>Auto-restart preference</strong>
-                  <small>Saved preference only. Automatic restart is not activated by M0.6.</small>
+                  <small>Saved preference only. Automatic restart is not activated yet.</small>
                 </span>
                 <input
                   type="checkbox"
@@ -358,7 +451,6 @@ export function ConnectionPage(): React.ReactElement {
               </label>
             </div>
           )}
-
         </div>
       </details>
     </>

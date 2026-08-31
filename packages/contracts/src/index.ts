@@ -200,6 +200,10 @@ export type ConnectionCredentialStatus = z.infer<typeof ConnectionCredentialStat
 
 const ConnectionDeviceNameSchema = z.string().min(1).max(200);
 const TunnelReferenceSchema = z.string().min(1).max(500);
+export const OpenAiSecureTunnelReferenceSchema = z.string()
+  .min(8)
+  .max(500)
+  .regex(/^tunnel_[A-Za-z0-9_-]+$/);
 
 export const ConnectionProfileCreateInputSchema = z.object({
   displayName: DisplayNameSchema,
@@ -359,6 +363,7 @@ export type DesktopConnectionSnapshotDto = z.infer<typeof DesktopConnectionSnaps
 
 export const DesktopConnectionTunnelSetupInputSchema = z.object({
   profileId: ConnectionProfileIdSchema,
+  tunnelReference: OpenAiSecureTunnelReferenceSchema,
 }).strict();
 export type DesktopConnectionTunnelSetupInput = z.infer<typeof DesktopConnectionTunnelSetupInputSchema>;
 

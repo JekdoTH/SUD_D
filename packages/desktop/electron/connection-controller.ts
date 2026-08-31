@@ -233,13 +233,13 @@ export function createDesktopConnectionController(
       if (profile.value.profileId !== input.profileId) {
         return err({ code: 'CONNECTION_PROFILE_NOT_FOUND', message: 'Connection profile not found' });
       }
-
-      const tunnelReference = nonEmptyEnvironmentValue(environment, 'CONTROL_PLANE_TUNNEL_ID');
-      if (!tunnelReference) {
-        return err(appError('VALIDATION_FAILED', 'Restart SUD-D to load the tunnel configuration.'));
+      if (options.connectionService.getStatus().state !== 'stopped') {
+        return err(appError('VALIDATION_FAILED', 'Disconnect ChatGPT before changing Secure Tunnel configuration.'));
       }
 
-      const updated = options.configService.updateProfile(input.profileId, { tunnelReference });
+      const updated = options.configService.updateProfile(input.profileId, {
+        tunnelReference: input.tunnelReference,
+      });
       if (!updated.ok) return err(updated.error);
       cachedProfile = updated.value;
       return getSnapshot();

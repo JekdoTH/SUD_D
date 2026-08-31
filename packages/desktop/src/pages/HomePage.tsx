@@ -66,15 +66,22 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
     () => connection ? getConnectionPrimaryAction(connection, Boolean(activeWorkspace)) : null,
     [connection, activeWorkspace],
   );
-  const needsTunnelSetup = Boolean(
-    connection?.profile &&
-    connection.credentialStatus === 'configured' &&
-    !connection.profile.tunnelConfigured &&
-    connection.runtime.state === 'stopped',
-  );
 
   const runPrimaryAction = async (): Promise<void> => {
-    if (!connection?.profile || !primaryAction?.enabled) return;
+    if (!connection?.profile || !primaryAction?.enabled) {
+      if (primaryAction?.action === 'choose_workspace') onNavigate('workspaces');
+      return;
+    }
+
+    if (primaryAction.action === 'choose_workspace') {
+      onNavigate('workspaces');
+      return;
+    }
+    if (primaryAction.action === 'setup_credential' || primaryAction.action === 'setup_tunnel') {
+      onNavigate('connection');
+      return;
+    }
+
     setBusy(true);
     setError('');
     const result = primaryAction.action === 'connect'
@@ -130,26 +137,32 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
           </div>
           <p className="card-description">{statePresentation.description}</p>
           <div className="component-strip">
+            <span>Workspace <strong>{activeWorkspace ? 'Ready' : 'Needs setup'}</strong></span>
+            <span>Runtime Key <strong>{connection?.credentialStatus === 'configured' ? 'Configured' : 'Missing'}</strong></span>
+            <span>Secure Tunnel <strong>{connection?.profile?.tunnelConfigured ? (connection.runtime.state === 'error' ? 'Error' : connection.runtime.state === 'stopped' ? 'Ready' : 'Running') : 'Needs setup'}</strong></span>
             <span>Gateway <strong>{componentStatuses.gateway}</strong></span>
-            <span>Tunnel <strong>{componentStatuses.tunnel}</strong></span>
-            <span>ChatGPT <strong>{componentStatuses.client}</strong></span>
+            <span>ChatGPT <strong>{statePresentation.label}</strong></span>
           </div>
           <div className="button-row">
             <button
               id="overview-primary-connection-action"
               className="btn btn-primary"
-              disabled={busy || (!needsTunnelSetup && !primaryAction?.enabled)}
-              onClick={() => needsTunnelSetup ? onNavigate('connection') : void runPrimaryAction()}
+              disabled={busy || !primaryAction?.enabled}
+              onClick={() => void runPrimaryAction()}
             >
               {busy
                 ? 'Working…'
-                : needsTunnelSetup
-                  ? 'Set up Secure Tunnel'
-                  : primaryAction?.action === 'disconnect'
-                    ? 'Disconnect'
-                    : primaryAction?.action === 'restart'
-                      ? 'Restart'
-                      : 'Connect ChatGPT'}
+                : primaryAction?.action === 'choose_workspace'
+                  ? 'Choose Workspace'
+                  : primaryAction?.action === 'setup_credential'
+                    ? 'Set up API Key'
+                    : primaryAction?.action === 'setup_tunnel'
+                      ? 'Set up Secure Tunnel'
+                      : primaryAction?.action === 'disconnect'
+                        ? 'Disconnect'
+                        : primaryAction?.action === 'restart'
+                          ? 'Restart'
+                          : 'Connect ChatGPT'}
             </button>
             <button className="btn btn-ghost" onClick={() => onNavigate('connection')}>Connection details</button>
           </div>

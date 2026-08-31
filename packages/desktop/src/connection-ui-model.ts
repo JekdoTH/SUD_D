@@ -22,6 +22,9 @@ export interface ConnectionComponentStatuses {
 }
 
 export type ConnectionPrimaryAction =
+  | { readonly action: 'choose_workspace'; readonly enabled: boolean; readonly reason?: string }
+  | { readonly action: 'setup_credential'; readonly enabled: boolean; readonly reason?: string }
+  | { readonly action: 'setup_tunnel'; readonly enabled: boolean; readonly reason?: string }
   | { readonly action: 'connect'; readonly enabled: boolean; readonly reason?: string }
   | { readonly action: 'disconnect'; readonly enabled: boolean; readonly reason?: string }
   | { readonly action: 'restart'; readonly enabled: boolean; readonly reason?: string };
@@ -98,13 +101,13 @@ export function getConnectionPrimaryAction(
     return { action: 'connect', enabled: false, reason: 'Connection setup required' };
   }
   if (!hasActiveWorkspace) {
-    return { action: 'connect', enabled: false, reason: 'Select a workspace first' };
-  }
-  if (!snapshot.profile.tunnelConfigured) {
-    return { action: 'connect', enabled: false, reason: 'Secure Tunnel setup required' };
+    return { action: 'choose_workspace', enabled: true };
   }
   if (snapshot.credentialStatus !== 'configured') {
-    return { action: 'connect', enabled: false, reason: 'Credential setup required' };
+    return { action: 'setup_credential', enabled: true };
+  }
+  if (!snapshot.profile.tunnelConfigured) {
+    return { action: 'setup_tunnel', enabled: true };
   }
   return { action: 'connect', enabled: true };
 }

@@ -126,21 +126,31 @@ describe('M0.6 — renderer-facing connection contracts', () => {
     }
   });
 
-  it('accepts only profileId for fixed-purpose Secure Tunnel setup', () => {
+  it('accepts only profileId plus a validated OpenAI Secure Tunnel ID for fixed-purpose setup', () => {
     const profileId = '00000000-0000-4000-8000-000000000606';
-    expect(DesktopConnectionTunnelSetupInputSchema.parse({ profileId })).toEqual({ profileId });
+    const valid = { profileId, tunnelReference: 'tunnel_0123456789abcdef0123456789abcdef' };
+    expect(DesktopConnectionTunnelSetupInputSchema.parse(valid)).toEqual(valid);
+
+    for (const tunnelReference of [
+      '',
+      'home',
+      'tunnel value',
+      'tunnel_?',
+      `tunnel_${'a'.repeat(500)}`,
+    ]) {
+      expect(DesktopConnectionTunnelSetupInputSchema.safeParse({ profileId, tunnelReference }).success).toBe(false);
+    }
 
     for (const extra of [
-      { tunnelReference: 'tunnel_home' },
       { command: 'cmd.exe' },
       { executable: 'powershell.exe' },
-      { cwd: 'C:\\' },
+      { cwd: 'C:\\\\' },
       { argv: ['--unsafe'] },
       { env: { CONTROL_PLANE_TUNNEL_ID: 'tunnel_home' } },
       { credential: 'plaintext-secret' },
     ]) {
       expect(DesktopConnectionTunnelSetupInputSchema.safeParse({
-        profileId,
+        ...valid,
         ...extra,
       }).success).toBe(false);
     }
@@ -237,40 +247,65 @@ describe('M0.6 — Desktop connection controller', () => {
     expect(runtime.stopCalls).toBe(1);
   });
 
-  it('resolves the configured tunnel reference from the trusted backend environment', () => {
+  it('persists an explicitly entered Tunnel ID without returning it to the renderer', () => {
     const environment: NodeJS.ProcessEnv = { CONTROL_PLANE_API_KEY: 'sk-session-only' };
-    const { controller } = makeHarness(environment);
+    const { controller, profileRepo } = makeHarness(environment);
     const initial = controller.getSnapshot();
     expect(initial.ok).toBe(true);
     if (!initial.ok || !initial.value.profile) return;
     expect(initial.value.profile.tunnelConfigured).toBe(false);
 
-    environment.CONTROL_PLANE_TUNNEL_ID = 'tunnel_home';
-    const updated = controller.configureTunnel({
+    const input = {
       profileId: initial.value.profile.profileId,
-    });
+      tunnelReference: 'tunnel_home',
+    };
+    const updated = controller.configureTunnel(input);
     expect(updated.ok).toBe(true);
     if (!updated.ok) return;
     expect(updated.value.profile?.tunnelConfigured).toBe(true);
+    expect(profileRepo.findById(input.profileId)?.tunnelReference).toBe('tunnel_home');
     expect(getConnectionPrimaryAction(updated.value, true)).toEqual({ action: 'connect', enabled: true });
     expect(JSON.stringify(updated.value)).not.toContain('tunnel_home');
   });
 
-  it('returns safe restart guidance when the backend process cannot see tunnel configuration', () => {
+  it('does not require CONTROL_PLANE_TUNNEL_ID for normal in-app tunnel setup', () => {
     const { controller } = makeHarness({ CONTROL_PLANE_API_KEY: 'sk-session-only' });
     const initial = controller.getSnapshot();
     expect(initial.ok).toBe(true);
     if (!initial.ok || !initial.value.profile) return;
-    expect(initial.value.profile.tunnelConfigured).toBe(false);
 
-    const result = controller.configureTunnel({ profileId: initial.value.profile.profileId });
-    expect(result).toEqual({
+    const input = {
+      profileId: initial.value.profile.profileId,
+      tunnelReference: 'tunnel_home',
+    };
+    const result = controller.configureTunnel(input);
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects Tunnel configuration changes while the connection runtime is active', () => {
+    const { controller, profileRepo } = makeHarness({
+      CONTROL_PLANE_API_KEY: 'sk-session-only',
+      CONTROL_PLANE_TUNNEL_ID: 'tunnel_home',
+    });
+    const initial = controller.getSnapshot();
+    expect(initial.ok).toBe(true);
+    if (!initial.ok || !initial.value.profile) return;
+
+    const started = controller.start({ profileId: initial.value.profile.profileId });
+    expect(started.ok).toBe(true);
+
+    const input = {
+      profileId: initial.value.profile.profileId,
+      tunnelReference: 'tunnel_replacement',
+    };
+    expect(controller.configureTunnel(input)).toEqual({
       ok: false,
       error: {
         code: 'VALIDATION_FAILED',
-        message: 'Restart SUD-D to load the tunnel configuration.',
+        message: 'Disconnect ChatGPT before changing Secure Tunnel configuration.',
       },
     });
+    expect(profileRepo.findById(input.profileId)?.tunnelReference).toBe('tunnel_home');
   });
 
   it('does not append audit events when the renderer polls an unchanged snapshot', () => {
@@ -407,9 +442,12 @@ describe('M0.6 — Desktop connection IPC wiring', () => {
     expect(result).toEqual({ ok: true, value: snapshot });
   });
 
-  it('accepts fixed-purpose tunnel setup and rejects raw tunnel/process input', async () => {
+  it('accepts fixed-purpose Tunnel ID setup and rejects invalid or process-shaped input', async () => {
     const { handlers, configureTunnel } = makeIpcHarness();
-    const input = { profileId: '00000000-0000-4000-8000-000000000606' };
+    const input = {
+      profileId: '00000000-0000-4000-8000-000000000606',
+      tunnelReference: 'tunnel_home',
+    };
 
     const valid = await handlers.get(IPC_CHANNELS.CONNECTION_TUNNEL_SETUP)?.(
       { sender: { id: 1 } },
@@ -418,20 +456,22 @@ describe('M0.6 — Desktop connection IPC wiring', () => {
     expect(configureTunnel).toHaveBeenCalledWith(input);
     expect(valid).toEqual({ ok: true, value: snapshot });
 
-    configureTunnel.mockClear();
-    const invalid = await handlers.get(IPC_CHANNELS.CONNECTION_TUNNEL_SETUP)?.(
-      { sender: { id: 1 } },
-      {
-        ...input,
-        tunnelReference: 'tunnel_home',
-        executable: 'powershell.exe',
-        argv: ['x'],
-        cwd: 'C:\\',
-        env: { CONTROL_PLANE_TUNNEL_ID: 'tunnel_home' },
-      },
-    );
-    expect(invalid).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
-    expect(configureTunnel).not.toHaveBeenCalled();
+    for (const invalidInput of [
+      { ...input, tunnelReference: 'not-a-tunnel-id' },
+      { ...input, executable: 'powershell.exe' },
+      { ...input, argv: ['x'] },
+      { ...input, cwd: 'C:\\\\' },
+      { ...input, env: { CONTROL_PLANE_TUNNEL_ID: 'tunnel_home' } },
+      { ...input, credential: 'plaintext-secret' },
+    ]) {
+      configureTunnel.mockClear();
+      const invalid = await handlers.get(IPC_CHANNELS.CONNECTION_TUNNEL_SETUP)?.(
+        { sender: { id: 1 } },
+        invalidInput,
+      );
+      expect(invalid).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
+      expect(configureTunnel).not.toHaveBeenCalled();
+    }
   });
 
   it('validates safe preference updates before forwarding to the controller', async () => {
@@ -498,7 +538,7 @@ describe('M0.6 — connection presentation model', () => {
     expect(canRestartConnection('stopping')).toBe(false);
   });
 
-  it('enables Connect only when workspace, tunnel, and credential prerequisites are ready', () => {
+  it('returns one next-action CTA in prerequisite order and lifecycle-valid states', () => {
     const base = {
       profile: {
         profileId: '00000000-0000-4000-8000-000000000606',
@@ -516,17 +556,23 @@ describe('M0.6 — connection presentation model', () => {
       runtime: { state: 'stopped' as const, session: null, error: null },
     };
 
-    expect(getConnectionPrimaryAction(base, true)).toEqual({ action: 'connect', enabled: true });
+    expect(getConnectionPrimaryAction(base, false)).toEqual({ action: 'choose_workspace', enabled: true });
     expect(getConnectionPrimaryAction({ ...base, credentialStatus: 'missing' }, true)).toEqual({
-      action: 'connect', enabled: false, reason: 'Credential setup required',
-    });
-    expect(getConnectionPrimaryAction(base, false)).toEqual({
-      action: 'connect', enabled: false, reason: 'Select a workspace first',
+      action: 'setup_credential', enabled: true,
     });
     expect(getConnectionPrimaryAction({
       ...base,
-      runtime: { state: 'connected' as const, session: null, error: null },
+      profile: { ...base.profile, tunnelConfigured: false },
+    }, true)).toEqual({ action: 'setup_tunnel', enabled: true });
+    expect(getConnectionPrimaryAction(base, true)).toEqual({ action: 'connect', enabled: true });
+    expect(getConnectionPrimaryAction({
+      ...base,
+      runtime: { state: 'waiting_for_client' as const, session: null, error: null },
     }, true)).toEqual({ action: 'disconnect', enabled: true });
+    expect(getConnectionPrimaryAction({
+      ...base,
+      runtime: { state: 'error' as const, session: null, error: null },
+    }, true)).toEqual({ action: 'restart', enabled: true });
   });
 });
 
@@ -560,15 +606,18 @@ describe('M0.6 — renderer page safety surfaces', () => {
     expect(source).not.toMatch(/raw command|executable path|argv|cwd|environment variable values/i);
   });
 
-  it('offers non-technical Secure Tunnel setup without renderer tunnel input', () => {
+  it('offers fixed-purpose in-app Tunnel ID setup without env/process controls', () => {
     const source = fs.readFileSync(
       path.join(process.cwd(), 'packages/desktop/src/pages/ConnectionPage.tsx'),
       'utf8',
     );
     expect(source).toContain('Set up Secure Tunnel');
-    expect(source).toContain('SUD-D found the tunnel configuration on this device.');
+    expect(source).toContain('Tunnel ID');
+    expect(source).toContain('tunnel_');
+    expect(source).toContain('configureTunnel');
+    expect(source).toContain("onNavigate('workspaces')");
     expect(source).toContain('Secure Tunnel is ready.');
-    expect(source).not.toMatch(/tunnelReference|Secure Tunnel reference|Paste the device tunnel reference/i);
+    expect(source).not.toMatch(/CONTROL_PLANE_TUNNEL_ID|executable|argv|cwd|generic process/i);
   });
 
   it('routes Overview tunnel setup CTA to the safe Connection flow', () => {

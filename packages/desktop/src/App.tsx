@@ -61,7 +61,7 @@ export function App(): React.ReactElement {
       <main className="main">
         {page === 'overview' && <HomePage onNavigate={setPage} />}
         {page === 'workspaces' && <ProjectsPage />}
-        {page === 'connection' && <ConnectionPage />}
+        {page === 'connection' && <ConnectionPage onNavigate={setPage} />}
         {page === 'activity' && <ActivityPage />}
         {page === 'security' && <SettingsPage />}
         {page === 'recovery' && <RecoveryPage />}
