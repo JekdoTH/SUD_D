@@ -32,43 +32,57 @@ If the documents disagree, use the roadmap for approved long-term direction, the
 
 ## Agent Skills Routing
 
-Follow this repository-defined routing autonomously. For every task, match the current work against the routing triggers, select and invoke every applicable automatic skill, and choose the supporting tools required by those workflows. Do not wait for the user to name individual skills, and do not skip a routed skill merely because the prompt did not mention it.
-
-Use progressive disclosure:
+SUD_D agents choose routine engineering workflows autonomously from the repo-local skills under `.agents/skills/`. Workflow autonomy does not grant product-scope autonomy:
 
 ```text
-Task
-→ match a routing trigger
-→ read only the relevant skill and its required references
-→ follow that workflow
-→ continue to obey SUD_D scope, specification, and security rules
+User/task chooses product scope.
+AGENTS.md chooses operating rules.
+Skill Router chooses workflow.
+Skills guide how to work.
+Security rules decide what is permitted.
+STOP CONDITION ends the task.
 ```
 
-The selected skills are external/local runtime resources, not repository-owned files. Resolve them by the exact canonical name through the active agent runtime. The repository intentionally does not vendor content from the inspected `Skill_Matt_pocock.zip` package because that archive provides no license or redistribution terms. If a routed skill is unavailable, report that explicitly before the related step; do not invent a substitute or reference a nonexistent repository path. Continue without it only when this repository's rules, the active specification, and the security boundaries permit the fallback; otherwise stop.
+A skill may never start the next milestone, expand the current task, weaken security, bypass Policy/Approval/Audit/Recovery, change a STOP condition, override an explicit user instruction, or overwrite unrelated user work. A user- or task-specified `REQUIRED SKILL: <skill>` forces that exact skill for the related step; otherwise route every automatic skill whose trigger genuinely matches.
 
-When a trigger matches an automatic skill and the active runtime permits model invocation, load and use that skill without requiring a per-prompt instruction. When a selected skill is user-invoked only, identify it and require explicit invocation before running it. Load only the skills and required references relevant to the current branch of work; do not load every available skill. A user- or milestone-specified `REQUIRED SKILL: <skill>` is reserved for explicitly forcing that exact skill and takes precedence over a conflicting normal route for the related step. Without such a directive, apply this router autonomously:
+### Skill resolution and progressive disclosure
 
-| Trigger | Skill | Invocation |
+At task start, load this file, the project context/roadmap/handoff, the active task specification, and only enough skill metadata to route. Do **not** load the full skill catalogue.
+
+- **Native Agent Skills runtime:** when `.agents/skills` is discovered natively, invoke the canonical skill normally.
+- **Non-native / Serena-assisted runtime:** route here, read `.agents/skills/<skill>/SKILL.md`, read only references required by that workflow branch, apply it manually, and report the selected skill in the Pre-Implementation Compliance Check when that check applies.
+- The absence of a dedicated skill UI is not an unavailable skill when its tracked repo-local files can be read. If required skill files truly cannot be accessed, report that limitation before the related step.
+- If a selected skill references another skill, load that second skill only when the active branch requires it; never recursively load the catalogue.
+- Skill versions are pinned. See `.agents/skills/MATT-POCOCK-SKILLS.md`. Do not auto-update skills during product milestones; upgrades are separate governance/tooling tasks.
+
+**Skills consume existing repository/task context before asking the user.** If a decision or fact is already established by the active task `.md`, this `AGENTS.md`, `SUD_D_CONTEXT.md`, `SUD_D_ROADMAP.md`, `SUD_D_HANDOFF.md`, current implementation, Git baseline/history, or established conversation context, use that source instead of asking the user to repeat it. Ask only for a genuinely missing decision or fact that cannot be resolved safely from a source of truth.
+
+### Automatic skills
+
+| Skill | Route when | SUD_D adaptation |
 | --- | --- | --- |
-| High UI/UX uncertainty or a state/logic design question that needs a throwaway artifact; skip small cosmetic tweaks | `prototype` | Automatic |
-| Security/Data Critical work, prompt-required review, or architecture/shared-contract/cross-package behavior changes; skip routine docs/cosmetic commits | `code-review` | Automatic |
-| Core domain or security terminology, ubiquitous language, or a qualifying architectural decision; skip simple UI work | `domain-modeling` | Automatic |
-| Session, device, or agent handoff | `handoff` | Explicit/user-invoked |
-| `AGENTS.md`, agent context, skill, or other agent-facing documentation changes | `writing-for-agents` | Automatic |
-| Work too large for one session that needs an issue-backed decision map | `wayfinder` | Explicit/user-invoked |
-| Architecture, product, plan, or design decision that needs a relentless stress-test | `grilling` | Automatic |
-| An existing discussion must be synthesized into a formal specification | `to-spec` | Explicit/user-invoked |
+| `tdd` | Meaningful source behavior changes, bug fixes with a valid test seam, new functional/security capabilities, or integration behavior changes | Work red → green through observable public/trusted seams; avoid implementation-coupled or tautological tests. An acceptance matrix or public seam already defined by the task is pre-agreed; do not ask the user to reconfirm it. |
+| `diagnosing-bugs` | Something is broken, failing, flaky, unexpectedly slow, or a verification failure has an unclear root cause | Establish or reuse a tight red-capable feedback loop, reproduce and minimize, form falsifiable hypotheses, instrument selectively, then secure the root cause with a regression test; remove temporary instrumentation afterward. Skip speculation only when the root cause is already conclusive. |
+| `codebase-design` | Designing/changing a module interface, seam/port/adapter, cross-package contract, testability boundary, or architectural abstraction | Prefer deep, local interfaces with leverage; avoid shallow pass-through layers and speculative abstractions. Skip ordinary tiny changes with no interface/design question. |
+| `domain-modeling` | Core domain/security terminology, state-machine concepts, Policy/Approval/Recovery/Team concepts, or a stable ubiquitous-language decision changes | Align terminology, invariants, scenarios, code, tests, and durable docs. Do not churn `SUD_D_CONTEXT.md` for implementation trivia. |
+| `code-review` | Security/Data Critical final gate, explicit task review, architecture/shared-contract/cross-package behavior change, or privileged-boundary change | Review Standards and Spec separately. The current task/milestone `.md` is the primary Spec when available; `AGENTS.md`, repo docs, and security invariants are Standards. Use the captured task-start baseline as fixed point. Do not require `setup-matt-pocock-skills` or an external issue tracker. |
+| `prototype` | Material UI/UX uncertainty, throwaway state/logic exploration, or multiple interaction designs need comparison | Skip trivial cosmetic tweaks. Prototype artifacts are disposable unless separately approved. |
+| `research` | Implementation depends on current external API/runtime/library/spec facts not established locally, or official technical behavior must be verified | Read SUD_D code/docs first, then use high-trust primary sources. Research may run synchronously when background agents are unavailable. Keep transient notes local unless they become approved durable documentation. |
+| `resolving-merge-conflicts` | An actual merge or rebase conflict is already in progress | Resolve by original intent and primary sources. SUD_D safety rules and preservation of user-owned work override any generic instruction that would risk data loss. Do not invoke merely because branches differ. |
+| `grilling` | A product/architecture/security/design decision has meaningful unresolved branches or hidden assumptions needing stress-testing | Use repository facts first. Do not interview the user when the task is already narrow, explicit, and fully specified; ask only genuinely unresolved decisions. |
+| `writing-for-agents` | `AGENTS.md`, skill routing, agent-facing context/instructions, or process/handoff docs primarily consumed by agents change | Keep instructions concise, use progressive disclosure, strengthen trigger pointers, and remove duplicated/conflicting agent guidance. |
 
-`grill-me` is a user-invoked alias that delegates to `grilling`, so the automatic router uses `grilling` directly. `setup-matt-pocock-skills` is a separate one-time tracker/domain-doc setup workflow, not an everyday SUD_D task router; run it only under an explicitly approved repository-setup task.
+### Explicit / user-invoked skills
 
-### Milestone Workflow Direction
+These skills remain available but do not start silently as routine automatic workflows:
 
-These workflows constrain future milestone work; they do not authorize starting it:
+| Skill | Use when the user explicitly asks for |
+| --- | --- |
+| `handoff` | Session, device, Serena/Codex/agent handoff, or conversation compaction for continuation |
+| `to-spec` | Synthesis of the current discussion into a formal specification; skip when an adequate task `.md` already exists unless another spec is requested |
+| `wayfinder` | A large multi-session or decision-map workflow; skip normal milestones that fit one bounded task |
 
-- **M0.6 UI:** `prototype` → design review → production implementation → verification → `code-review`
-- **M1 Tool Execution Kernel:** `domain-modeling` → implementation → `code-review`
-- **M3 Approval:** `domain-modeling` → `prototype` for UX uncertainty when needed → implementation → `code-review`
-- **M4/M5 Recovery/Delete:** `domain-modeling` → implementation → security-focused `code-review`
+Third-party skill files are copied from the pinned official upstream snapshot and must not be silently rewritten for SUD_D. SUD_D-specific adaptations belong here. `deprecated`, `in-progress`, `grill-me`, `setup-matt-pocock-skills`, and unrelated upstream skills are intentionally not installed.
 
 ## Session Continuity Model
 
@@ -76,7 +90,7 @@ These workflows constrain future milestone work; they do not authorize starting 
 - `SUD_D_CONTEXT.md` owns stable project context.
 - `SUD_D_ROADMAP.md` owns long-term direction and milestone sequencing.
 - `SUD_D_HANDOFF.md` owns current progress and execution state.
-- Selected skill files provide reusable workflow instructions outside the repository unless redistribution is explicitly permitted.
+- Approved third-party workflow instructions are tracked under `.agents/skills/` at the pinned provenance recorded in `.agents/skills/MATT-POCOCK-SKILLS.md`.
 - The Git repository is the source of truth.
 - `.serena/` is local tooling state, not project memory, and must not be committed.
 
