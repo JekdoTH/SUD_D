@@ -7,4 +7,5 @@ export * from './openai-secure-tunnel-runtime.js';
 export * from './audit-repository.js';
 export * from './path-adapter.js';
 export * from './workspace-text-file-system.js';
+export * from './git-safety-adapter.js';
 export * from './doctor.js';

@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 
 import {
+  createGitSafetyCapabilities,
   createToolCapabilityRegistry,
   createToolKernel,
   createWorkspaceFileCapabilities,
@@ -11,14 +12,17 @@ import {
 } from '@sud-d/application';
 import type { InternalRoot } from '@sud-d/domain';
 import {
+  GIT_SAFETY_LIMITS,
   WORKSPACE_TEXT_FILE_LIMITS,
   canonicalizePath,
   createAuditRepository,
+  createGitSafetyAdapter,
   createWorkspaceRepository,
   createWorkspaceTextFileSystem,
   getDataRoot,
   openDatabase,
   type AuditRepository,
+  type GitSafetyAdapter,
   type WorkspaceRepository,
   type WorkspaceTextFileSystem,
 } from '@sud-d/infrastructure';
@@ -49,22 +53,40 @@ const writeInputSchema = z.object({
     });
   }
 });
+const gitDetectInputSchema = z.object({}).strict();
+const gitStatusInputSchema = z.object({
+  limit: z.number().int().min(1).max(GIT_SAFETY_LIMITS.maxStatusEntries).optional(),
+}).strict();
+const gitDiffInputSchema = z.object({
+  relativePath: relativePathSchema.optional(),
+  maxBytes: z.number().int().min(1).max(GIT_SAFETY_LIMITS.maxDiffBytes).optional(),
+}).strict();
+const gitCheckpointInputSchema = z.object({
+  expectedStatusId: z.string().regex(/^[0-9a-f]{64}$/),
+}).strict();
 
 export interface ProductionMcpServerDependencies {
   readonly workspaceRepo: WorkspaceRepository;
   readonly auditRepo: AuditRepository;
   readonly internalRoots: readonly InternalRoot[];
   readonly fileSystem: WorkspaceTextFileSystem;
+  readonly gitSafety?: GitSafetyAdapter;
 }
 
 export function createProductionMcpServer(
   dependencies: ProductionMcpServerDependencies,
 ): McpServer {
-  const capabilities = createWorkspaceFileCapabilities({
-    workspaceRepo: dependencies.workspaceRepo,
-    internalRoots: dependencies.internalRoots,
-    fileSystem: dependencies.fileSystem,
-  });
+  const capabilities = [
+    ...createWorkspaceFileCapabilities({
+      workspaceRepo: dependencies.workspaceRepo,
+      internalRoots: dependencies.internalRoots,
+      fileSystem: dependencies.fileSystem,
+    }),
+    ...createGitSafetyCapabilities({
+      workspaceRepo: dependencies.workspaceRepo,
+      gitSafety: dependencies.gitSafety ?? createGitSafetyAdapter(),
+    }),
+  ];
   const registry = createToolCapabilityRegistry(capabilities);
   if (!registry.ok) {
     throw new Error('SUD-D production tool registration failed');
@@ -75,6 +97,7 @@ export function createProductionMcpServer(
   });
 
   registerWorkspaceFileTools(server, kernel);
+  registerGitSafetyTools(server, kernel);
   return server;
 }
 
@@ -148,6 +171,45 @@ function registerWorkspaceFileTools(server: McpServer, kernel: ToolKernel): void
       inputSchema: writeInputSchema,
     },
     async (input) => invokeKernel(kernel, 'workspace.write_text_file', input),
+  );
+}
+
+function registerGitSafetyTools(server: McpServer, kernel: ToolKernel): void {
+  server.registerTool(
+    'git.detect',
+    {
+      title: 'Detect workspace Git repository',
+      description: 'Detect a supported local Git repository exactly at the active SUD-D Workspace root.',
+      inputSchema: gitDetectInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'git.detect', input),
+  );
+  server.registerTool(
+    'git.status',
+    {
+      title: 'Inspect workspace Git status',
+      description: 'Return a bounded structured local Git status for the active SUD-D Workspace.',
+      inputSchema: gitStatusInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'git.status', input),
+  );
+  server.registerTool(
+    'git.diff',
+    {
+      title: 'Inspect workspace Git diff',
+      description: 'Return a bounded credential-safe tracked diff relative to HEAD.',
+      inputSchema: gitDiffInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'git.diff', input),
+  );
+  server.registerTool(
+    'git.checkpoint',
+    {
+      title: 'Create SUD-D Git checkpoint',
+      description: 'Create an append-only local SUD-D checkpoint for an inspected Workspace status.',
+      inputSchema: gitCheckpointInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'git.checkpoint', input),
   );
 }
 

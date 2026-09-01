@@ -31,6 +31,8 @@ const APPROVED_TOOLS = [
   'workspace.create_text_file',
   'workspace.write_text_file',
 ] as const;
+const GIT_SAFETY_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint'] as const;
+const APPROVED_PRODUCTION_TOOLS = [...APPROVED_TOOLS, ...GIT_SAFETY_TOOLS] as const;
 
 const LEGACY_PROTOCOL_VERSION = '2025-06-18';
 const tempDirs: string[] = [];
@@ -649,23 +651,23 @@ describe('Personal Alpha Workspace File Tools — audit and leakage', () => {
 });
 
 describe('Personal Alpha Workspace File Tools — production MCP boundary', () => {
-  it('production tools/list contains exactly approved Personal Alpha file tools', async () => {
+  it('production tools/list contains exactly approved workspace and Git Safety tools', async () => {
     const h = await makeProductionWireHarness();
     const initialized = await h.initialize();
     expect(initialized.result?.serverInfo?.name).toBe('SUD-D');
     h.send({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
     const response = await h.reader.next();
-    expect(responseToolNames(response).sort()).toEqual([...APPROVED_TOOLS].sort());
+    expect(responseToolNames(response).sort()).toEqual([...APPROVED_PRODUCTION_TOOLS].sort());
     await h.server.close();
   });
 
-  it('Delete, Git, Execute, Network, and Team Mode tools remain absent', async () => {
+  it('Delete, Execute, Network, Team Mode, and unapproved Git tools remain absent', async () => {
     const h = await makeProductionWireHarness();
     await h.initialize();
     h.send({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: {} });
     const response = await h.reader.next();
     const names = responseToolNames(response).join(' ');
-    expect(names).not.toMatch(/delete|rename|move|git|execute|shell|network|team/i);
+    expect(names).not.toMatch(/delete|rename|move|execute|shell|network|team|git\.(?:push|pull|fetch|clone|run)/i);
     await h.server.close();
   });
 

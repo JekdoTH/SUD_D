@@ -26,6 +26,8 @@ const PERSONAL_ALPHA_WORKSPACE_TOOLS = [
   'workspace.create_text_file',
   'workspace.write_text_file',
 ] as const;
+const GIT_SAFETY_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint'] as const;
+const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS] as const;
 
 interface TunnelLaunchPlan {
   readonly executablePath: string;
@@ -592,7 +594,7 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
     expect(JSON.stringify(dto)).not.toMatch(/api[_-]?key|credential|CONTROL_PLANE_API_KEY|sk-m05/i);
   });
 
-  it('preserves the fixed stdio gateway boundary while exposing only approved Personal Alpha workspace tools', async () => {
+  it('preserves the fixed stdio gateway boundary while exposing only approved workspace and Git Safety tools', async () => {
     const api = await loadM05();
     const entry = api.getDefaultMcpGatewayEntryPath();
     expect(fs.existsSync(entry)).toBe(true);
@@ -636,6 +638,6 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
       result?: { tools?: unknown[] };
     });
     const tools = lines.find((line) => line.id === 502)?.result?.tools as Array<{ name?: string }> | undefined;
-    expect(tools?.map((tool) => tool.name).sort()).toEqual([...PERSONAL_ALPHA_WORKSPACE_TOOLS].sort());
+    expect(tools?.map((tool) => tool.name).sort()).toEqual([...APPROVED_PRODUCTION_TOOLS].sort());
   });
 });
