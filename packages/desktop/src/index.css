@@ -299,6 +299,14 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 .activity-details { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .activity-details span { padding: 3px 6px; border-radius: 6px; background: #f8fafc; border: 1px solid var(--bg-border); color: var(--text-secondary); font-size: 10.5px; }
 .activity-result { display: grid; justify-items: end; gap: 5px; flex: 0 0 auto; }
+.approval-card { margin-bottom: 16px; }
+.approval-list { margin-top: 12px; display: flex; flex-direction: column; }
+.approval-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 13px 0; border-bottom: 1px solid #edf1f5; }
+.approval-row:last-child { border-bottom: 0; }
+.approval-context { min-width: 0; }
+.approval-context strong { color: #334155; font-size: 13px; }
+.approval-resource { margin-top: 4px; color: var(--text-secondary); font-size: 12px; overflow-wrap: anywhere; }
+.approval-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 
 /* ---- Tables ---- */
 .table-wrap { overflow-x: auto; border: 1px solid var(--bg-border); border-radius: 12px; }

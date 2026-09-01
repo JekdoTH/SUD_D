@@ -12,7 +12,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from '@sud-d/infrastructure';
 import { createWorkspaceRepository } from '@sud-d/infrastructure';
-import { createAuditRepository } from '@sud-d/infrastructure';
+import { createAuditRepository, createApprovalRepository } from '@sud-d/infrastructure';
 import { getDataRoot, canonicalizePath } from '@sud-d/infrastructure';
 import { checkDataDirectory, checkWorkspaceRoot } from '@sud-d/infrastructure';
 import {
@@ -23,6 +23,7 @@ import {
   isOpenAiSecureTunnelClientAvailable,
 } from '@sud-d/infrastructure';
 import {
+  createApprovalService,
   createConnectionConfigService,
   createConnectionService,
   createWorkspaceService,
@@ -37,6 +38,11 @@ import {
   registerDesktopDiagnosticsIpcHandlers,
   type DiagnosticsIpcMain,
 } from './diagnostics-ipc.js';
+import { createDesktopApprovalController } from './approval-controller.js';
+import {
+  registerDesktopApprovalIpcHandlers,
+  type ApprovalIpcMain,
+} from './approval-ipc.js';
 import {
   WorkspaceAddInputSchema,
   WorkspaceSelectInputSchema,
@@ -61,6 +67,9 @@ const dbPath = path.join(dataRoot, 'sud-d.db');
 const db = openDatabase(dbPath);
 const workspaceRepo = createWorkspaceRepository(db);
 const auditRepo = createAuditRepository(db);
+const approvalRepo = createApprovalRepository(db);
+const approvalService = createApprovalService(approvalRepo, auditRepo);
+const approvalController = createDesktopApprovalController(approvalService);
 
 // SUD-D data root is an InternalRoot — agents must not access it as a workspace
 const dataRootCanonical = canonicalizePath(dataRoot);
@@ -279,6 +288,11 @@ function registerIpcHandlers(): void {
   registerDesktopDiagnosticsIpcHandlers(
     ipcMain as unknown as DiagnosticsIpcMain,
     diagnosticsController,
+    validateDesktopSender,
+  );
+  registerDesktopApprovalIpcHandlers(
+    ipcMain as unknown as ApprovalIpcMain,
+    approvalController,
     validateDesktopSender,
   );
 }

@@ -53,6 +53,33 @@ const MIGRATIONS: string[] = [
     updated_at       TEXT NOT NULL
   );
   `,
+  // Migration 003 — Basic Approval safe metadata only; never raw tool input/content
+  `
+  CREATE TABLE IF NOT EXISTS approval_requests (
+    id                  TEXT PRIMARY KEY,
+    runtime_instance_id TEXT NOT NULL,
+    binding_digest      TEXT NOT NULL,
+    session_id          TEXT NOT NULL,
+    session_type        TEXT NOT NULL,
+    capability          TEXT NOT NULL,
+    effect              TEXT NOT NULL,
+    sensitivity         TEXT NOT NULL,
+    policy_context      TEXT NOT NULL,
+    workspace_id        TEXT,
+    safe_title          TEXT NOT NULL,
+    safe_resource_label TEXT,
+    status              TEXT NOT NULL CHECK(status IN ('pending','approved','denied','consumed','expired')),
+    created_at          TEXT NOT NULL,
+    expires_at          TEXT NOT NULL,
+    decided_at          TEXT,
+    consumed_at         TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_approval_runtime_binding ON approval_requests(runtime_instance_id, binding_digest, created_at DESC);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_approval_one_active_binding
+    ON approval_requests(runtime_instance_id, binding_digest)
+    WHERE status IN ('pending','approved');
+  CREATE INDEX IF NOT EXISTS idx_approval_pending ON approval_requests(status, expires_at, created_at DESC);
+  `,
 ];
 
 export function openDatabase(dbPath: string): Db {

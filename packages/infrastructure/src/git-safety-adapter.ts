@@ -93,7 +93,15 @@ export interface GitSafetyAdapter {
     workspaceCanonicalRoot: string,
     options?: { readonly relativePath?: string; readonly maxBytes?: number },
   ): Result<GitDiffResult, AppError>;
+  diffApprovedSensitive(
+    workspaceCanonicalRoot: string,
+    options: { readonly relativePath: string; readonly maxBytes?: number },
+  ): Result<GitDiffResult, AppError>;
   checkpoint(
+    workspaceCanonicalRoot: string,
+    expectedStatusId: string,
+  ): Result<GitCheckpointResult, AppError>;
+  checkpointApprovedSensitive(
     workspaceCanonicalRoot: string,
     expectedStatusId: string,
   ): Result<GitCheckpointResult, AppError>;
@@ -134,10 +142,16 @@ export function createGitSafetyAdapter(): GitSafetyAdapter {
       return readStatus(workspaceCanonicalRoot, limit);
     },
     diff(workspaceCanonicalRoot: string, options?: { readonly relativePath?: string; readonly maxBytes?: number }) {
-      return readDiff(workspaceCanonicalRoot, options);
+      return readDiff(workspaceCanonicalRoot, options, false);
+    },
+    diffApprovedSensitive(workspaceCanonicalRoot: string, options: { readonly relativePath: string; readonly maxBytes?: number }) {
+      return readDiff(workspaceCanonicalRoot, options, true);
     },
     checkpoint(workspaceCanonicalRoot: string, expectedStatusId: string) {
-      return createCheckpoint(workspaceCanonicalRoot, expectedStatusId);
+      return createCheckpoint(workspaceCanonicalRoot, expectedStatusId, false);
+    },
+    checkpointApprovedSensitive(workspaceCanonicalRoot: string, expectedStatusId: string) {
+      return createCheckpoint(workspaceCanonicalRoot, expectedStatusId, true);
     },
   });
 }
@@ -254,6 +268,7 @@ function readStatus(workspaceCanonicalRoot: string, requestedLimit: number = GIT
 function readDiff(
   workspaceCanonicalRoot: string,
   options: { readonly relativePath?: string; readonly maxBytes?: number } = {},
+  allowSensitive = false,
 ): Result<GitDiffResult, AppError> {
   const detected = detectRepository(workspaceCanonicalRoot);
   if (!detected.ok) return detected;
@@ -265,7 +280,7 @@ function readDiff(
   if (requestedPath !== undefined) {
     const validated = validateGitCallerPath(requestedPath);
     if (!validated.ok) return validated;
-    if (classifySensitivity(validated.value) === 'credential') {
+    if (!allowSensitive && classifySensitivity(validated.value) === 'credential') {
       return err(appError('SENSITIVE_RESOURCE', 'Credential-like Git diff requires approval'));
     }
   }
@@ -278,10 +293,12 @@ function readDiff(
 
   const omittedSensitivePaths = status.value.entries
     .filter((entry) => entry.sensitive)
+    .filter((entry) => !allowSensitive || requestedPath === undefined || !pathWithinFilter(entry.path, requestedPath))
     .map((entry) => entry.path)
     .sort();
   const selectedEntries = status.value.entries
-    .filter((entry) => !entry.untracked && !entry.sensitive)
+    .filter((entry) => !entry.untracked)
+    .filter((entry) => !entry.sensitive || (allowSensitive && requestedPath !== undefined && pathWithinFilter(entry.path, requestedPath)))
     .filter((entry) => requestedPath === undefined || pathWithinFilter(entry.path, requestedPath));
   if (selectedEntries.some((entry) => entry.gitlink)) {
     return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git diff does not support submodule/gitlink changes'));
@@ -327,6 +344,7 @@ function readDiff(
       selectedEntries,
       headModes.value,
       isolatedEnv,
+      allowSensitive,
     );
     if (!prepared.ok) return prepared;
 
@@ -395,6 +413,7 @@ function readDiff(
 function createCheckpoint(
   workspaceCanonicalRoot: string,
   expectedStatusId: string,
+  allowSensitive = false,
 ): Result<GitCheckpointResult, AppError> {
   const before = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
   if (!before.ok) return before;
@@ -407,7 +426,7 @@ function createCheckpoint(
   if (before.value.state !== 'normal') {
     return err(appError('GIT_STATE_UNSAFE', 'Git checkpoint is unavailable during an in-progress repository operation'));
   }
-  if (before.value.entries.some((entry) => entry.sensitive)) {
+  if (!allowSensitive && before.value.entries.some((entry) => entry.sensitive)) {
     return err(appError('SENSITIVE_RESOURCE', 'Credential-like Git changes require approval'));
   }
   if (before.value.entries.some((entry) => entry.gitlink)) {
@@ -451,6 +470,8 @@ function createCheckpoint(
       runtime.value,
       before.value.entries,
       headModes.value,
+      undefined,
+      allowSensitive,
     );
     if (!prepared.ok) return prepared;
 
@@ -483,6 +504,7 @@ function createCheckpoint(
       indexBefore.value,
       prepared.value.files,
       prepared.value.deletedPaths,
+      allowSensitive,
     );
     if (!preCommit.ok) return preCommit;
 
@@ -511,6 +533,7 @@ function createCheckpoint(
       indexBefore.value,
       prepared.value.files,
       prepared.value.deletedPaths,
+      allowSensitive,
     );
     if (!preRef.ok) return preRef;
     if (hasConcurrentGitLock(workspaceCanonicalRoot)) {
@@ -545,13 +568,14 @@ function prepareCheckpointEntries(
   entries: readonly GitStatusEntry[],
   headModes: ReadonlyMap<string, string>,
   extraGitEnv: Readonly<Record<string, string>> = {},
+  allowSensitive = false,
 ): Result<{ readonly files: readonly CheckpointFileSnapshot[]; readonly deletedPaths: readonly string[] }, AppError> {
   const pending: Array<Omit<CheckpointFileSnapshot, 'blobOid'> & { readonly tempPath: string }> = [];
   const deletedPaths: string[] = [];
   let aggregateBytes = 0;
 
   for (const entry of entries) {
-    if (entry.sensitive) {
+    if (!allowSensitive && entry.sensitive) {
       return err(appError('SENSITIVE_RESOURCE', 'Credential-like Git changes require approval'));
     }
     if (entry.kind === 'conflict') {
@@ -711,6 +735,7 @@ function revalidateCheckpointState(
   expectedIndexFingerprint: string,
   files: readonly CheckpointFileSnapshot[],
   deletedPaths: readonly string[],
+  allowSensitive = false,
 ): Result<void, AppError> {
   const current = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
   if (!current.ok) return current;
@@ -724,7 +749,7 @@ function revalidateCheckpointState(
   if (current.value.state !== 'normal') {
     return err(appError('GIT_STATE_UNSAFE', 'Git repository state changed during checkpoint'));
   }
-  if (current.value.entries.some((entry) => entry.sensitive)) {
+  if (!allowSensitive && current.value.entries.some((entry) => entry.sensitive)) {
     return err(appError('SENSITIVE_RESOURCE', 'Credential-like Git changes require approval'));
   }
   if (current.value.entries.some((entry) => entry.gitlink)) {

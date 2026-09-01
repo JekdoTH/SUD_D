@@ -1,4 +1,5 @@
 import type { AppErrorCode } from './result.js';
+import type { ApprovalDecisionKind } from './approval.js';
 import type { PolicyContext } from './policy.js';
 import type {
   ClientSession,
@@ -23,6 +24,8 @@ export interface ToolExecutionContext {
   readonly invocationId: string;
   readonly session: ClientSession;
   readonly security: ResolvedToolSecurityContext;
+  readonly approvalDecision?: ApprovalDecisionKind;
+  readonly approvalRequestId?: string;
 }
 
 export type ToolKernelOutcome = 'blocked' | 'executed';
@@ -35,6 +38,9 @@ export type ToolKernelResultCode =
   | 'POLICY_EVALUATION_FAILED'
   | 'POLICY_DENIED'
   | 'APPROVAL_REQUIRED'
+  | 'APPROVAL_DENIED'
+  | 'APPROVAL_EXPIRED'
+  | 'APPROVAL_CONTEXT_FAILED'
   | 'AUDIT_PRECONDITION_FAILED'
   | 'EXECUTION_FAILED'
   | 'AUDIT_OUTCOME_FAILED';
@@ -43,7 +49,9 @@ export interface ToolKernelSuccess {
   readonly ok: true;
   readonly outcome: 'executed';
   readonly code: 'EXECUTED';
-  readonly policyDecision: 'allow';
+  readonly policyDecision: 'allow' | 'ask';
+  readonly approvalDecision?: ApprovalDecisionKind;
+  readonly approvalRequestId?: string;
   readonly value: unknown;
 }
 
@@ -52,6 +60,10 @@ export interface ToolKernelFailure {
   readonly outcome: ToolKernelOutcome;
   readonly code: Exclude<ToolKernelResultCode, 'EXECUTED'>;
   readonly policyDecision?: PolicyDecisionKind;
+  readonly approvalDecision?: ApprovalDecisionKind;
+  readonly approvalRequestId?: string;
+  readonly approvalExpiresAt?: string;
+  readonly message?: string;
   readonly causeCode?: AppErrorCode;
 }
 

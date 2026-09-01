@@ -6,6 +6,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 
 import {
   canonicalizePath,
+  createApprovalRepository,
   createAuditRepository,
   createGitSafetyAdapter,
   createWorkspaceRepository,
@@ -14,6 +15,7 @@ import {
   type GitCheckpointResult,
 } from '@sud-d/infrastructure';
 import {
+  createApprovalCoordinator,
   createGitSafetyCapabilities,
   createToolCapabilityRegistry,
   createToolKernel,
@@ -144,7 +146,8 @@ export async function makeHarness(options: { repo?: boolean; active?: boolean; w
   const capabilities = createGitSafetyCapabilities({ workspaceRepo, gitSafety });
   const registry = createToolCapabilityRegistry(capabilities);
   if (!registry.ok) throw new Error(`registry failure: ${registry.error.code}`);
-  const kernel = createToolKernel({ registry: registry.value, audit: auditRepo });
+  const approval = createApprovalCoordinator({ repository: createApprovalRepository(db) });
+  const kernel = createToolKernel({ registry: registry.value, audit: auditRepo, approval });
   const invoke = (capability: string, input: unknown) => kernel.invoke({
     invocationId: `git-safety-${++invocationCounter}`,
     session: { id: 'git-safety-test', type: 'mcp-stdio' },

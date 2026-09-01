@@ -80,9 +80,25 @@ export function createGitSafetyCapabilities(
           : 'normal';
         return resolveWorkspaceSecurity(dependencies, sensitivity);
       },
+      approval: {
+        describe: (input) => ok({
+          title: 'Reveal sensitive Git diff',
+          resourceLabel: input.relativePath ?? 'Active Workspace',
+        }),
+        bind: (input, security) => bindGitApprovalState(dependencies, security.workspaceId, {
+          relativePath: input.relativePath ?? null,
+          maxBytes: input.maxBytes ?? null,
+        }),
+      },
       execute(input, context) {
         const workspace = getExecutionWorkspace(dependencies.workspaceRepo, context);
         if (!workspace.ok) return workspace;
+        if (context.approvalDecision === 'approved' && input.relativePath) {
+          return dependencies.gitSafety.diffApprovedSensitive(workspace.value.canonicalRoot, {
+            relativePath: input.relativePath,
+            ...(input.maxBytes === undefined ? {} : { maxBytes: input.maxBytes }),
+          });
+        }
         return dependencies.gitSafety.diff(workspace.value.canonicalRoot, input);
       },
     }),
@@ -98,13 +114,42 @@ export function createGitSafetyCapabilities(
         const sensitivity = status.value.entries.some((entry) => entry.sensitive) ? 'credential' : 'normal';
         return ok({ sensitivity, context: 'workspace', workspaceId: workspace.value.id });
       },
+      approval: {
+        describe: () => ok({
+          title: 'Persist sensitive content in local Git checkpoint',
+          resourceLabel: 'Active Workspace',
+        }),
+        bind: (input, security) => bindGitApprovalState(dependencies, security.workspaceId, {
+          expectedStatusId: input.expectedStatusId,
+        }),
+      },
       execute(input, context) {
         const workspace = getExecutionWorkspace(dependencies.workspaceRepo, context);
         if (!workspace.ok) return workspace;
-        return dependencies.gitSafety.checkpoint(workspace.value.canonicalRoot, input.expectedStatusId);
+        return context.approvalDecision === 'approved'
+          ? dependencies.gitSafety.checkpointApprovedSensitive(workspace.value.canonicalRoot, input.expectedStatusId)
+          : dependencies.gitSafety.checkpoint(workspace.value.canonicalRoot, input.expectedStatusId);
       },
     }),
   ]);
+}
+
+function bindGitApprovalState(
+  dependencies: GitSafetyCapabilityDependencies,
+  workspaceId: string | undefined,
+  inputBinding: Readonly<Record<string, string | number | null>>,
+): Result<Readonly<Record<string, string | number | null>>, AppError> {
+  const workspace = getActiveWorkspace(dependencies.workspaceRepo);
+  if (!workspace.ok) return workspace;
+  if (!workspaceId || workspace.value.id !== workspaceId) {
+    return err(appError('WORKSPACE_NOT_FOUND', 'Authorized Workspace is no longer active'));
+  }
+  const status = dependencies.gitSafety.status(
+    workspace.value.canonicalRoot,
+    GIT_SAFETY_LIMITS.maxStatusEntries,
+  );
+  if (!status.ok) return status;
+  return ok({ ...inputBinding, trustedStatusId: status.value.statusId });
 }
 
 function validateEmptyInput(input: unknown): Result<Record<string, never>, AppError> {

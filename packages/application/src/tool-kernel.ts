@@ -3,6 +3,9 @@ import {
   evaluatePolicy,
   ok,
   type AppError,
+  type ApprovalBindingValue,
+  type ApprovalDecisionKind,
+  type ApprovalDescriptor,
   type AuditEvent,
   type Effect,
   type PolicyDecision,
@@ -14,8 +17,20 @@ import {
   type ToolKernelResult,
   type ToolRegistryError,
 } from '@sud-d/domain';
+import type { ToolKernelApprovalPort } from './approval-service.js';
 
 type MaybePromise<T> = T | Promise<T>;
+
+export interface ToolCapabilityApprovalDefinition<TInput> {
+  readonly describe: (
+    input: TInput,
+    security: ResolvedToolSecurityContext,
+  ) => Result<ApprovalDescriptor, AppError>;
+  readonly bind: (
+    input: TInput,
+    security: ResolvedToolSecurityContext,
+  ) => Result<ApprovalBindingValue, AppError>;
+}
 
 export interface ToolCapabilityDefinition<TInput, TOutput> {
   readonly name: string;
@@ -24,10 +39,22 @@ export interface ToolCapabilityDefinition<TInput, TOutput> {
   readonly resolveSecurity: (
     input: TInput,
   ) => Result<ResolvedToolSecurityContext, AppError>;
+  readonly approval?: ToolCapabilityApprovalDefinition<TInput>;
   readonly execute: (
     input: TInput,
     context: ToolExecutionContext,
   ) => MaybePromise<Result<TOutput, AppError>>;
+}
+
+export interface RegisteredToolApprovalDefinition {
+  readonly describe: (
+    input: unknown,
+    security: ResolvedToolSecurityContext,
+  ) => Result<ApprovalDescriptor, AppError>;
+  readonly bind: (
+    input: unknown,
+    security: ResolvedToolSecurityContext,
+  ) => Result<ApprovalBindingValue, AppError>;
 }
 
 export interface RegisteredToolCapability {
@@ -37,6 +64,7 @@ export interface RegisteredToolCapability {
   readonly resolveSecurity: (
     input: unknown,
   ) => Result<ResolvedToolSecurityContext, AppError>;
+  readonly approval?: RegisteredToolApprovalDefinition;
   readonly execute: (
     input: unknown,
     context: ToolExecutionContext,
@@ -58,6 +86,7 @@ export interface ToolKernel {
 export interface CreateToolKernelOptions {
   readonly registry: ToolCapabilityRegistry;
   readonly audit: ToolKernelAuditPort;
+  readonly approval?: ToolKernelApprovalPort;
 }
 
 const CAPABILITY_NAME_PATTERN = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
@@ -71,6 +100,12 @@ export function defineToolCapability<TInput, TOutput>(
     effect: definition.effect,
     validate: (input: unknown) => definition.validate(input),
     resolveSecurity: (input: unknown) => definition.resolveSecurity(input as TInput),
+    ...(definition.approval ? {
+      approval: {
+        describe: (input: unknown, security: ResolvedToolSecurityContext) => definition.approval!.describe(input as TInput, security),
+        bind: (input: unknown, security: ResolvedToolSecurityContext) => definition.approval!.bind(input as TInput, security),
+      },
+    } : {}),
     execute: (input: unknown, context: ToolExecutionContext) =>
       definition.execute(input as TInput, context),
   });
@@ -203,23 +238,122 @@ export function createToolKernel(options: CreateToolKernelOptions): ToolKernel {
         });
       }
 
+      let executionPolicyDecision: 'allow' | 'ask' = 'allow';
+      let approvalDecision: ApprovalDecisionKind | undefined;
+      let approvalRequestId: string | undefined;
+
       if (policyDecision.decision === 'ask') {
-        return blockWithAudit({
-          audit: options.audit,
-          request,
-          capabilityName: capability.name,
-          code: 'APPROVAL_REQUIRED',
-          policyDecision: 'ask',
-          security: security.value,
-          startedAt,
-        });
+        if (!capability.approval || !options.approval) {
+          return blockWithAudit({
+            audit: options.audit,
+            request,
+            capabilityName: capability.name,
+            code: 'APPROVAL_CONTEXT_FAILED',
+            policyDecision: 'ask',
+            security: security.value,
+            startedAt,
+          });
+        }
+        let descriptor: Result<ApprovalDescriptor, AppError>;
+        let binding: Result<ApprovalBindingValue, AppError>;
+        try {
+          descriptor = capability.approval.describe(validated.value, security.value);
+          binding = capability.approval.bind(validated.value, security.value);
+        } catch {
+          return blockWithAudit({
+            audit: options.audit,
+            request,
+            capabilityName: capability.name,
+            code: 'APPROVAL_CONTEXT_FAILED',
+            policyDecision: 'ask',
+            security: security.value,
+            startedAt,
+          });
+        }
+        if (!descriptor.ok || !binding.ok) {
+          return blockWithAudit({
+            audit: options.audit,
+            request,
+            capabilityName: capability.name,
+            code: 'APPROVAL_CONTEXT_FAILED',
+            policyDecision: 'ask',
+            security: security.value,
+            startedAt,
+          });
+        }
+        let authorization;
+        try {
+          authorization = await options.approval.authorize({
+            session: request.session,
+            capability: capability.name,
+            effect: capability.effect,
+            security: security.value,
+            descriptor: descriptor.value,
+            binding: binding.value,
+          });
+        } catch {
+          return blockWithAudit({
+            audit: options.audit,
+            request,
+            capabilityName: capability.name,
+            code: 'APPROVAL_CONTEXT_FAILED',
+            policyDecision: 'ask',
+            security: security.value,
+            startedAt,
+          });
+        }
+        if (!authorization.ok) {
+          return blockWithAudit({
+            audit: options.audit,
+            request,
+            capabilityName: capability.name,
+            code: authorization.error.code === 'APPROVAL_EXPIRED' ? 'APPROVAL_EXPIRED' : 'APPROVAL_CONTEXT_FAILED',
+            causeCode: authorization.error.code,
+            policyDecision: 'ask',
+            security: security.value,
+            startedAt,
+          });
+        }
+        if (authorization.state === 'pending') {
+          return blockWithAudit({
+            audit: options.audit,
+            request,
+            capabilityName: capability.name,
+            code: 'APPROVAL_REQUIRED',
+            policyDecision: 'ask',
+            approvalRequestId: authorization.requestId,
+            approvalExpiresAt: authorization.expiresAt,
+            message: 'Approval required in SUD-D Activity. Approve or deny, then retry this action.',
+            security: security.value,
+            startedAt,
+          });
+        }
+        if (authorization.state === 'denied') {
+          return blockWithAudit({
+            audit: options.audit,
+            request,
+            capabilityName: capability.name,
+            code: 'APPROVAL_DENIED',
+            policyDecision: 'ask',
+            approvalDecision: 'denied',
+            approvalRequestId: authorization.requestId,
+            approvalExpiresAt: authorization.expiresAt,
+            security: security.value,
+            startedAt,
+          });
+        }
+        executionPolicyDecision = 'ask';
+        approvalDecision = 'approved';
+        approvalRequestId = authorization.requestId;
       }
 
       const preExecutionAudit = createAuditEvent({
         request,
         capabilityName: capability.name,
         resultCode: 'EXECUTION_AUTHORIZED',
-        policyDecision: 'allow',
+        policyDecision: executionPolicyDecision,
+        approvalDecision,
+        approvalRequestId,
         security: security.value,
         startedAt,
         phase: 'pre_execution',
@@ -227,20 +361,22 @@ export function createToolKernel(options: CreateToolKernelOptions): ToolKernel {
       });
 
       if (!(await appendAudit(options.audit, preExecutionAudit))) {
-        return failure('AUDIT_PRECONDITION_FAILED', 'blocked', 'allow');
+        return failure('AUDIT_PRECONDITION_FAILED', 'blocked', executionPolicyDecision, undefined, approvalDecision, approvalRequestId);
       }
 
       const executionContext: ToolExecutionContext = Object.freeze({
         invocationId: request.invocationId,
         session: request.session,
         security: security.value,
+        ...(approvalDecision ? { approvalDecision } : {}),
+        ...(approvalRequestId ? { approvalRequestId } : {}),
       });
 
       let execution: Result<unknown, AppError>;
       try {
         execution = await capability.execute(validated.value, executionContext);
       } catch {
-        const executorFailure = failure('EXECUTION_FAILED', 'executed', 'allow');
+        const executorFailure = failure('EXECUTION_FAILED', 'executed', executionPolicyDecision, undefined, approvalDecision, approvalRequestId);
         if (!(await appendExecutionOutcomeAudit(
           options.audit,
           request,
@@ -248,8 +384,11 @@ export function createToolKernel(options: CreateToolKernelOptions): ToolKernel {
           security.value,
           'EXECUTION_FAILED',
           startedAt,
+          executionPolicyDecision,
+          approvalDecision,
+          approvalRequestId,
         ))) {
-          return failure('AUDIT_OUTCOME_FAILED', 'executed', 'allow');
+          return failure('AUDIT_OUTCOME_FAILED', 'executed', executionPolicyDecision, undefined, approvalDecision, approvalRequestId);
         }
         return executorFailure;
       }
@@ -258,8 +397,10 @@ export function createToolKernel(options: CreateToolKernelOptions): ToolKernel {
         const executorFailure = failure(
           'EXECUTION_FAILED',
           'executed',
-          'allow',
+          executionPolicyDecision,
           execution.error.code,
+          approvalDecision,
+          approvalRequestId,
         );
         if (!(await appendExecutionOutcomeAudit(
           options.audit,
@@ -268,8 +409,11 @@ export function createToolKernel(options: CreateToolKernelOptions): ToolKernel {
           security.value,
           'EXECUTION_FAILED',
           startedAt,
+          executionPolicyDecision,
+          approvalDecision,
+          approvalRequestId,
         ))) {
-          return failure('AUDIT_OUTCOME_FAILED', 'executed', 'allow');
+          return failure('AUDIT_OUTCOME_FAILED', 'executed', executionPolicyDecision, undefined, approvalDecision, approvalRequestId);
         }
         return executorFailure;
       }
@@ -281,15 +425,20 @@ export function createToolKernel(options: CreateToolKernelOptions): ToolKernel {
         security.value,
         'EXECUTED',
         startedAt,
+        executionPolicyDecision,
+        approvalDecision,
+        approvalRequestId,
       ))) {
-        return failure('AUDIT_OUTCOME_FAILED', 'executed', 'allow');
+        return failure('AUDIT_OUTCOME_FAILED', 'executed', executionPolicyDecision, undefined, approvalDecision, approvalRequestId);
       }
 
       return {
         ok: true,
         outcome: 'executed',
         code: 'EXECUTED',
-        policyDecision: 'allow',
+        policyDecision: executionPolicyDecision,
+        ...(approvalDecision ? { approvalDecision } : {}),
+        ...(approvalRequestId ? { approvalRequestId } : {}),
         value: execution.value,
       };
     },
@@ -303,6 +452,10 @@ interface BlockWithAuditOptions {
   readonly code: Exclude<ToolKernelFailure['code'], 'AUDIT_OUTCOME_FAILED'>;
   readonly causeCode?: AppError['code'];
   readonly policyDecision?: ToolKernelFailure['policyDecision'];
+  readonly approvalDecision?: ApprovalDecisionKind;
+  readonly approvalRequestId?: string;
+  readonly approvalExpiresAt?: string;
+  readonly message?: string;
   readonly security?: ResolvedToolSecurityContext;
   readonly startedAt: number;
 }
@@ -313,12 +466,18 @@ async function blockWithAudit(options: BlockWithAuditOptions): Promise<ToolKerne
     'blocked',
     options.policyDecision,
     options.causeCode,
+    options.approvalDecision,
+    options.approvalRequestId,
+    options.approvalExpiresAt,
+    options.message,
   );
   const event = createAuditEvent({
     request: options.request,
     capabilityName: options.capabilityName,
     resultCode: options.code,
     policyDecision: options.policyDecision,
+    approvalDecision: options.approvalDecision,
+    approvalRequestId: options.approvalRequestId,
     security: options.security,
     startedAt: options.startedAt,
     phase: 'outcome',
@@ -342,12 +501,17 @@ async function appendExecutionOutcomeAudit(
   security: ResolvedToolSecurityContext,
   resultCode: 'EXECUTED' | 'EXECUTION_FAILED',
   startedAt: number,
+  policyDecision: 'allow' | 'ask',
+  approvalDecision?: ApprovalDecisionKind,
+  approvalRequestId?: string,
 ): Promise<boolean> {
   return appendAudit(audit, createAuditEvent({
     request,
     capabilityName,
     resultCode,
-    policyDecision: 'allow',
+    policyDecision,
+    approvalDecision,
+    approvalRequestId,
     security,
     startedAt,
     phase: 'outcome',
@@ -360,6 +524,8 @@ interface CreateAuditEventOptions {
   readonly capabilityName: string;
   readonly resultCode: string;
   readonly policyDecision?: ToolKernelFailure['policyDecision'];
+  readonly approvalDecision?: ApprovalDecisionKind;
+  readonly approvalRequestId?: string;
   readonly security?: ResolvedToolSecurityContext;
   readonly startedAt: number;
   readonly phase: 'pre_execution' | 'outcome';
@@ -381,6 +547,8 @@ function createAuditEvent(options: CreateAuditEventOptions): Omit<AuditEvent, 'i
       capability: options.capabilityName,
       phase: options.phase,
       outcome: options.outcome,
+      ...(options.approvalDecision ? { approvalDecision: options.approvalDecision } : {}),
+      ...(options.approvalRequestId ? { approvalRequestId: options.approvalRequestId } : {}),
     },
   };
 }
@@ -402,6 +570,10 @@ function failure(
   outcome: ToolKernelFailure['outcome'],
   policyDecision?: ToolKernelFailure['policyDecision'],
   causeCode?: AppError['code'],
+  approvalDecision?: ApprovalDecisionKind,
+  approvalRequestId?: string,
+  approvalExpiresAt?: string,
+  message?: string,
 ): ToolKernelFailure {
   return {
     ok: false,
@@ -409,6 +581,10 @@ function failure(
     code,
     ...(policyDecision ? { policyDecision } : {}),
     ...(causeCode ? { causeCode } : {}),
+    ...(approvalDecision ? { approvalDecision } : {}),
+    ...(approvalRequestId ? { approvalRequestId } : {}),
+    ...(approvalExpiresAt ? { approvalExpiresAt } : {}),
+    ...(message ? { message } : {}),
   };
 }
 
@@ -418,6 +594,10 @@ function isValidRegistration(definition: RegisteredToolCapability): boolean {
     && VALID_EFFECTS.has(definition.effect)
     && typeof definition.validate === 'function'
     && typeof definition.resolveSecurity === 'function'
+    && (definition.approval === undefined || (
+      typeof definition.approval.describe === 'function'
+      && typeof definition.approval.bind === 'function'
+    ))
     && typeof definition.execute === 'function';
 }
 

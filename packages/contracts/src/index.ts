@@ -29,6 +29,8 @@ export const IPC_CHANNELS = {
   CONNECTION_CREDENTIAL_REMOVE: 'connection:credentialRemove',
   CONNECTION_PREFERENCES_UPDATE: 'connection:preferences:update',
   ACTIVITY_LIST: 'activity:list',
+  APPROVAL_LIST: 'approval:list',
+  APPROVAL_RESPOND: 'approval:respond',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -163,6 +165,41 @@ export const DesktopActivityEventDtoSchema = z.object({
   details: z.array(DesktopActivityDetailDtoSchema).max(3),
 }).strict();
 export type DesktopActivityEventDto = z.infer<typeof DesktopActivityEventDtoSchema>;
+
+// ---------------------------------------------------------------------------
+// Basic Approval DTOs — safe renderer-facing metadata only
+// ---------------------------------------------------------------------------
+
+export const ApprovalListInputSchema = z.object({
+  limit: z.number().int().min(1).max(50).default(50),
+}).strict();
+export type ApprovalListInput = z.infer<typeof ApprovalListInputSchema>;
+
+export const ApprovalRespondInputSchema = z.object({
+  approvalRequestId: z.string().uuid(),
+  decision: z.enum(['approve', 'deny']),
+}).strict();
+export type ApprovalRespondInput = z.infer<typeof ApprovalRespondInputSchema>;
+
+export const DesktopApprovalRequestDtoSchema = z.object({
+  id: z.string().uuid(),
+  capability: z.string().min(1).max(96),
+  effect: z.enum(['read', 'create', 'modify', 'execute', 'delete']),
+  sensitivity: z.enum(['normal', 'sensitive', 'credential']),
+  title: z.string().min(1).max(120),
+  resourceLabel: z.string().min(1).max(240).optional(),
+  status: z.literal('pending'),
+  createdAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
+}).strict();
+export type DesktopApprovalRequestDto = z.infer<typeof DesktopApprovalRequestDtoSchema>;
+
+export const DesktopApprovalResponseDtoSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['approved', 'denied']),
+  message: z.string().min(1).max(200),
+}).strict();
+export type DesktopApprovalResponseDto = z.infer<typeof DesktopApprovalResponseDtoSchema>;
 
 // ---------------------------------------------------------------------------
 // Generic IPC result wrapper

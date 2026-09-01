@@ -11,6 +11,10 @@ import {
   type AuditListInput,
   type ActivityListInput,
   type DesktopActivityEventDto,
+  type ApprovalListInput,
+  type ApprovalRespondInput,
+  type DesktopApprovalRequestDto,
+  type DesktopApprovalResponseDto,
   type ConnectionStartInput,
   type ConnectionStopInput,
   type ConnectionRestartInput,
@@ -51,6 +55,12 @@ const api = {
   activity: {
     list: (input?: ActivityListInput): Promise<IpcResult<DesktopActivityEventDto[]>> =>
       ipcRenderer.invoke(IPC_CHANNELS.ACTIVITY_LIST, input) as Promise<IpcResult<DesktopActivityEventDto[]>>,
+  },
+  approval: {
+    list: (input?: ApprovalListInput): Promise<IpcResult<DesktopApprovalRequestDto[]>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_LIST, input) as Promise<IpcResult<DesktopApprovalRequestDto[]>>,
+    respond: (input: ApprovalRespondInput): Promise<IpcResult<DesktopApprovalResponseDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_RESPOND, input) as Promise<IpcResult<DesktopApprovalResponseDto>>,
   },
   connection: {
     status: (): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>

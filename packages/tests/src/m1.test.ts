@@ -152,7 +152,7 @@ describe('M1 — Tool Execution Kernel', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
-  it('ASK never executes and returns approval-required', async () => {
+  it('ASK without a trusted approval descriptor/coordinator fails closed and never executes', async () => {
     const execute = vi.fn(() => ok('should-not-run'));
     const capability = defineToolCapability({
       name: 'test.delete',
@@ -165,7 +165,7 @@ describe('M1 — Tool Execution Kernel', () => {
 
     const result = await kernel.invoke(invokeInput({}, 'test.delete'));
 
-    expect(result).toMatchObject({ ok: false, outcome: 'blocked', code: 'APPROVAL_REQUIRED', policyDecision: 'ask' });
+    expect(result).toMatchObject({ ok: false, outcome: 'blocked', code: 'APPROVAL_CONTEXT_FAILED', policyDecision: 'ask' });
     expect(execute).not.toHaveBeenCalled();
   });
 

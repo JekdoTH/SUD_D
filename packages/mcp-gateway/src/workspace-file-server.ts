@@ -4,17 +4,20 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 
 import {
+  createApprovalCoordinator,
   createGitSafetyCapabilities,
   createToolCapabilityRegistry,
   createToolKernel,
   createWorkspaceFileCapabilities,
   type ToolKernel,
+  type ToolKernelApprovalPort,
 } from '@sud-d/application';
 import type { InternalRoot } from '@sud-d/domain';
 import {
   GIT_SAFETY_LIMITS,
   WORKSPACE_TEXT_FILE_LIMITS,
   canonicalizePath,
+  createApprovalRepository,
   createAuditRepository,
   createGitSafetyAdapter,
   createWorkspaceRepository,
@@ -71,6 +74,7 @@ export interface ProductionMcpServerDependencies {
   readonly internalRoots: readonly InternalRoot[];
   readonly fileSystem: WorkspaceTextFileSystem;
   readonly gitSafety?: GitSafetyAdapter;
+  readonly approval?: ToolKernelApprovalPort;
 }
 
 export function createProductionMcpServer(
@@ -91,7 +95,11 @@ export function createProductionMcpServer(
   if (!registry.ok) {
     throw new Error('SUD-D production tool registration failed');
   }
-  const kernel = createToolKernel({ registry: registry.value, audit: dependencies.auditRepo });
+  const kernel = createToolKernel({
+    registry: registry.value,
+    audit: dependencies.auditRepo,
+    ...(dependencies.approval ? { approval: dependencies.approval } : {}),
+  });
   const server = new McpServer(MCP_GATEWAY_INFO, {
     capabilities: { tools: { listChanged: false } },
   });
@@ -109,11 +117,15 @@ export function createDefaultProductionMcpServer(): McpServer {
     db.close();
     throw new Error('SUD-D workspace security initialization failed');
   }
+  const auditRepo = createAuditRepository(db);
+  const approvalRepo = createApprovalRepository(db);
+  const approval = createApprovalCoordinator({ repository: approvalRepo });
   return createProductionMcpServer({
     workspaceRepo: createWorkspaceRepository(db),
-    auditRepo: createAuditRepository(db),
+    auditRepo,
     internalRoots: [{ canonicalPath: canonicalDataRoot.value, label: 'SUD-D data root' }],
     fileSystem: createWorkspaceTextFileSystem(),
+    approval,
   });
 }
 
@@ -225,12 +237,23 @@ async function invokeKernel(
     input,
   });
   const payload = result.ok
-    ? { ok: true, code: result.code, value: result.value }
+    ? {
+        ok: true,
+        code: result.code,
+        policyDecision: result.policyDecision,
+        ...(result.approvalDecision ? { approvalDecision: result.approvalDecision } : {}),
+        ...(result.approvalRequestId ? { approvalRequestId: result.approvalRequestId } : {}),
+        value: result.value,
+      }
     : {
         ok: false,
         code: result.code,
         outcome: result.outcome,
         ...(result.policyDecision ? { policyDecision: result.policyDecision } : {}),
+        ...(result.approvalDecision ? { approvalDecision: result.approvalDecision } : {}),
+        ...(result.approvalRequestId ? { approvalRequestId: result.approvalRequestId } : {}),
+        ...(result.approvalExpiresAt ? { expiresAt: result.approvalExpiresAt } : {}),
+        ...(result.message ? { message: result.message } : {}),
         ...(result.causeCode ? { causeCode: result.causeCode } : {}),
       };
   return {

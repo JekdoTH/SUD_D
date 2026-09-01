@@ -9,6 +9,10 @@ import type {
   AuditListInput,
   ActivityListInput,
   DesktopActivityEventDto,
+  ApprovalListInput,
+  ApprovalRespondInput,
+  DesktopApprovalRequestDto,
+  DesktopApprovalResponseDto,
   ConnectionStartInput,
   ConnectionStopInput,
   ConnectionRestartInput,
@@ -37,6 +41,10 @@ interface SudDApi {
   };
   activity: {
     list(input?: ActivityListInput): Promise<IpcResult<DesktopActivityEventDto[]>>;
+  };
+  approval: {
+    list(input?: ApprovalListInput): Promise<IpcResult<DesktopApprovalRequestDto[]>>;
+    respond(input: ApprovalRespondInput): Promise<IpcResult<DesktopApprovalResponseDto>>;
   };
   connection: {
     status(): Promise<IpcResult<DesktopConnectionSnapshotDto>>;

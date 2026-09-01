@@ -85,6 +85,10 @@ export function createWorkspaceFileCapabilities(
       effect: 'read',
       validate: validatePathInput,
       resolveSecurity: resolveExisting,
+      approval: {
+        describe: (input) => ok({ title: 'Read sensitive file', resourceLabel: input.relativePath }),
+        bind: (input) => ok({ relativePath: input.relativePath }),
+      },
       execute(input, context) {
         const workspace = getExecutionWorkspace(dependencies.workspaceRepo, context);
         if (!workspace.ok) return workspace;
@@ -111,6 +115,10 @@ export function createWorkspaceFileCapabilities(
       effect: 'create',
       validate: validateWriteInput,
       resolveSecurity: resolveNew,
+      approval: {
+        describe: (input) => ok({ title: 'Create sensitive file', resourceLabel: input.relativePath }),
+        bind: (input) => ok({ relativePath: input.relativePath, content: input.content }),
+      },
       execute(input, context) {
         const workspace = getExecutionWorkspace(dependencies.workspaceRepo, context);
         if (!workspace.ok) return workspace;
@@ -125,6 +133,10 @@ export function createWorkspaceFileCapabilities(
       effect: 'modify',
       validate: validateWriteInput,
       resolveSecurity: resolveExisting,
+      approval: {
+        describe: (input) => ok({ title: 'Write sensitive file', resourceLabel: input.relativePath }),
+        bind: (input) => ok({ relativePath: input.relativePath, content: input.content }),
+      },
       execute(input, context) {
         const workspace = getExecutionWorkspace(dependencies.workspaceRepo, context);
         if (!workspace.ok) return workspace;

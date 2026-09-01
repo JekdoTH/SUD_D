@@ -6,6 +6,7 @@ import { PassThrough } from 'node:stream';
 
 import {
   canonicalizePath,
+  createApprovalRepository,
   createAuditRepository,
   createWorkspaceRepository,
   createWorkspaceTextFileSystem,
@@ -13,6 +14,7 @@ import {
   type Db,
 } from '@sud-d/infrastructure';
 import {
+  createApprovalCoordinator,
   createToolCapabilityRegistry,
   createToolKernel,
   createWorkspaceFileCapabilities,
@@ -134,7 +136,8 @@ async function makeHarness(options: HarnessOptions = {}) {
   });
   const registryResult = createToolCapabilityRegistry(capabilities);
   if (!registryResult.ok) throw new Error(`registry failure: ${registryResult.error.code}`);
-  const kernel = createToolKernel({ registry: registryResult.value, audit: auditRepo });
+  const approval = createApprovalCoordinator({ repository: createApprovalRepository(db) });
+  const kernel = createToolKernel({ registry: registryResult.value, audit: auditRepo, approval });
 
   const invoke = (capability: string, input: unknown) => kernel.invoke({
     invocationId: `personal-alpha-${++invocationCounter}`,
