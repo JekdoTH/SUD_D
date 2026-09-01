@@ -42,7 +42,7 @@ This governance upgrade does not start or authorize the next product milestone.
 - M0.7 is COMPLETE after Doctor + Activity integration, security/redaction verification, production Desktop smoke, and required final code review.
 - M0.8 is COMPLETE after Secure Tunnel setup UX hardening, real Home-PC control-plane/tunnel acceptance, clean stop/fresh-start verification, regression coverage, production Desktop smoke, and required final code review.
 - Post-M0.8 Secure Runtime API Key Setup is COMPLETE: SUD-D now supports Windows Credential Manager persistence through a Windows-native credential prompt, fixed profileId-only IPC, stopped-only credential mutation, stored-before-environment runtime preparation, and safe Set / Replace / Remove UI controls without exposing plaintext credentials to the renderer.
-- Post-M0.8 Connection UI/UX Simplification is COMPLETE: normal workspace/key/tunnel setup and ChatGPT connection readiness are managed from the SUD-D UI through fixed-purpose safe boundaries; M1 remains NOT STARTED.
+- Post-M0.8 Connection UI/UX Simplification is COMPLETE: normal workspace/key/tunnel setup and ChatGPT connection readiness are managed from the SUD-D UI through fixed-purpose safe boundaries. M1, Personal Alpha Workspace File Tools, and Git Safety + Integration have since completed as recorded below.
 
 ## Approved Future Direction
 
@@ -50,11 +50,81 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Execution State
 
-**Personal Alpha Workspace File Tools — Read / Search / Write**
+**Git Safety + Integration**
+
+**Status: COMPLETE — four bounded local Git Safety capabilities route through the M1 Tool Kernel, production MCP exposes exactly ten approved tools, checkpoint plumbing preserves user Git state, isolated built-stdio acceptance passed, and final Standards/Spec review found no blockers on 2026-09-01.**
+
+Production MCP now exposes the existing six Personal Alpha workspace tools plus exactly:
+
+- `git.detect`
+- `git.status`
+- `git.diff`
+- `git.checkpoint`
+
+All four Git capabilities follow `MCP Gateway → Tool Kernel → validation/security resolution → Policy → dedicated Git adapter → Audit`. The caller cannot choose the repository root, executable, Git subcommand/argv, cwd, environment, config flags, `.git` path, ref name, commit message/author, remote, URL, or any generic process surface.
+
+### Git Safety topology / adapter decisions
+
+- Supported repository topology is deliberately narrow: a normal local non-bare repository whose canonical top-level is exactly the active SUD-D Workspace root.
+- Parent-repository walking is not used. A Workspace nested under an outer repository is treated as not-a-repository for this slice; bare repositories, external/linked gitdirs/worktrees, and unborn HEAD are unsupported/fail-safe.
+- The dedicated adapter resolves only trusted Program Files `git.exe` locations and uses `shell: false`, fixed command plans, active-Workspace cwd, sanitized environment/config, 10-second per-process timeout, and bounded stdout/stderr buffers.
+- Trusted Git runtime neutralizes repository/user execution paths: isolated empty hooks path, `protocol.allow=never`, fsmonitor disabled, credential helper cleared, signing disabled, pager disabled, terminal/askpass prompts disabled, empty PATH, and isolated HOME/global/system config.
+- `git.status` uses porcelain-v2 structured output, deterministic ordering, an opaque SHA-256 `statusId`, sensitivity flags, special-state reporting, and a 500-entry hard checkpoint-safe bound.
+- `git.diff` is tracked-path only and credential-safe. It builds a raw-byte snapshot in an isolated index/object directory, hashes with `--no-filters`, and runs object-to-object `diff-tree` with external diff/textconv/renames/color disabled. Broad diff omits credential-like paths; direct credential-targeted diff is `APPROVAL_REQUIRED` while Basic Approval is absent.
+- `git.checkpoint` is not a normal branch commit. It seeds an isolated index from HEAD, snapshots current safe regular-file bytes, hashes with `--no-filters`, writes a tree, creates a fixed-message unsigned commit object, and creates only a generated append-only `refs/sud-d/checkpoints/<uuid>` via `update-ref <new> <old=zero>`.
+- Checkpoint revalidates `statusId`/HEAD, repository operation state, sensitivity, gitlinks, user index fingerprint, file digests/deletions, and conflicting Git locks before final ref creation. It does not move HEAD/branch, alter the user index/staging state, or modify worktree files.
+- Credential-like changed paths are classified before checkpoint object persistence; without Basic Approval they block as `APPROVAL_REQUIRED` and no secret blob/ref is created.
+- `.git` remains denied through generic workspace file tools.
+
+### Git Safety hard bounds
+
+- changed/checkpoint paths: **500**
+- diff output: **256 KiB**
+- one checkpoint regular file: **8 MiB**
+- aggregate checkpoint file bytes: **32 MiB**
+- default captured Git output: **2 MiB**
+- per trusted Git process timeout: **10 seconds**
+
+### Git Safety verification / acceptance
+
+Fresh stable final evidence:
+
+- focused Git Safety tests: **37/37 passed** across four split test files with clean Vitest exit 0
+- relevant Personal Alpha + M1 + policy/classifier/path/audit + M0.4/M0.5 regressions: **192/192 passed**
+- typecheck: **PASS**
+- lint: **PASS**
+- full suite: **320/320 passed** across 14 test files
+- build: **PASS** for domain, contracts, infrastructure, application, MCP Gateway, and Desktop production bundles
+- `git diff --check`: **PASS**
+- staged changed-surface secret scan: **PASS** across 2,183 added lines; no real credential/private-key signatures detected
+- malicious/temp artifact scan: **PASS**
+- Vitest `onTaskUpdate` issue: **RESOLVED AS TEST-RUNNER/HARNESS BATCHING**, not product behavior. All 37 security assertions were preserved; splitting the long synchronous Git suite into four test files plus a typed shared harness produced clean exit 0 without skips/disabled tests.
+- isolated real built-stdio production acceptance: **PASS** using temporary `%LOCALAPPDATA%`, SQLite, and Git repositories. It proved SUD-D initialize, exact ten-tool `tools/list`, detect/status/diff/checkpoint success, checkpoint ref/tree/parent correctness, HEAD/branch/index/worktree preservation, credential diff/checkpoint blocking, no malicious hook/filter/fsmonitor/signing/helper/alias/remote marker execution, traversal blocking, no parent-repo escape, and no Delete/Execute/Network/remote Git tool exposure.
+- external Home Secure Tunnel repeat: **NOT REQUIRED / NOT RUN**; task explicitly permits local built stdio acceptance unless final review finds it insufficient, and final review did not.
+
+### Git Safety final review
+
+Repo-local `code-review` routing was applied against task-start baseline `fc51e951c95754ef9d4aa5925ab82ac19a7903bf`; this harness has no parallel subagent runtime, so Standards and Spec axes were executed separately in-session.
+
+- **Standards:** PASS, no blocking findings. Security/Data Critical gates, Tool Kernel/Policy/Audit routing, fixed trusted process boundary, fail-closed path/topology handling, bounded operations, test economy, and `.serena/` local-only requirements are satisfied. No blocking Fowler smell was found; the deep Git adapter remains cohesive around one privileged boundary rather than becoming a generic runner.
+- **Spec:** PASS, no blocking findings. The four approved capabilities, exact active-Workspace topology, safe status/diff/checkpoint semantics, hidden-execution hardening, credential handling, stale/race protection, hard bounds, audit/redaction, exact production MCP surface, regression matrix, and isolated real acceptance satisfy the Git Safety task. Basic Approval/Restricted Execute/Team Mode and network Git remain out of scope and unimplemented.
+
+### Git Safety known limitations
+
+- Windows-first only: the trusted executable resolver intentionally accepts Git for Windows only from fixed Program Files locations.
+- Basic Approval is not implemented; credential-sensitive Git diff/checkpoint operations remain blocked as `APPROVAL_REQUIRED`.
+- No remote/network Git, branch mutation, normal commit/amend/reset/checkout/merge/rebase/cherry-pick/tag/stash, submodule mutation, linked-worktree support, or generic Git runner exists.
+- Failed checkpoint attempts after safe non-sensitive blob/commit plumbing may leave ordinary unreachable Git objects until normal Git garbage collection; no SUD-D checkpoint ref, HEAD/branch/index/worktree mutation is created on those failures, and credential-like paths are blocked before object persistence.
+
+### Git Safety implementation commit
+
+`6bc621435c0b44539c14a3797018f53a8fb729fb` — `feat: add Git Safety integration`
+
+### Prior completed slice — Personal Alpha Workspace File Tools — Read / Search / Write
 
 **Status: COMPLETE — six workspace-bound production MCP file capabilities, active-Workspace trust binding, Windows path hardening, bounded text-only I/O, credential-safe Policy blocking, isolated production acceptance, and final review passed 2026-09-01.**
 
-Production MCP now exposes exactly:
+At the completion of this prior slice, production MCP exposed exactly the six workspace tools below; the current Git Safety state above has since extended production exposure to ten approved tools.
 
 - `workspace.list`
 - `workspace.stat`
@@ -75,7 +145,7 @@ Every capability routes through the completed M1 Tool Kernel. The active SUD-D W
 - `create_text_file` fails if the target exists; `write_text_file` fails if the target is missing/non-regular. Writes use a sibling temp file plus authorization recheck before replacement; no Delete/rename/move API was exposed.
 - Baseline Policy received one narrow correction: credential `create`, like credential read/modify, is now `ASK`. Because Basic Approval is not implemented, credential read/create/write returns `APPROVAL_REQUIRED` and performs no filesystem operation.
 - Audit remains content-free through M1 Kernel semantics: no raw file contents, write payloads, environment/process data, raw OS errors/stacks, or credential-like fixture values are persisted/returned as audit metadata.
-- Production MCP schemas are strict/minimal and production composition exposes only the six approved capabilities. Delete, Git, Execute/process/shell, Network, secrets/vault, Team Mode, generic filesystem, and renderer filesystem shortcuts remain absent.
+- At this prior slice's completion, production MCP schemas were strict/minimal and exposed only the six workspace capabilities. The current state above supersedes that historical exposure by adding exactly the four approved Git Safety tools; Delete, Execute/process/shell, Network, secrets/vault, Team Mode, generic filesystem, and renderer filesystem shortcuts remain absent.
 
 ### Verification / acceptance
 
@@ -97,7 +167,7 @@ Fresh stable final evidence:
 User-supplied `code-review` workflow was applied against fixed point `0b0d02764e3fa88ea0adcb786790be2ec57bcffd`; subagents are unavailable in this harness, so the repository-permitted fallback ran the two axes separately in-session.
 
 - **Standards:** PASS, no blocking findings. Review confirmed active-workspace binding/revalidation, fail-closed path/security behavior, existing Windows path hardening reuse, `.git` denial, bounded text-only I/O, safe mutation recheck, content-free audit, strict MCP schemas, and no process/network/renderer host-control surface. No blocking Fowler smell was found; larger file-adapter size is proportional to the six tightly related file operations rather than speculative generality.
-- **Spec:** PASS, no blocking findings. The required production capability list, Tool Kernel routing, 48 acceptance seams, credential-create correction, exact production exposure, isolated acceptance, and OUT OF SCOPE exclusions are covered. Git Safety + Integration remains **NOT STARTED**.
+- **Spec:** PASS, no blocking findings. The required production capability list, Tool Kernel routing, 48 acceptance seams, credential-create correction, exact production exposure, isolated acceptance, and OUT OF SCOPE exclusions were covered. At that milestone boundary Git Safety + Integration was still **NOT STARTED**; the current state above records its later completion.
 
 ### Known limitations
 
@@ -933,11 +1003,15 @@ Exit code 0
 
 ## Immediate Next Action
 
-Agent Skill System Upgrade is complete. Personal Alpha Workspace File Tools remain COMPLETE. **STOP. Git Safety + Integration is NOT STARTED and requires a new explicit implementation instruction.**
+Git Safety + Integration is COMPLETE and Personal Alpha Workspace File Tools remain COMPLETE. **STOP. Basic Approval is NOT STARTED and requires a new explicit implementation instruction.**
 
-The next product roadmap slice remains **Git Safety + Integration**. When explicitly authorized, it must reuse the Tool Kernel / Policy / Audit path, remain local-first and bounded, and keep Git network operations separate from local repository operations. This governance task does not authorize starting it.
+The next product roadmap slice is **Basic Approval**. Do not begin it automatically; it must preserve the existing Tool Kernel / Policy / Audit trust path and is outside the completed Git Safety milestone.
 
 ## Last Commit SHA
+
+Git Safety + Integration implementation:
+
+`6bc621435c0b44539c14a3797018f53a8fb729fb` — `feat: add Git Safety integration`
 
 Agent Skill System Upgrade governance implementation:
 
@@ -990,6 +1064,6 @@ Current pushed baseline before M0.5:
 
 ## Stop Gate
 
-Personal Alpha Workspace File Tools are complete only as the six approved workspace-bound text capabilities described above.
+Personal Alpha Workspace File Tools and Git Safety + Integration are complete only as the explicitly approved capabilities described above.
 
-Do **not** start Git Safety + Integration, Basic Approval, Restricted Execute, Team Mode, Delete/Recovery, or any later capability slice without a new explicit implementation instruction.
+Do **not** start Basic Approval, Restricted Execute, Team Mode, Delete/Recovery, network Git, generic Execute, or any later capability slice without a new explicit implementation instruction.
