@@ -5,6 +5,14 @@ import path from 'node:path';
 import { PassThrough } from 'node:stream';
 
 const LEGACY_PROTOCOL_VERSION = '2025-06-18';
+const PERSONAL_ALPHA_WORKSPACE_TOOLS = [
+  'workspace.list',
+  'workspace.stat',
+  'workspace.read_text',
+  'workspace.search_text',
+  'workspace.create_text_file',
+  'workspace.write_text_file',
+] as const;
 const children = new Set<ChildProcessWithoutNullStreams>();
 
 interface TestJsonRpcMessage {
@@ -280,14 +288,19 @@ describe('M0.4 — inert MCP gateway', () => {
     expect(methods.join(' ')).not.toMatch(/execute|spawn|command|argv|cwd|env|shell|network/i);
   });
 
-  it('does not import privileged filesystem/process/network implementations or register capabilities dynamically', () => {
+  it('keeps production gateway composition limited to approved workspace tools without direct host-control imports', () => {
     const root = path.resolve(process.cwd(), 'packages/mcp-gateway/src');
     const source = sourceFiles(root).map((file) => fs.readFileSync(file, 'utf8')).join('\n');
 
     expect(source).not.toMatch(/node:(?:fs|child_process|net|http|https)/);
-    expect(source).not.toMatch(/@sud-d\/(?:infrastructure|application|desktop)/);
-    expect(source).not.toMatch(/registerTool\s*\(|registerResource\s*\(|registerPrompt\s*\(/);
+    expect(source).not.toMatch(/@sud-d\/desktop/);
+    expect(source).not.toMatch(/registerResource\s*\(|registerPrompt\s*\(/);
     expect(source).not.toMatch(/console\.log\s*\(/);
+    for (const toolName of PERSONAL_ALPHA_WORKSPACE_TOOLS) {
+      expect(source).toContain(`'${toolName}'`);
+    }
+    expect((source.match(/registerTool\s*\(/g) ?? [])).toHaveLength(PERSONAL_ALPHA_WORKSPACE_TOOLS.length);
+    expect(source).not.toMatch(/workspace\.(?:delete|rename|move)|git\.|execute|shell|network/i);
   });
 
   it('writes only JSON-RPC messages to the in-memory stdio stdout channel', async () => {
@@ -300,7 +313,7 @@ describe('M0.4 — inert MCP gateway', () => {
     await gateway.stop();
   });
 
-  it('provides a fixed real stdio entrypoint that initializes and lists zero tools', async () => {
+  it('provides a fixed real stdio entrypoint that initializes and lists the approved Personal Alpha workspace tools', async () => {
     const entry = path.resolve(process.cwd(), 'packages/mcp-gateway/dist/stdio-entry.js');
     expect(fs.existsSync(entry)).toBe(true);
 
@@ -331,11 +344,12 @@ describe('M0.4 — inert MCP gateway', () => {
 
     child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} })}\n`);
     child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'tools/list', params: {} })}\n`);
-    await expect(reader.next(4000)).resolves.toMatchObject({
-      jsonrpc: '2.0',
-      id: 11,
-      result: { tools: [] },
-    });
+    const listed = await reader.next(4000);
+    expect(listed).toMatchObject({ jsonrpc: '2.0', id: 11 });
+    const tools = listed.result?.tools as Array<{ name?: string }> | undefined;
+    expect(tools?.map((tool) => tool.name).sort()).toEqual(
+      [...PERSONAL_ALPHA_WORKSPACE_TOOLS].sort(),
+    );
 
     child.stdin.end();
     children.delete(child);

@@ -41,10 +41,10 @@ export function evaluatePolicy(req: PolicyRequest): PolicyDecision {
     return { decision: 'ask', reason: 'Delete requires explicit approval' };
   }
 
-  // Credential: read or modify → ask
+  // Credential: read/create/modify → ask
   if (
     req.sensitivity === 'credential' &&
-    (req.effect === 'read' || req.effect === 'modify')
+    (req.effect === 'read' || req.effect === 'create' || req.effect === 'modify')
   ) {
     return { decision: 'ask', reason: 'Credential resource requires explicit approval' };
   }

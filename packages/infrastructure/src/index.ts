@@ -6,4 +6,5 @@ export * from './credential-store.js';
 export * from './openai-secure-tunnel-runtime.js';
 export * from './audit-repository.js';
 export * from './path-adapter.js';
+export * from './workspace-text-file-system.js';
 export * from './doctor.js';

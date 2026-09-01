@@ -10,3 +10,8 @@ export type {
   McpGatewayTransport,
 } from './gateway.js';
 export { createStdioGatewayTransport } from './stdio.js';
+export {
+  createDefaultProductionMcpServer,
+  createProductionMcpServer,
+} from './workspace-file-server.js';
+export type { ProductionMcpServerDependencies } from './workspace-file-server.js';

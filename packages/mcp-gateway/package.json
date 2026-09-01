@@ -20,7 +20,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
-    "@sud-d/domain": "workspace:*"
+    "@sud-d/application": "workspace:*",
+    "@sud-d/domain": "workspace:*",
+    "@sud-d/infrastructure": "workspace:*",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/node": "24.13.3"

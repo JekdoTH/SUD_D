@@ -18,6 +18,15 @@ import type {
 } from '@sud-d/domain';
 import type { CredentialStore, Db } from '@sud-d/infrastructure';
 
+const PERSONAL_ALPHA_WORKSPACE_TOOLS = [
+  'workspace.list',
+  'workspace.stat',
+  'workspace.read_text',
+  'workspace.search_text',
+  'workspace.create_text_file',
+  'workspace.write_text_file',
+] as const;
+
 interface TunnelLaunchPlan {
   readonly executablePath: string;
   readonly args: readonly string[];
@@ -583,7 +592,7 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
     expect(JSON.stringify(dto)).not.toMatch(/api[_-]?key|credential|CONTROL_PLANE_API_KEY|sk-m05/i);
   });
 
-  it('preserves M0.4 inert gateway behavior: real stdio tools/list remains empty', async () => {
+  it('preserves the fixed stdio gateway boundary while exposing only approved Personal Alpha workspace tools', async () => {
     const api = await loadM05();
     const entry = api.getDefaultMcpGatewayEntryPath();
     expect(fs.existsSync(entry)).toBe(true);
@@ -626,6 +635,7 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
       id?: number;
       result?: { tools?: unknown[] };
     });
-    expect(lines.find((line) => line.id === 502)?.result?.tools).toEqual([]);
+    const tools = lines.find((line) => line.id === 502)?.result?.tools as Array<{ name?: string }> | undefined;
+    expect(tools?.map((tool) => tool.name).sort()).toEqual([...PERSONAL_ALPHA_WORKSPACE_TOOLS].sort());
   });
 });

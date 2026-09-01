@@ -1,5 +1,5 @@
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
-import { createInertMcpServer } from './server.js';
+import { createDefaultProductionMcpServer } from './workspace-file-server.js';
 
-void serveStdio(() => createInertMcpServer());
+void serveStdio(() => createDefaultProductionMcpServer());
 console.error('SUD-D MCP Gateway running on stdio');
