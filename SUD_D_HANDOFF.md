@@ -50,6 +50,74 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Execution State
 
+**Basic Approval**
+
+**Status: COMPLETE — Policy `ASK` now creates/reuses a safe pending approval, trusted Desktop Activity can Approve/Deny one exact action, an exact retry revalidates Policy/security and atomically consumes a one-time grant, production MCP remains exactly ten tools, credential-sensitive Workspace/Git flows pass end-to-end, production MCP/Desktop acceptance passed, and final Standards/Spec review found no blockers on 2026-09-02.**
+
+The trusted path remains:
+
+`MCP Gateway → Tool Kernel → validation/security resolution → Policy → Approval → mandatory pre-execution audit → Execution → outcome audit`
+
+### Basic Approval model / binding
+
+- State model: `pending`, `approved`, `denied`, `consumed`, `expired`; terminal requests are never reopened.
+- Default TTL is **5 minutes**; active pending+approved runtime target is **50**, Desktop list cap is **50**, and terminal cleanup is bounded to approximately 24 hours.
+- A grant authorizes one exact action once. The keyed binding covers Gateway runtime instance, client session id/type, capability, trusted effect, exact validated capability input/binding, resolved sensitivity/policy context, and Workspace id when present.
+- The Gateway owns a random runtime-instance id and ephemeral random HMAC-SHA-256 key. SQLite stores only the opaque keyed digest and safe bounded metadata; the HMAC key/raw binding/tool input/content/diff are not persisted.
+- A new Gateway runtime invalidates prior pending/approved runtime state. Approval ids are safe identifiers only and carry no authority on retry.
+- Every retry repeats registry lookup, validation, trusted security resolution and Policy. Policy `DENY` remains stronger than approval; approved ASK execution remains truthfully `policyDecision=ask`.
+- Grant consumption is atomic and occurs before mandatory pre-execution audit. A failed pre-exec audit does not refund the grant; post-exec audit failure preserves existing executed/non-retry semantics.
+
+### Basic Approval Desktop / IPC
+
+- Activity now contains a bounded **Pending approvals** card above Audit Activity.
+- Renderer-facing approval DTOs contain only safe id/capability/effect/sensitivity/title/resource label/status/timestamps.
+- Desktop privilege is fixed-purpose only: `approval:list` and `approval:respond`; respond accepts only approval request id plus `approve`/`deny` through strict IPC schemas and validated sender identity.
+- No Always Allow, bulk/group approval, remembered decision, auto-approval, generic approval authority, approval MCP tool, or renderer-controlled policy/security/binding exists.
+- Approve guidance tells the user to retry from the connected AI; Deny remains terminal for that request.
+
+### Basic Approval production ASK cases
+
+- Credential-sensitive `workspace.read_text`, `workspace.create_text_file`, and `workspace.write_text_file` now require Desktop approval and exact retry; no read/mutation occurs before approval.
+- Credential-sensitive `git.diff` and `git.checkpoint` use the same one-time approval path. The dedicated Git adapter still blocks sensitive operations by default; trusted approved-sensitive adapter methods are selected only from Tool Kernel execution context after grant consumption.
+- Git approval bindings include the trusted current Git `statusId`, so a later changed Git-sensitive state cannot reuse a stale grant.
+- Production `tools/list` remains exactly the existing **10 tools**: six Workspace + four Git Safety. Basic Approval adds zero MCP tools.
+
+### Basic Approval verification / acceptance
+
+Fresh final Security/Data Critical evidence:
+
+- focused Basic Approval: **35/35 passed**
+- production Workspace/Git approval suite: **8/8 passed**
+- relevant regressions: **271/271 passed across 17 files**
+- typecheck: **PASS**
+- lint: **PASS**
+- full suite: **355/355 passed across 18 files**, clean exit 0
+- build: **PASS** for domain, contracts, infrastructure, application, MCP Gateway, and Desktop
+- `git diff --check`: **PASS**
+- changed/new package secret scan: **PASS**, 30 files / 0 real-secret findings
+- SQLite/renderer/audit confidentiality: **PASS**; approval schema is safe-metadata-only and production UI-runtime sentinel plaintext is absent from approval rows, audit rows, DB/WAL/SHM, and built renderer
+- automated built production MCP + real Desktop controller/IPC acceptance: **PASS** using temporary data only; proved exact ten tools, no approval MCP tool, safe pending list, Approve/Deny, exact retry, one-time consumption/fresh repeat approval, sensitive Git diff, and no sentinel leakage
+- built production Activity UI path smoke: **PASS** with exactly one scripted Approve click and one scripted Deny click through renderer → preload → production IPC; Audit Activity and Overview/Connection navigation remained usable
+- expiry tests use a controlled trusted clock for pending and approved expiry
+
+### Basic Approval final review
+
+Repo-local `code-review` routing was applied against task-start baseline `4f4c849d655106112dd8dedbeb9119cedde8e5fc`; Standards and Spec axes were executed separately in-session.
+
+- **Standards:** PASS, no blocking findings. Security/Data Critical gates, fail-closed Policy/Approval/Audit ordering, secret-safe persistence/IPC, fixed-purpose Desktop authority, deep trusted seams, existing Workspace/Git security invariants, test economy, and `.serena/` local-only requirements are satisfied.
+- **Spec:** PASS, no blocking findings. The required state model, one-time exact keyed binding, TTL/queue/list bounds, runtime invalidation, Desktop Activity Approve/Deny flow, safe MCP result/retry model, Workspace/Git ASK cases, atomic consume/audit failure semantics, exact ten-tool surface, confidentiality gates and production acceptance satisfy the Basic Approval task. No Restricted Execute scope was added.
+
+### Basic Approval known limitations
+
+- Approval grants intentionally do not survive Gateway restart; prior pending/approved requests become unusable.
+- Personal Alpha keeps one local Desktop approver only; there is no remembered permission, multi-user/RBAC, mobile/cloud approval, notification/tray flow, or broad grant.
+- Restricted Execute remains **NOT STARTED** and must be separately authorized/reviewed before any shell/process approval surface exists.
+
+### Basic Approval implementation commit
+
+`de42f5f4be99cf446e0af412947c7e3e3ce42689` — `feat: complete Basic Approval`
+
 **Git Safety + Integration**
 
 **Status: COMPLETE — four bounded local Git Safety capabilities route through the M1 Tool Kernel, production MCP exposes exactly ten approved tools, checkpoint plumbing preserves user Git state, isolated built-stdio acceptance passed, and final Standards/Spec review found no blockers on 2026-09-01.**
@@ -70,10 +138,10 @@ All four Git capabilities follow `MCP Gateway → Tool Kernel → validation/sec
 - The dedicated adapter resolves only trusted Program Files `git.exe` locations and uses `shell: false`, fixed command plans, active-Workspace cwd, sanitized environment/config, 10-second per-process timeout, and bounded stdout/stderr buffers.
 - Trusted Git runtime neutralizes repository/user execution paths: isolated empty hooks path, `protocol.allow=never`, fsmonitor disabled, credential helper cleared, signing disabled, pager disabled, terminal/askpass prompts disabled, empty PATH, and isolated HOME/global/system config.
 - `git.status` uses porcelain-v2 structured output, deterministic ordering, an opaque SHA-256 `statusId`, sensitivity flags, special-state reporting, and a 500-entry hard checkpoint-safe bound.
-- `git.diff` is tracked-path only and credential-safe. It builds a raw-byte snapshot in an isolated index/object directory, hashes with `--no-filters`, and runs object-to-object `diff-tree` with external diff/textconv/renames/color disabled. Broad diff omits credential-like paths; direct credential-targeted diff is `APPROVAL_REQUIRED` while Basic Approval is absent.
+- `git.diff` is tracked-path only and credential-safe. It builds a raw-byte snapshot in an isolated index/object directory, hashes with `--no-filters`, and runs object-to-object `diff-tree` with external diff/textconv/renames/color disabled. Broad diff omits credential-like paths; at Git Safety milestone completion direct credential-targeted diff returned `APPROVAL_REQUIRED`. The current Basic Approval state above now permits only an exact one-time approved retry.
 - `git.checkpoint` is not a normal branch commit. It seeds an isolated index from HEAD, snapshots current safe regular-file bytes, hashes with `--no-filters`, writes a tree, creates a fixed-message unsigned commit object, and creates only a generated append-only `refs/sud-d/checkpoints/<uuid>` via `update-ref <new> <old=zero>`.
 - Checkpoint revalidates `statusId`/HEAD, repository operation state, sensitivity, gitlinks, user index fingerprint, file digests/deletions, and conflicting Git locks before final ref creation. It does not move HEAD/branch, alter the user index/staging state, or modify worktree files.
-- Credential-like changed paths are classified before checkpoint object persistence; without Basic Approval they block as `APPROVAL_REQUIRED` and no secret blob/ref is created.
+- Credential-like changed paths are classified before checkpoint object persistence. At Git Safety milestone completion they blocked as `APPROVAL_REQUIRED` with no secret blob/ref; the current Basic Approval state above permits persistence only after an exact one-time approved retry.
 - `.git` remains denied through generic workspace file tools.
 
 ### Git Safety hard bounds
@@ -107,12 +175,12 @@ Fresh stable final evidence:
 Repo-local `code-review` routing was applied against task-start baseline `fc51e951c95754ef9d4aa5925ab82ac19a7903bf`; this harness has no parallel subagent runtime, so Standards and Spec axes were executed separately in-session.
 
 - **Standards:** PASS, no blocking findings. Security/Data Critical gates, Tool Kernel/Policy/Audit routing, fixed trusted process boundary, fail-closed path/topology handling, bounded operations, test economy, and `.serena/` local-only requirements are satisfied. No blocking Fowler smell was found; the deep Git adapter remains cohesive around one privileged boundary rather than becoming a generic runner.
-- **Spec:** PASS, no blocking findings. The four approved capabilities, exact active-Workspace topology, safe status/diff/checkpoint semantics, hidden-execution hardening, credential handling, stale/race protection, hard bounds, audit/redaction, exact production MCP surface, regression matrix, and isolated real acceptance satisfy the Git Safety task. Basic Approval/Restricted Execute/Team Mode and network Git remain out of scope and unimplemented.
+- **Spec:** PASS, no blocking findings. The four approved capabilities, exact active-Workspace topology, safe status/diff/checkpoint semantics, hidden-execution hardening, credential handling, stale/race protection, hard bounds, audit/redaction, exact production MCP surface, regression matrix, and isolated real acceptance satisfy the Git Safety task. At that milestone Basic Approval/Restricted Execute/Team Mode and network Git were out of scope; the current state above records the later Basic Approval completion while Restricted Execute/Team Mode/network Git remain unimplemented.
 
 ### Git Safety known limitations
 
 - Windows-first only: the trusted executable resolver intentionally accepts Git for Windows only from fixed Program Files locations.
-- Basic Approval is not implemented; credential-sensitive Git diff/checkpoint operations remain blocked as `APPROVAL_REQUIRED`.
+- Credential-sensitive Git diff/checkpoint operations remain approval-gated. The current Basic Approval state above enables only exact one-time approved retries; no broad Git permission exists.
 - No remote/network Git, branch mutation, normal commit/amend/reset/checkout/merge/rebase/cherry-pick/tag/stash, submodule mutation, linked-worktree support, or generic Git runner exists.
 - Failed checkpoint attempts after safe non-sensitive blob/commit plumbing may leave ordinary unreachable Git objects until normal Git garbage collection; no SUD-D checkpoint ref, HEAD/branch/index/worktree mutation is created on those failures, and credential-like paths are blocked before object persistence.
 
@@ -143,7 +211,7 @@ Every capability routes through the completed M1 Tool Kernel. The active SUD-D W
 - Hard bounds: relative path 1,024 chars; text read/write/create 256 KiB; directory list 200 entries; search query 256 chars; search 2,000 visited entries / 8 MiB scanned / 100 matches / 240-char preview.
 - Search is literal/deterministic, remains inside the validated subtree, and skips credential-like resources, `.git`, binary content, reparse entries, and internal mutation files.
 - `create_text_file` fails if the target exists; `write_text_file` fails if the target is missing/non-regular. Writes use a sibling temp file plus authorization recheck before replacement; no Delete/rename/move API was exposed.
-- Baseline Policy received one narrow correction: credential `create`, like credential read/modify, is now `ASK`. Because Basic Approval is not implemented, credential read/create/write returns `APPROVAL_REQUIRED` and performs no filesystem operation.
+- Baseline Policy received one narrow correction: credential `create`, like credential read/modify, is `ASK`. At this prior slice's completion Basic Approval was not yet implemented, so credential read/create/write returned `APPROVAL_REQUIRED` with no filesystem operation; the current Basic Approval state above now enables only exact one-time approved retries.
 - Audit remains content-free through M1 Kernel semantics: no raw file contents, write payloads, environment/process data, raw OS errors/stacks, or credential-like fixture values are persisted/returned as audit metadata.
 - At this prior slice's completion, production MCP schemas were strict/minimal and exposed only the six workspace capabilities. The current state above supersedes that historical exposure by adding exactly the four approved Git Safety tools; Delete, Execute/process/shell, Network, secrets/vault, Team Mode, generic filesystem, and renderer filesystem shortcuts remain absent.
 
@@ -171,7 +239,7 @@ User-supplied `code-review` workflow was applied against fixed point `0b0d02764e
 
 ### Known limitations
 
-- Basic Approval is not implemented; credential-like file operations remain blocked as `APPROVAL_REQUIRED`.
+- Credential-like file operations remain approval-gated; the current Basic Approval state above enables only exact one-time approved retries and no broad permission.
 - Full Recovery/versioning is deferred; Personal Alpha uses safe bounded writes and Git-backed committed state as the temporary rollback baseline, but this slice does not execute Git.
 - File tools are intentionally text-first and Windows-only; no arbitrary binary API, delete, rename/move, generic glob/regex process, or cross-platform expansion was added.
 
@@ -1003,11 +1071,15 @@ Exit code 0
 
 ## Immediate Next Action
 
-Git Safety + Integration is COMPLETE and Personal Alpha Workspace File Tools remain COMPLETE. **STOP. Basic Approval is NOT STARTED and requires a new explicit implementation instruction.**
+Basic Approval, Git Safety + Integration, and Personal Alpha Workspace File Tools are COMPLETE. **STOP. Restricted Execute is NOT STARTED and requires a new explicit implementation instruction.**
 
-The next product roadmap slice is **Basic Approval**. Do not begin it automatically; it must preserve the existing Tool Kernel / Policy / Audit trust path and is outside the completed Git Safety milestone.
+The next product roadmap slice is **Restricted Execute**. Do not begin it automatically; any future process/shell capability must preserve the existing Tool Kernel → Policy → Approval → Audit trust path and receive its own Security/Data Critical review.
 
 ## Last Commit SHA
+
+Basic Approval implementation:
+
+`de42f5f4be99cf446e0af412947c7e3e3ce42689` — `feat: complete Basic Approval`
 
 Git Safety + Integration implementation:
 
@@ -1064,6 +1136,6 @@ Current pushed baseline before M0.5:
 
 ## Stop Gate
 
-Personal Alpha Workspace File Tools and Git Safety + Integration are complete only as the explicitly approved capabilities described above.
+Personal Alpha Workspace File Tools, Git Safety + Integration, and Basic Approval are complete only as the explicitly approved capabilities described above.
 
-Do **not** start Basic Approval, Restricted Execute, Team Mode, Delete/Recovery, network Git, generic Execute, or any later capability slice without a new explicit implementation instruction.
+Do **not** start Restricted Execute, Team Mode, Delete/Recovery, network Git, generic Execute, or any later capability slice without a new explicit implementation instruction.
