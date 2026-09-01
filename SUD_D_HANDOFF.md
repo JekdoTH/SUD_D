@@ -26,11 +26,64 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Execution State
 
-**Post-M0.8 Connection UI/UX Simplification**
+**M1 — Tool Execution Kernel**
 
-**Status: COMPLETE — status-first Connection/Overview UX, in-app fixed-purpose Secure Tunnel ID setup, prerequisite-driven primary CTA, security/regression verification, production Desktop smoke, and final review passed 2026-09-01.**
+**Status: COMPLETE — central typed Tool Kernel, trusted capability registry/definitions, fixed baseline policy path, mandatory audit ordering, fail-closed safe outcomes, focused/full verification, and final review passed 2026-09-01.**
 
-Normal Windows setup can now proceed from SUD-D UI as: choose workspace → set up Runtime API Key via the existing Windows-native secure prompt → set up Secure Tunnel with a validated `tunnel_...` ID → Connect ChatGPT. Returning users see Workspace, Runtime Key, Secure Tunnel, Gateway, and ChatGPT readiness immediately. M1 Tool Execution Kernel is **NOT STARTED**.
+M1 establishes the central execution seam future SUD-D tools must pass through without exposing useful production capabilities yet:
+
+```text
+MCP Gateway → Tool Kernel → Policy → Approval → Execution → Audit / Recovery
+```
+
+Production MCP Gateway remains deliberately inert with `tools/list = []`. **Personal Alpha Workspace File Tools are NOT STARTED.**
+
+## M1 Tool Execution Kernel
+
+- Added compact domain vocabulary for tool invocation identity, resolved security context, execution context, kernel outcomes/result codes, and deterministic registry errors.
+- Added an application-level trusted capability definition/registry. A registered definition owns fixed capability name, `Effect`, input validation, trusted security resolution, and the bound execution handler.
+- Untrusted invocation input cannot select or override effect, sensitivity, workspace/outside/internal/network context, policy decision, approval result, handler/executor, executable, argv, cwd, or env.
+- Kernel ordering is fixed: registry lookup → validation → trusted security resolution → established `evaluatePolicy(...)` baseline → mandatory pre-execution audit → trusted handler → outcome audit.
+- `deny` never executes. `ask` returns typed `APPROVAL_REQUIRED` and never executes in M1; no fake approval or approval persistence/UI was introduced.
+- Unknown capability, invalid input, security-resolution failure, malformed/exceptional policy evaluation, executor exception/failure, and audit failures all fail closed through sanitized typed outcomes without raw exception/stack/input leakage.
+- Pre-execution audit failure prevents execution. Post-execution audit failure reports an `executed` outcome with `AUDIT_OUTCOME_FAILED` so an already-executed operation is not retried by the Kernel.
+- Audit evidence records safe capability/session/policy/result/outcome/duration metadata only; raw tool inputs, credentials, env, stdout/stderr, commands, argv, cwd, and raw exceptions are not serialized.
+- Duplicate/invalid trusted registration fails deterministically instead of shadowing a capability.
+- Test-only deterministic capabilities prove execution behavior. No production Read/Search/Write, Delete, Git, Approval, Execute/process, shell, network, Team Mode, or other privileged tool was added.
+- `packages/mcp-gateway` production composition/source is unchanged and remains inert.
+
+### Verification / Acceptance
+
+Fresh final M1 evidence:
+
+- focused M1 tests: **18/18 passed**
+- relevant M1 + baseline policy/classifier/audit + inert MCP Gateway regressions: **118/118 passed**
+- full suite: **233/233 passed** across 9 test files
+- typecheck: **PASS**
+- lint: **PASS**
+- build: **PASS** for domain, contracts, infrastructure, application, MCP Gateway, and Desktop production bundles
+- production real stdio MCP regression: **PASS** — initialize succeeds and `tools/list = []`
+- `git diff --check`: **PASS**
+- changed-surface secret scan: **PASS**
+- real external Secure Tunnel smoke: **NOT REQUIRED / NOT RUN** because connection/runtime code did not change and production Gateway remains inert
+
+### Final Review
+
+Repository-routed `domain-modeling`, `grilling`, and `code-review` workflows were applied using the user-supplied local skill archive under the repository's no-vendoring rule.
+
+- **Standards:** PASS, no blocking findings. Review confirmed fail-closed ordering, fixed baseline policy invocation, no public policy override seam, no raw-input audit serialization, no generic process/network/env host-control surface, deterministic registry failure, and correct pre/post audit semantics.
+- **Spec:** PASS, no blocking findings. The focused test matrix covers all 18 required M1 seams; production MCP remains inert and all OUT OF SCOPE Personal Alpha/File/Git/Approval/Execute/Team Mode capabilities remain absent.
+- **Review fix resolved before completion:** an initially exposed trusted-composition `policyEvaluator` override seam was judged broader than necessary. It was removed so the Kernel always calls the established `evaluatePolicy(...)` path directly; affected focused/typecheck/full final gates were rerun successfully.
+
+### Known Limitations
+
+- M1 intentionally has no approval implementation. Policy `ask` remains a typed blocked/approval-required result until the later Basic Approval slice is explicitly authorized.
+- M1 intentionally exposes no useful production MCP tools. The next approved roadmap slice is Personal Alpha Workspace File Tools — Read / Search / Write, but it is **NOT STARTED** and requires a new explicit implementation instruction.
+- The existing M0.5 production client-connected signal limitation remains unchanged and unrelated to M1.
+
+### Implementation Commit
+
+`66ae28bdd809fadecc2e49c424de7a60bd7d7435` — `feat: complete M1 tool execution kernel`
 
 ## Post-M0.8 Connection UI/UX Simplification
 
@@ -809,11 +862,16 @@ Exit code 0
 
 ## Immediate Next Action
 
-M0.8, Post-M0.8 Secure Runtime API Key Setup, and Post-M0.8 Connection UI/UX Simplification are complete. **STOP. Do not start M1 Tool Execution Kernel without a new explicit milestone instruction.**
+M1 Tool Execution Kernel is complete. **STOP. Do not start Personal Alpha Workspace File Tools — Read / Search / Write without a new explicit implementation instruction.**
 
-The next action is only whatever the user explicitly authorizes next. Preserve the current credential/tunnel boundaries, audit redaction, workspace binding, inert MCP Gateway, and no-generic-process-control invariants.
+The next roadmap slice is Personal Alpha Workspace File Tools — Read / Search / Write. When explicitly authorized, it must reuse the completed Tool Kernel and preserve workspace containment, InternalRoot/Outside Workspace DENY, credential sensitivity, baseline Policy, mandatory audit, inert-by-default production composition, and no generic process/network control.
 
 ## Last Commit SHA
+
+M1 Tool Execution Kernel implementation:
+
+`66ae28bdd809fadecc2e49c424de7a60bd7d7435` — `feat: complete M1 tool execution kernel`
+
 
 Post-M0.8 Connection UI/UX Simplification implementation:
 
@@ -853,6 +911,6 @@ Current pushed baseline before M0.5:
 
 ## Stop Gate
 
-M0.8 is complete only as the End-to-End Connection Acceptance milestone described above.
+M1 Tool Execution Kernel is complete only as the central typed execution/security seam described above. Production MCP Gateway remains inert and no useful privileged tools are exposed.
 
-Do **not** start M1 Tool Execution Kernel, privileged MCP tools, Policy/Approval execution, or any later milestone without a new explicit implementation instruction.
+Do **not** start Personal Alpha Workspace File Tools, Git Safety, Basic Approval, Restricted Execute, Team Mode, Delete/Recovery, or any later capability slice without a new explicit implementation instruction.
