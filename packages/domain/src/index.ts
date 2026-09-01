@@ -3,3 +3,4 @@ export * from './types.js';
 export * from './connection.js';
 export * from './classifier.js';
 export * from './policy.js';
+export * from './tool-kernel.js';

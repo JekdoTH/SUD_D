@@ -4,14 +4,16 @@ import type { Effect, Sensitivity, PolicyDecision } from './types.js';
 // Baseline policy service (pure domain logic — no adapters)
 // ---------------------------------------------------------------------------
 
+export type PolicyContext =
+  | 'workspace'
+  | 'outside_workspace'
+  | 'internal_root'
+  | 'network';
+
 export interface PolicyRequest {
   readonly effect: Effect;
   readonly sensitivity: Sensitivity;
-  readonly context:
-    | 'workspace'
-    | 'outside_workspace'
-    | 'internal_root'
-    | 'network';
+  readonly context: PolicyContext;
 }
 
 /**
