@@ -26,17 +26,64 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Execution State
 
-**M1 — Tool Execution Kernel**
+**Personal Alpha Workspace File Tools — Read / Search / Write**
 
-**Status: COMPLETE — central typed Tool Kernel, trusted capability registry/definitions, fixed baseline policy path, mandatory audit ordering, fail-closed safe outcomes, focused/full verification, and final review passed 2026-09-01.**
+**Status: COMPLETE — six workspace-bound production MCP file capabilities, active-Workspace trust binding, Windows path hardening, bounded text-only I/O, credential-safe Policy blocking, isolated production acceptance, and final review passed 2026-09-01.**
 
-M1 establishes the central execution seam future SUD-D tools must pass through without exposing useful production capabilities yet:
+Production MCP now exposes exactly:
 
-```text
-MCP Gateway → Tool Kernel → Policy → Approval → Execution → Audit / Recovery
-```
+- `workspace.list`
+- `workspace.stat`
+- `workspace.read_text`
+- `workspace.search_text`
+- `workspace.create_text_file`
+- `workspace.write_text_file`
 
-Production MCP Gateway remains deliberately inert with `tools/list = []`. **Personal Alpha Workspace File Tools are NOT STARTED.**
+Every capability routes through the completed M1 Tool Kernel. The active SUD-D Workspace is the trusted root; callers provide only workspace-relative paths and cannot choose roots, effects, sensitivity, policy, handlers, executable/argv/cwd/env, or other host controls.
+
+### Personal Alpha security / data decisions
+
+- Existing `validateRelativePath(...)`, canonicalization, `path.relative` containment, InternalRoot guard, and reparse-point denial remain authoritative; no string-prefix containment was introduced.
+- Generic file tools deny `.git` traversal entirely and hide internal sibling mutation temp files.
+- Reads/search are UTF-8 text-only and reject/skip binary or unsupported resource types.
+- Hard bounds: relative path 1,024 chars; text read/write/create 256 KiB; directory list 200 entries; search query 256 chars; search 2,000 visited entries / 8 MiB scanned / 100 matches / 240-char preview.
+- Search is literal/deterministic, remains inside the validated subtree, and skips credential-like resources, `.git`, binary content, reparse entries, and internal mutation files.
+- `create_text_file` fails if the target exists; `write_text_file` fails if the target is missing/non-regular. Writes use a sibling temp file plus authorization recheck before replacement; no Delete/rename/move API was exposed.
+- Baseline Policy received one narrow correction: credential `create`, like credential read/modify, is now `ASK`. Because Basic Approval is not implemented, credential read/create/write returns `APPROVAL_REQUIRED` and performs no filesystem operation.
+- Audit remains content-free through M1 Kernel semantics: no raw file contents, write payloads, environment/process data, raw OS errors/stacks, or credential-like fixture values are persisted/returned as audit metadata.
+- Production MCP schemas are strict/minimal and production composition exposes only the six approved capabilities. Delete, Git, Execute/process/shell, Network, secrets/vault, Team Mode, generic filesystem, and renderer filesystem shortcuts remain absent.
+
+### Verification / acceptance
+
+Fresh stable final evidence:
+
+- focused Personal Alpha file-tool tests: **50/50 passed**
+- relevant Personal Alpha + M1 + baseline policy/classifier/path/audit + M0.4/M0.5 regressions: **191/191 passed**
+- typecheck: **PASS**
+- lint: **PASS**
+- full suite: **283/283 passed** across 10 test files
+- build: **PASS** for domain, contracts, infrastructure, application, MCP Gateway, and Desktop bundles
+- `git diff --check`: **PASS**
+- changed-surface secret scan: **PASS**
+- isolated real built-stdio production acceptance: **PASS** — SUD-D identity, exact six-tool `tools/list`, list/read/search/create/write success, traversal blocked, credential read/write `APPROVAL_REQUIRED` with no mutation/leakage, forbidden tools absent
+- external Home Secure Tunnel repeat: **NOT REQUIRED / NOT RUN**; the isolated built stdio acceptance directly exercised the newly changed production capability boundary without reusing the Serena development tunnel
+
+### Final review
+
+User-supplied `code-review` workflow was applied against fixed point `0b0d02764e3fa88ea0adcb786790be2ec57bcffd`; subagents are unavailable in this harness, so the repository-permitted fallback ran the two axes separately in-session.
+
+- **Standards:** PASS, no blocking findings. Review confirmed active-workspace binding/revalidation, fail-closed path/security behavior, existing Windows path hardening reuse, `.git` denial, bounded text-only I/O, safe mutation recheck, content-free audit, strict MCP schemas, and no process/network/renderer host-control surface. No blocking Fowler smell was found; larger file-adapter size is proportional to the six tightly related file operations rather than speculative generality.
+- **Spec:** PASS, no blocking findings. The required production capability list, Tool Kernel routing, 48 acceptance seams, credential-create correction, exact production exposure, isolated acceptance, and OUT OF SCOPE exclusions are covered. Git Safety + Integration remains **NOT STARTED**.
+
+### Known limitations
+
+- Basic Approval is not implemented; credential-like file operations remain blocked as `APPROVAL_REQUIRED`.
+- Full Recovery/versioning is deferred; Personal Alpha uses safe bounded writes and Git-backed committed state as the temporary rollback baseline, but this slice does not execute Git.
+- File tools are intentionally text-first and Windows-only; no arbitrary binary API, delete, rename/move, generic glob/regex process, or cross-platform expansion was added.
+
+### Implementation commit
+
+`e02c53bf77d449af6d6340e55e87f6e9c8688422` — `feat: add personal alpha workspace file tools`
 
 ## M1 Tool Execution Kernel
 
@@ -862,11 +909,15 @@ Exit code 0
 
 ## Immediate Next Action
 
-M1 Tool Execution Kernel is complete. **STOP. Do not start Personal Alpha Workspace File Tools — Read / Search / Write without a new explicit implementation instruction.**
+Personal Alpha Workspace File Tools are complete. **STOP. Do not start Git Safety + Integration without a new explicit implementation instruction.**
 
-The next roadmap slice is Personal Alpha Workspace File Tools — Read / Search / Write. When explicitly authorized, it must reuse the completed Tool Kernel and preserve workspace containment, InternalRoot/Outside Workspace DENY, credential sensitivity, baseline Policy, mandatory audit, inert-by-default production composition, and no generic process/network control.
+The next roadmap slice is **Git Safety + Integration**. When explicitly authorized, it must reuse the Tool Kernel / Policy / Audit path, remain local-first and bounded, and keep Git network operations separate from local repository operations. This Personal Alpha milestone does not authorize starting it.
 
 ## Last Commit SHA
+
+Personal Alpha Workspace File Tools implementation:
+
+`e02c53bf77d449af6d6340e55e87f6e9c8688422` — `feat: add personal alpha workspace file tools`
 
 M1 Tool Execution Kernel implementation:
 
@@ -911,6 +962,6 @@ Current pushed baseline before M0.5:
 
 ## Stop Gate
 
-M1 Tool Execution Kernel is complete only as the central typed execution/security seam described above. Production MCP Gateway remains inert and no useful privileged tools are exposed.
+Personal Alpha Workspace File Tools are complete only as the six approved workspace-bound text capabilities described above.
 
-Do **not** start Personal Alpha Workspace File Tools, Git Safety, Basic Approval, Restricted Execute, Team Mode, Delete/Recovery, or any later capability slice without a new explicit implementation instruction.
+Do **not** start Git Safety + Integration, Basic Approval, Restricted Execute, Team Mode, Delete/Recovery, or any later capability slice without a new explicit implementation instruction.
