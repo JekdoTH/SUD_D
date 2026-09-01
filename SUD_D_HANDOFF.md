@@ -2,13 +2,37 @@
 
 Long-term plan: see `SUD_D_ROADMAP.md`.
 
-## Documentation-only Agent Skill Routing
+## Agent Skill System Upgrade
 
-`AGENTS.md` is the sole source of truth for detailed skill routing. It now states explicitly that development agents apply its triggers autonomously, invoke applicable automatic skills without waiting for per-prompt skill names, use progressive disclosure, and report unavailable routed skills before taking any permitted fallback. `SUD_D_CONTEXT.md` keeps only the high-level expectation and link; no routing table or detailed rules were copied there.
+**Status: COMPLETE — autonomous repo-local skill routing and pinned third-party workflow snapshot adopted 2026-09-01.**
 
-`SUD_D_ROADMAP.md` and the rest of this handoff were reviewed for conflicting routing guidance; none required changes. The routed `writing-for-agents` skill was unavailable in the active runtime and that limitation was reported before editing. This clarification changes development-governance documentation only, does not change product architecture or behavior, and does not authorize M1.
+SUD_D now tracks its approved Matt Pocock engineering workflows under `.agents/skills/` from the official `mattpocock/skills` repository pinned at `6654f6b60cd9d5be8b54c6fafe44346dabeb3b76` (MIT). Official selected skill directories are copied without SUD_D-specific edits; `.agents/skills/MATT-POCOCK-SKILLS.md` records provenance/update policy and `.agents/skills/MATT-POCOCK-LICENSE` preserves the upstream MIT notice.
 
-Verification for this clarification: the complete documentation diff was reviewed, changed-path scope was limited to `AGENTS.md`, `SUD_D_CONTEXT.md`, and this handoff, `git diff --check` passed, and the scoped secret-pattern scan found zero matches. No production source or tests changed.
+Installed automatic skills: `tdd`, `diagnosing-bugs`, `codebase-design`, `domain-modeling`, `code-review`, `prototype`, `research`, `resolving-merge-conflicts`, `grilling`, `writing-for-agents`.
+
+Installed explicit/user-invoked skills: `handoff`, `to-spec`, `wayfinder`.
+
+`AGENTS.md` now owns a complete autonomous Skill Router: product scope still comes from the user/task, operating/security/STOP rules remain superior to skills, agents consume existing repo/task context before asking repeat questions, native Agent Skills runtimes may invoke `.agents/skills` directly, and non-native/Serena-assisted runtimes read the routed repo-local `SKILL.md` plus only required references. Skill updates are pinned and must occur only in a separate governance/tooling task.
+
+Verification for the governance commit:
+
+- official pinned checkout: **PASS** — exact upstream commit `6654f6b60cd9d5be8b54c6fafe44346dabeb3b76`
+- selected snapshot integrity: **PASS** — 13 skill directories / 36 official files byte-equivalent to pinned upstream
+- frontmatter canonical names: **PASS**
+- excluded `deprecated`, `in-progress`, `grill-me`, `setup-matt-pocock-skills`: **ABSENT**
+- router consistency: **PASS** — 10 automatic + 3 explicit, all local and no missing router targets
+- autonomy / repeat-question / native+non-native loading / pinning rules: **PASS**
+- MIT provenance/license: **PASS**
+- governance secret scan: **PASS**
+- `git diff --check`: **PASS**
+- production source/runtime/config: **UNCHANGED**; full SUD_D production suite/build/smoke were not required or run for this governance-only task
+- `.serena/`: **local-only / not committed**
+
+Governance implementation commit:
+
+`fbd8c8eaf80066bedc0c0dcb6bf0656402de022f` — `chore: adopt autonomous SUD-D agent skill router`
+
+This governance upgrade does not start or authorize the next product milestone.
 
 ## Architecture / Process Decision
 
@@ -909,11 +933,15 @@ Exit code 0
 
 ## Immediate Next Action
 
-Personal Alpha Workspace File Tools are complete. **STOP. Do not start Git Safety + Integration without a new explicit implementation instruction.**
+Agent Skill System Upgrade is complete. Personal Alpha Workspace File Tools remain COMPLETE. **STOP. Git Safety + Integration is NOT STARTED and requires a new explicit implementation instruction.**
 
-The next roadmap slice is **Git Safety + Integration**. When explicitly authorized, it must reuse the Tool Kernel / Policy / Audit path, remain local-first and bounded, and keep Git network operations separate from local repository operations. This Personal Alpha milestone does not authorize starting it.
+The next product roadmap slice remains **Git Safety + Integration**. When explicitly authorized, it must reuse the Tool Kernel / Policy / Audit path, remain local-first and bounded, and keep Git network operations separate from local repository operations. This governance task does not authorize starting it.
 
 ## Last Commit SHA
+
+Agent Skill System Upgrade governance implementation:
+
+`fbd8c8eaf80066bedc0c0dcb6bf0656402de022f` — `chore: adopt autonomous SUD-D agent skill router`
 
 Personal Alpha Workspace File Tools implementation:
 
