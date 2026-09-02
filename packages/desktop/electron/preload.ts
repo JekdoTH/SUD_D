@@ -33,6 +33,10 @@ import {
 // ---------------------------------------------------------------------------
 
 const api = {
+  app: {
+    openChatGPTWeb: (): Promise<IpcResult<null>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_CHATGPT_WEB) as Promise<IpcResult<null>>,
+  },
   health: {
     check: (): Promise<IpcResult<{ status: string; version: string }>> =>
       ipcRenderer.invoke(IPC_CHANNELS.HEALTH_CHECK) as Promise<IpcResult<{ status: string; version: string }>>,

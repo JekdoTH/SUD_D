@@ -33,6 +33,7 @@ export const IPC_CHANNELS = {
   APPROVAL_RESPOND: 'approval:respond',
   TEAM_STATUS: 'team:status',
   TEAM_STOP: 'team:stop',
+  APP_OPEN_CHATGPT_WEB: 'app:openChatGPTWeb',
 } as const;
 
 // ---------------------------------------------------------------------------

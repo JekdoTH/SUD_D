@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-03T00:38:32.1206053+07:00",
+  "title": "Design System: SUD-D Desktop",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "SUD-D Action Blue",
+        "canonical": "#0866ff",
+        "tonalRamp": ["#03204f", "#04377f", "#0550bd", "#0866ff", "#3a83ff", "#74a8ff", "#b6d0ff", "#edf5ff"]
+      },
+      "surface-base": {
+        "role": "neutral",
+        "displayName": "Cool Canvas",
+        "canonical": "#f5f7fa",
+        "tonalRamp": ["#172033", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#e2e8f0", "#f1f5f9", "#f8fafc"]
+      },
+      "success": {
+        "role": "state",
+        "displayName": "Safe Green",
+        "canonical": "#238636",
+        "tonalRamp": ["#0b2e14", "#12501f", "#196d2b", "#238636", "#4aa15a", "#83c18e", "#bce0c2", "#f1fbf3"]
+      },
+      "warning": {
+        "role": "state",
+        "displayName": "Attention Amber",
+        "canonical": "#c55b0a",
+        "tonalRamp": ["#401c03", "#6b3005", "#954506", "#c55b0a", "#dc7a2e", "#eca565", "#f7cf9f", "#fff7ed"]
+      },
+      "danger": {
+        "role": "state",
+        "displayName": "Failure Red",
+        "canonical": "#c0342b",
+        "tonalRamp": ["#42100d", "#6b1b17", "#922621", "#c0342b", "#d85b54", "#e98e89", "#f5c3c0", "#fff1f0"]
+      }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Page Headline", "purpose": "Primary page titles such as Overview." },
+      "body": { "displayName": "Working Copy", "purpose": "Desktop product copy and explanatory text." },
+      "label": { "displayName": "UI Label", "purpose": "Navigation, metadata, status rows, and compact controls." }
+    },
+    "shadows": [
+      {
+        "name": "card-ambient",
+        "value": "0 1px 2px rgba(15, 23, 42, 0.035), 0 8px 24px rgba(15, 23, 42, 0.025)",
+        "purpose": "Low ambient separation for cards on the cool canvas."
+      },
+      {
+        "name": "button-primary",
+        "value": "0 4px 10px rgba(8, 102, 255, 0.16)",
+        "purpose": "Small lift on the primary action only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-standard",
+        "value": "150ms ease",
+        "purpose": "Hover, focus, active, opacity, and state transitions in the Operate UI."
+      }
+    ],
+    "breakpoints": [
+      { "name": "connection-reflow", "value": "1180px" },
+      { "name": "sidebar-collapse", "value": "1020px" },
+      { "name": "overview-stack", "value": "940px" },
+      { "name": "compact-topbar", "value": "760px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single strongest local next action in an Operate task cluster.",
+      "html": "<button class=\"ds-btn-primary\">CONNECT CHATGPT</button>",
+      "css": ".ds-btn-primary { min-height: 36px; padding: 7px 14px; border: 1px solid #0866ff; border-radius: 8px; background: #0866ff; color: #fff; font: 600 12.5px/1.4 'Segoe UI', system-ui, sans-serif; box-shadow: 0 4px 10px rgba(8,102,255,.16); transition: background 150ms ease, border-color 150ms ease, opacity 150ms ease, transform 150ms ease; } .ds-btn-primary:hover { background: #0057df; border-color: #0057df; } .ds-btn-primary:focus-visible { outline: 3px solid rgba(8,102,255,.2); outline-offset: 2px; } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "description": "Secondary action that stays visibly subordinate to SUD-D blue.",
+      "html": "<button class=\"ds-btn-ghost\">CONNECTION DETAILS</button>",
+      "css": ".ds-btn-ghost { min-height: 36px; padding: 7px 14px; border: 1px solid #cdd6e1; border-radius: 8px; background: #fff; color: #324865; font: 600 12.5px/1.4 'Segoe UI', system-ui, sans-serif; transition: background 150ms ease, border-color 150ms ease; } .ds-btn-ghost:hover { background: #f8fafc; border-color: #aeb9c7; } .ds-btn-ghost:focus-visible { outline: 3px solid rgba(8,102,255,.2); outline-offset: 2px; }"
+    },
+    {
+      "name": "Healthy Status Chip",
+      "kind": "chip",
+      "description": "Compact textual system status; color supports but never replaces the label.",
+      "html": "<span class=\"ds-status-success\"><span class=\"ds-status-dot\"></span>System healthy</span>",
+      "css": ".ds-status-success { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 6px 11px; border: 1px solid #ccebd4; border-radius: 999px; background: #f1fbf3; color: #238636; font: 600 11.5px/1.4 'Segoe UI', system-ui, sans-serif; } .ds-status-dot { width: 7px; height: 7px; border-radius: 50%; background: #238636; }"
+    },
+    {
+      "name": "Overview Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Major information surface with one neutral rule and low ambient elevation.",
+      "html": "<section class=\"ds-card\"><h3>Approved workspaces</h3><p>Local project access stays explicit and bounded.</p></section>",
+      "css": ".ds-card { padding: 20px 22px; border: 1px solid #e3e8ef; border-radius: 14px; background: #fff; color: #0d1b35; box-shadow: 0 1px 2px rgba(15,23,42,.035), 0 8px 24px rgba(15,23,42,.025); font-family: 'Segoe UI', system-ui, sans-serif; } .ds-card h3 { margin: 0 0 8px; font-size: 17px; line-height: 1.25; } .ds-card p { margin: 0; color: #5e6c84; font-size: 13px; line-height: 1.5; }"
+    },
+    {
+      "name": "Active Navigation Item",
+      "kind": "nav",
+      "refersTo": "nav-active",
+      "description": "Current page in the persistent SUD-D left rail.",
+      "html": "<button class=\"ds-nav-active\" aria-current=\"page\">Overview</button>",
+      "css": ".ds-nav-active { min-height: 42px; width: 100%; padding: 9px 11px; border: 1px solid #d7e8ff; border-radius: 8px; background: #edf5ff; color: #0866ff; text-align: left; font: 650 13px/1.4 'Segoe UI', system-ui, sans-serif; } .ds-nav-active:hover { background: #e4f0ff; } .ds-nav-active:focus-visible { outline: 3px solid rgba(8,102,255,.2); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "description": "Compact Windows-style field for trusted existing forms.",
+      "html": "<input class=\"ds-input\" value=\"Local workspace\" aria-label=\"Workspace\">",
+      "css": ".ds-input { width: 100%; min-height: 37px; padding: 8px 11px; border: 1px solid #cdd6e1; border-radius: 8px; background: #fff; color: #0d1b35; font: 400 12.5px/1.4 'Segoe UI', system-ui, sans-serif; } .ds-input:focus { border-color: #87b2f8; outline: 3px solid rgba(8,102,255,.08); outline-offset: 0; } .ds-input:disabled { opacity: .55; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Trusted Local Control Center",
+    "overview": "SUD-D Desktop is an Operate-mode Windows interface: the user should scan state, understand the next safe action, and continue working without interpreting runtime internals. The visual system stays quiet and familiar—cool white surfaces, precise neutral rules, one SUD-D blue action voice, and compact state color only where meaning requires it.\n\nBrand character comes from the approved SUD-D logo, disciplined blue selection/action treatment, consistent line icons, and deliberate information hierarchy rather than decorative effects. The shared shell should recede behind the task while remaining recognizably SUD-D.",
+    "keyCharacteristics": [
+      "Restrained white and cool-gray surfaces with one primary blue accent.",
+      "Dark navy hierarchy and readable muted copy.",
+      "Thin rules, 8–14px corner language, and low ambient elevation.",
+      "Line icons with consistent stroke weight; status meaning includes text, not color alone.",
+      "Dense enough for desktop operation, with responsive reflow before content clips."
+    ],
+    "rules": [
+      { "name": "The One Action Voice Rule", "body": "Use SUD-D blue for current selection and actionable controls, not as general decoration.", "section": "colors" },
+      { "name": "The Operate Type Rule", "body": "Keep typography fixed-scale and compact; do not introduce decorative display fonts into labels or controls.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Prefer borders and tonal layering; shadows remain subtle and never become decoration.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do preserve product truth and derive state from existing safe DTOs.",
+      "Do use the approved SUD-D logo in the shared shell.",
+      "Do keep blue rare enough that current selection and primary action remain obvious.",
+      "Do preserve visible keyboard focus, readable muted text, and breakpoint-driven reflow.",
+      "Do use one line-icon vocabulary with consistent stroke weight."
+    ],
+    "donts": [
+      "Don't reintroduce a Connection Method selector into Overview.",
+      "Don't invent account, update, session, permission, uptime, encryption, or other unsupported claims.",
+      "Don't expose secrets, API-key suffixes, arbitrary URLs, executables, argv, cwd, or env through renderer-facing UI.",
+      "Don't redesign page-specific content in other tabs merely because they inherit the shared shell.",
+      "Don't use decorative gradients, glassmorphism, excessive badges, or raw Unicode glyphs as the final icon system."
+    ]
+  }
+}

@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   ipcMain,
   dialog,
+  shell,
   WebContents,
   session,
 } from 'electron';
@@ -30,6 +31,10 @@ import {
   createWorkspaceService,
 } from '@sud-d/application';
 import { createDesktopConnectionController } from './connection-controller.js';
+import {
+  registerDesktopAppIpcHandlers,
+  type AppIpcMain,
+} from './app-ipc.js';
 import {
   registerDesktopConnectionIpcHandlers,
   type DesktopIpcMain,
@@ -302,6 +307,11 @@ function registerIpcHandlers(): void {
     'id' in sender &&
     isSenderValid(sender as WebContents);
 
+  registerDesktopAppIpcHandlers(
+    ipcMain as unknown as AppIpcMain,
+    (url) => shell.openExternal(url),
+    validateDesktopSender,
+  );
   registerDesktopConnectionIpcHandlers(
     ipcMain as unknown as DesktopIpcMain,
     connectionController,

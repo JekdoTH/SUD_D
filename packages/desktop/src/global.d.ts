@@ -27,6 +27,9 @@ import type {
 } from '@sud-d/contracts';
 
 interface SudDApi {
+  app: {
+    openChatGPTWeb(): Promise<IpcResult<null>>;
+  };
   health: {
     check(): Promise<IpcResult<{ status: string; version: string }>>;
   };

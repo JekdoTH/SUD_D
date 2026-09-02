@@ -6,39 +6,47 @@ import type {
 } from '@sud-d/contracts';
 import type { AppPage } from '../App';
 import {
-  deriveConnectionComponentStatuses,
   getConnectionPrimaryAction,
   presentConnectionState,
 } from '../connection-ui-model';
+import { UiIcon } from '../ui-icons';
 
 interface HomePageProps {
   onNavigate: (page: AppPage) => void;
 }
 
 function friendlyAction(action: string): string {
-  return action
-    .replaceAll(':', ' · ')
-    .replaceAll('.', ' · ')
-    .replaceAll('_', ' ');
+  const words = action
+    .replaceAll(':', ' ')
+    .replaceAll('.', ' ')
+    .replaceAll('_', ' ')
+    .split(/\s+/u)
+    .filter(Boolean);
+
+  if (words.length === 0) return 'Local activity';
+  return words
+    .map((word, index) => index === 0 ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : word)
+    .join(' ');
+}
+
+function formatEventTime(timestamp: string): string {
+  return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
   const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]);
   const [recentEvents, setRecentEvents] = useState<AuditEventDto[]>([]);
   const [connection, setConnection] = useState<DesktopConnectionSnapshotDto | null>(null);
-  const [version, setVersion] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
-    const [healthResult, workspaceResult, auditResult, connectionResult] = await Promise.all([
-      window.sudD.health.check(),
+    const [workspaceResult, auditResult, connectionResult] = await Promise.all([
       window.sudD.workspace.list(),
-      window.sudD.audit.list({ limit: 5 }),
+      window.sudD.audit.list({ limit: 3 }),
       window.sudD.connection.status(),
     ]);
 
-    if (healthResult.ok) setVersion(healthResult.value.version);
     if (workspaceResult.ok) setWorkspaces(workspaceResult.value);
     if (auditResult.ok) setRecentEvents(auditResult.value);
     if (connectionResult.ok) {
@@ -56,20 +64,71 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
   }, [refresh]);
 
   const activeWorkspace = workspaces.find((workspace) => workspace.isActive);
+  const visibleWorkspaces = useMemo(
+    () => [...workspaces]
+      .sort((left, right) => Number(right.isActive) - Number(left.isActive))
+      .slice(0, 3),
+    [workspaces],
+  );
   const statePresentation = connection
     ? presentConnectionState(connection.runtime.state)
     : { label: 'Checking…', description: 'Reading local connection status.', tone: 'neutral' as const };
-  const componentStatuses = connection
-    ? deriveConnectionComponentStatuses(connection.runtime.state)
-    : { gateway: 'stopped' as const, tunnel: 'stopped' as const, client: 'disconnected' as const };
   const primaryAction = useMemo(
     () => connection ? getConnectionPrimaryAction(connection, Boolean(activeWorkspace)) : null,
     [connection, activeWorkspace],
   );
 
+  const setupRequired = !activeWorkspace
+    || !connection?.profile
+    || connection.credentialStatus !== 'configured'
+    || !connection.profile.tunnelConfigured;
+
+  const connectionHeading = connection === null
+    ? 'Checking connection'
+    : setupRequired
+      ? 'Setup required'
+      : statePresentation.label;
+
+  const connectionDescription = connection === null
+    ? 'Reading the local connection state for this device.'
+    : !activeWorkspace
+      ? 'Choose an approved workspace before connecting ChatGPT.'
+      : !connection.profile
+        ? 'Open Connection to create the local Secure MCP connection profile.'
+        : connection.credentialStatus !== 'configured'
+          ? 'Add the Runtime API Key required by this device before connecting.'
+          : !connection.profile.tunnelConfigured
+            ? 'Add Secure Tunnel configuration to finish connection setup.'
+            : statePresentation.description;
+
+  const tunnelStatus = !connection?.profile?.tunnelConfigured
+    ? 'Not configured'
+    : connection.runtime.state === 'error'
+      ? 'Error'
+      : connection.runtime.state === 'stopped'
+        ? 'Ready'
+        : 'Running';
+
+  const primaryActionLabel = connection === null
+    ? 'Checking…'
+    : busy
+      ? 'Working…'
+    : primaryAction?.action === 'choose_workspace'
+      ? 'Choose workspace'
+      : primaryAction?.action === 'setup_credential'
+        ? 'Set up API Key'
+        : primaryAction?.action === 'setup_tunnel'
+          ? 'Set up Secure Tunnel'
+          : primaryAction?.action === 'disconnect'
+            ? 'Disconnect'
+            : primaryAction?.action === 'restart'
+              ? 'Restart connection'
+              : 'Connect ChatGPT';
+
   const runPrimaryAction = async (): Promise<void> => {
     if (!connection?.profile || !primaryAction?.enabled) {
       if (primaryAction?.action === 'choose_workspace') onNavigate('workspaces');
+      else if (!connection?.profile) onNavigate('connection');
       return;
     }
 
@@ -90,23 +149,18 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
         ? await window.sudD.connection.restart({ profileId: connection.profile.profileId })
         : await window.sudD.connection.stop({});
     setBusy(false);
+
     if (result.ok) setConnection(result.value);
     else setError(result.error.message);
     await refresh();
   };
 
   return (
-    <>
-      <div className="page-header page-header-row">
-        <div>
-          <h1 className="page-title">Overview</h1>
-          <p className="page-subtitle">Your local ChatGPT connection, workspace, and safety status at a glance.</p>
-        </div>
-        <div className={`status-chip tone-${statePresentation.tone}`}>
-          <span className="status-dot" />
-          {statePresentation.label}
-        </div>
-      </div>
+    <div className="overview-page">
+      <header className="overview-heading">
+        <h1 className="page-title">Overview</h1>
+        <p className="page-subtitle">Manage your local ChatGPT connection, workspace, and safety status at a glance.</p>
+      </header>
 
       {error && (
         <div className="callout callout-error" role="alert">
@@ -115,139 +169,159 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
         </div>
       )}
 
-      <div className="overview-grid">
-        <section className="card overview-card">
-          <div className="card-kicker">This Device</div>
-          <div className="card-heading">{connection?.profile?.deviceName ?? 'This Device'}</div>
-          <div className="muted">Windows · Local-first</div>
-          <div className="card-footer-line">
-            <span className={`status-chip compact tone-${statePresentation.tone}`}>{statePresentation.label}</span>
-            {version && <span className="muted">SUD-D v{version}</span>}
+      <section className="card overview-connection-card" aria-labelledby="overview-connection-title">
+        <div className="overview-connection-main">
+          <div className={`overview-connection-icon tone-${setupRequired ? 'warning' : statePresentation.tone}`} aria-hidden="true">
+            <UiIcon name="connection" size={24} />
           </div>
-        </section>
+          <div className="overview-connection-copy">
+            <h2 id="overview-connection-title">{connectionHeading}</h2>
+            <p>{connectionDescription}</p>
+            {primaryAction?.reason && !primaryAction.enabled && (
+              <span className="overview-inline-note">{primaryAction.reason}</span>
+            )}
+          </div>
+        </div>
 
-        <section className="card overview-card span-2">
-          <div className="card-header-row">
-            <div>
-              <div className="card-kicker">Connection</div>
-              <div className="card-heading">ChatGPT</div>
-              <div className="muted">OpenAI Secure MCP Tunnel · stdio</div>
-            </div>
-            <div className={`status-chip tone-${statePresentation.tone}`}>{statePresentation.label}</div>
+        <dl className="overview-status-list">
+          <div>
+            <dt>Workspace</dt>
+            <dd className={activeWorkspace ? 'status-value-ready' : 'status-value-warning'}>
+              {activeWorkspace ? 'Ready' : 'Required'}
+            </dd>
           </div>
-          <p className="card-description">{statePresentation.description}</p>
-          <div className="component-strip">
-            <span>Workspace <strong>{activeWorkspace ? 'Ready' : 'Needs setup'}</strong></span>
-            <span>Runtime Key <strong>{connection?.credentialStatus === 'configured' ? 'Configured' : 'Missing'}</strong></span>
-            <span>Secure Tunnel <strong>{connection?.profile?.tunnelConfigured ? (connection.runtime.state === 'error' ? 'Error' : connection.runtime.state === 'stopped' ? 'Ready' : 'Running') : 'Needs setup'}</strong></span>
-            <span>Gateway <strong>{componentStatuses.gateway}</strong></span>
-            <span>ChatGPT <strong>{statePresentation.label}</strong></span>
+          <div>
+            <dt>Runtime API Key</dt>
+            <dd className={connection?.credentialStatus === 'configured' ? 'status-value-ready' : 'status-value-warning'}>
+              {connection?.credentialStatus === 'configured' ? 'Configured' : 'Required'}
+            </dd>
           </div>
-          <div className="button-row">
-            <button
-              id="overview-primary-connection-action"
-              className="btn btn-primary"
-              disabled={busy || !primaryAction?.enabled}
-              onClick={() => void runPrimaryAction()}
-            >
-              {busy
-                ? 'Working…'
-                : primaryAction?.action === 'choose_workspace'
-                  ? 'Choose Workspace'
-                  : primaryAction?.action === 'setup_credential'
-                    ? 'Set up API Key'
-                    : primaryAction?.action === 'setup_tunnel'
-                      ? 'Set up Secure Tunnel'
-                      : primaryAction?.action === 'disconnect'
-                        ? 'Disconnect'
-                        : primaryAction?.action === 'restart'
-                          ? 'Restart'
-                          : 'Connect ChatGPT'}
-            </button>
-            <button className="btn btn-ghost" onClick={() => onNavigate('connection')}>Connection details</button>
+          <div>
+            <dt>Secure Tunnel</dt>
+            <dd className={tunnelStatus === 'Error' ? 'status-value-error' : tunnelStatus === 'Not configured' ? 'status-value-warning' : 'status-value-ready'}>
+              {tunnelStatus}
+            </dd>
           </div>
-          {!primaryAction?.enabled && primaryAction?.reason && (
-            <div className="inline-hint">{primaryAction.reason}</div>
-          )}
-        </section>
+        </dl>
 
-        <section className="card overview-card span-2">
-          <div className="card-header-row">
-            <div>
-              <div className="card-kicker">Active Workspace</div>
-              <div className="card-heading">{activeWorkspace?.displayName ?? 'No workspace selected'}</div>
-            </div>
-            {activeWorkspace && <span className="badge badge-green">Active</span>}
-          </div>
-          {activeWorkspace ? (
-            <div className="workspace-path">{activeWorkspace.canonicalRoot}</div>
-          ) : (
-            <p className="card-description">Select a workspace before connecting ChatGPT.</p>
-          )}
-          <button className="btn btn-ghost" onClick={() => onNavigate('workspaces')}>
-            {activeWorkspace ? 'Change workspace' : 'Choose workspace'}
+        <div className="overview-primary-actions">
+          <button
+            id="overview-primary-connection-action"
+            className="btn btn-primary overview-primary-button"
+            disabled={busy || connection === null || (primaryAction !== null && !primaryAction.enabled && Boolean(connection?.profile))}
+            onClick={() => void runPrimaryAction()}
+          >
+            {primaryActionLabel}
+            <UiIcon name="arrow-right" size={16} />
           </button>
-        </section>
+          <button className="btn btn-link overview-details-link" onClick={() => onNavigate('connection')}>
+            Connection details
+          </button>
+        </div>
+      </section>
 
-        <section className="card overview-card">
-          <div className="card-kicker">Pending Approval</div>
-          <div className="metric">0</div>
-          <p className="muted">Approval workflow is not enabled yet.</p>
-          <span className="badge badge-gray">Coming later</span>
-        </section>
+      <section className="card overview-section overview-workspaces" aria-labelledby="approved-workspaces-title">
+        <div className="overview-section-header">
+          <div className="overview-section-title">
+            <UiIcon name="workspaces" size={19} />
+            <h2 id="approved-workspaces-title">Approved workspaces</h2>
+          </div>
+          <button className="btn btn-link" onClick={() => onNavigate('workspaces')}>
+            {workspaces.length === 0 ? 'Add workspace' : 'View all workspaces'}
+            <UiIcon name="arrow-right" size={15} />
+          </button>
+        </div>
 
-        <section className="card overview-card span-2">
-          <div className="card-header-row">
-            <div>
-              <div className="card-kicker">Security Summary</div>
-              <div className="card-heading">Safe defaults</div>
+        {visibleWorkspaces.length === 0 ? (
+          <div className="overview-empty-row">
+            <span>No approved workspace yet.</span>
+            <button className="btn btn-ghost" onClick={() => onNavigate('workspaces')}>Choose workspace</button>
+          </div>
+        ) : (
+          <div className="overview-workspace-table" role="table" aria-label="Approved workspaces summary">
+            <div className="overview-workspace-header" role="row">
+              <span role="columnheader">Path</span>
+              <span role="columnheader">Status</span>
             </div>
-            <button className="btn btn-link" onClick={() => onNavigate('security')}>View security</button>
+            {visibleWorkspaces.map((workspace) => (
+              <div className="overview-workspace-row" role="row" key={workspace.id}>
+                <div className="overview-workspace-path" role="cell">
+                  <UiIcon name="workspaces" size={19} />
+                  <span title={workspace.canonicalRoot}>{workspace.canonicalRoot}</span>
+                </div>
+                <div className="overview-workspace-status" role="cell">
+                  <span className={`workspace-state-dot${workspace.isActive ? ' active' : ''}`} aria-hidden="true" />
+                  <span>{workspace.isActive ? 'Active' : 'Not active'}</span>
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="security-grid compact-security-grid">
-            <div className="security-item"><span>Read</span><span className="badge badge-green">Allow</span></div>
-            <div className="security-item"><span>Write</span><span className="badge badge-green">Allow</span></div>
-            <div className="security-item"><span>Delete</span><span className="badge badge-yellow">Ask</span></div>
-            <div className="security-item"><span>Execute</span><span className="badge badge-yellow">Ask</span></div>
-            <div className="security-item"><span>Network</span><span className="badge badge-red">Deny</span></div>
-          </div>
-          <p className="fine-print">Displayed from the approved baseline policy. Enforcement remains in backend security boundaries.</p>
-        </section>
+        )}
+      </section>
 
-        <section className="card overview-card span-2">
-          <div className="card-header-row">
-            <div>
-              <div className="card-kicker">Recent Activity</div>
-              <div className="card-heading">Latest local events</div>
+      <div className="overview-bottom-grid">
+        <section className="card overview-summary-card" aria-labelledby="recent-activity-title">
+          <div className="overview-section-header">
+            <div className="overview-section-title">
+              <UiIcon name="activity" size={19} />
+              <h2 id="recent-activity-title">Recent activity</h2>
             </div>
-            <button className="btn btn-link" onClick={() => onNavigate('activity')}>View all</button>
           </div>
+
           {recentEvents.length === 0 ? (
-            <div className="empty-compact">No activity yet.</div>
+            <div className="overview-summary-empty">No local activity yet.</div>
           ) : (
-            <div className="activity-list">
+            <div className="overview-activity-list">
               {recentEvents.map((event) => (
-                <div className="activity-row" key={event.id}>
-                  <div>
-                    <strong>{friendlyAction(event.action)}</strong>
-                    <div className="muted small">{new Date(event.timestamp).toLocaleString()}</div>
-                  </div>
-                  <span className={`badge ${event.resultCode === 'OK' ? 'badge-green' : 'badge-red'}`}>
-                    {event.resultCode}
+                <div className="overview-activity-row" key={event.id}>
+                  <span className={`activity-state-icon ${event.resultCode === 'OK' ? 'success' : 'error'}`} aria-hidden="true">
+                    <UiIcon name="check" size={16} />
                   </span>
+                  <div className="overview-activity-copy">
+                    <strong>{friendlyAction(event.action)}</strong>
+                    {event.resourcePath && <span title={event.resourcePath}>{event.resourcePath}</span>}
+                  </div>
+                  <time dateTime={event.timestamp}>{formatEventTime(event.timestamp)}</time>
                 </div>
               ))}
             </div>
           )}
+
+          <button className="btn btn-link overview-card-link" onClick={() => onNavigate('activity')}>
+            View all activity
+            <UiIcon name="arrow-right" size={15} />
+          </button>
         </section>
 
-        <section className="card overview-card">
-          <div className="card-kicker">Recovery</div>
-          <div className="card-heading">Protected changes</div>
-          <p className="muted">Recovery engine is not enabled in M0.6.</p>
-          <button className="btn btn-ghost" onClick={() => onNavigate('recovery')}>Learn more</button>
+        <section className="card overview-summary-card" aria-labelledby="safety-status-title">
+          <div className="overview-section-header">
+            <div className="overview-section-title">
+              <UiIcon name="security" size={19} />
+              <h2 id="safety-status-title">Safety status</h2>
+            </div>
+          </div>
+
+          <ul className="overview-safety-list">
+            <li>
+              <UiIcon name="check" size={18} />
+              <span>Workspace-bound access</span>
+            </li>
+            <li>
+              <UiIcon name="check" size={18} />
+              <span>Network denied by default</span>
+            </li>
+            <li>
+              <UiIcon name="check" size={18} />
+              <span>Credentials stay hidden from the renderer</span>
+            </li>
+          </ul>
+
+          <button className="btn btn-link overview-card-link" onClick={() => onNavigate('security')}>
+            View security
+            <UiIcon name="arrow-right" size={15} />
+          </button>
         </section>
       </div>
-    </>
+    </div>
   );
 }
