@@ -12,7 +12,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from '@sud-d/infrastructure';
 import { createWorkspaceRepository } from '@sud-d/infrastructure';
-import { createAuditRepository, createApprovalRepository } from '@sud-d/infrastructure';
+import { createAuditRepository, createApprovalRepository, createGitSafetyAdapter, createTeamRepository } from '@sud-d/infrastructure';
 import { getDataRoot, canonicalizePath } from '@sud-d/infrastructure';
 import { checkDataDirectory, checkWorkspaceRoot } from '@sud-d/infrastructure';
 import {
@@ -25,6 +25,7 @@ import {
 import {
   createApprovalService,
   createConnectionConfigService,
+  createTeamService,
   createConnectionService,
   createWorkspaceService,
 } from '@sud-d/application';
@@ -43,6 +44,11 @@ import {
   registerDesktopApprovalIpcHandlers,
   type ApprovalIpcMain,
 } from './approval-ipc.js';
+import { createDesktopTeamController } from './team-controller.js';
+import {
+  registerDesktopTeamIpcHandlers,
+  type TeamIpcMain,
+} from './team-ipc.js';
 import {
   WorkspaceAddInputSchema,
   WorkspaceSelectInputSchema,
@@ -68,6 +74,8 @@ const db = openDatabase(dbPath);
 const workspaceRepo = createWorkspaceRepository(db);
 const auditRepo = createAuditRepository(db);
 const approvalRepo = createApprovalRepository(db);
+const teamRepo = createTeamRepository(db);
+const gitSafety = createGitSafetyAdapter();
 const approvalService = createApprovalService(approvalRepo, auditRepo);
 const approvalController = createDesktopApprovalController(approvalService);
 
@@ -77,6 +85,20 @@ const internalRoots: InternalRoot[] = dataRootCanonical.ok
   ? [{ canonicalPath: dataRootCanonical.value, label: 'SUD-D data root' }]
   : [];
 
+const teamService = createTeamService({
+  teamRepo,
+  workspaceRepo,
+  audit: auditRepo,
+  freshness: {
+    current(workspace) {
+      const status = gitSafety.status(workspace.canonicalRoot);
+      return status.ok
+        ? { ok: true, value: { kind: 'git_status' as const, value: status.value.statusId } }
+        : { ok: true, value: { kind: 'none' as const, value: 'unsupported' } };
+    },
+  },
+});
+const teamController = createDesktopTeamController(teamService);
 const workspaceService = createWorkspaceService(workspaceRepo, auditRepo, internalRoots);
 const connectionProfileRepo = createConnectionProfileRepository(db);
 const connectionCredentialStore = createWindowsCredentialStore(process.env);
@@ -293,6 +315,11 @@ function registerIpcHandlers(): void {
   registerDesktopApprovalIpcHandlers(
     ipcMain as unknown as ApprovalIpcMain,
     approvalController,
+    validateDesktopSender,
+  );
+  registerDesktopTeamIpcHandlers(
+    ipcMain as unknown as TeamIpcMain,
+    teamController,
     validateDesktopSender,
   );
 }

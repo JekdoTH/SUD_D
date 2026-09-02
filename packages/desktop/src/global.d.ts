@@ -13,6 +13,9 @@ import type {
   ApprovalRespondInput,
   DesktopApprovalRequestDto,
   DesktopApprovalResponseDto,
+  DesktopTeamMissionDto,
+  TeamStatusInput,
+  TeamStopInput,
   ConnectionStartInput,
   ConnectionStopInput,
   ConnectionRestartInput,
@@ -45,6 +48,10 @@ interface SudDApi {
   approval: {
     list(input?: ApprovalListInput): Promise<IpcResult<DesktopApprovalRequestDto[]>>;
     respond(input: ApprovalRespondInput): Promise<IpcResult<DesktopApprovalResponseDto>>;
+  };
+  team: {
+    status(input?: TeamStatusInput): Promise<IpcResult<DesktopTeamMissionDto | null>>;
+    stop(input?: TeamStopInput): Promise<IpcResult<DesktopTeamMissionDto>>;
   };
   connection: {
     status(): Promise<IpcResult<DesktopConnectionSnapshotDto>>;

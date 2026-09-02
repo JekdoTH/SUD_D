@@ -6,12 +6,14 @@ import { ActivityPage } from './pages/ActivityPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { RecoveryPage } from './pages/RecoveryPage';
 import { DoctorPage } from './pages/DoctorPage';
+import { TeamPage } from './pages/TeamPage';
 
 export type AppPage =
   | 'overview'
   | 'workspaces'
   | 'connection'
   | 'activity'
+  | 'team'
   | 'security'
   | 'recovery'
   | 'environment';
@@ -21,6 +23,7 @@ const NAV_ITEMS: { id: AppPage; icon: string; label: string }[] = [
   { id: 'workspaces', icon: '▣', label: 'Workspaces' },
   { id: 'connection', icon: '↗', label: 'Connection' },
   { id: 'activity', icon: '≋', label: 'Activity' },
+  { id: 'team', icon: '▱', label: 'Team' },
   { id: 'security', icon: '◇', label: 'Security' },
   { id: 'recovery', icon: '↶', label: 'Recovery' },
   { id: 'environment', icon: '✦', label: 'Environment / Doctor' },
@@ -63,6 +66,7 @@ export function App(): React.ReactElement {
         {page === 'workspaces' && <ProjectsPage />}
         {page === 'connection' && <ConnectionPage onNavigate={setPage} />}
         {page === 'activity' && <ActivityPage />}
+        {page === 'team' && <TeamPage />}
         {page === 'security' && <SettingsPage />}
         {page === 'recovery' && <RecoveryPage />}
         {page === 'environment' && <DoctorPage />}

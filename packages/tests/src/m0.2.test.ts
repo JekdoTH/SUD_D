@@ -330,12 +330,18 @@ describe('M0.2 — database migration', () => {
     expect(
       (upgraded.prepare('SELECT version FROM schema_migrations ORDER BY version').all() as { version: number }[])
         .map((row) => row.version),
-    ).toEqual([1, 2, 3]);
+    ).toEqual([1, 2, 3, 4]);
     expect(
       upgraded.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'connection_profiles'").get(),
     ).toBeTruthy();
     expect(
       upgraded.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'approval_requests'").get(),
+    ).toBeTruthy();
+    expect(
+      upgraded.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'team_missions'").get(),
+    ).toBeTruthy();
+    expect(
+      upgraded.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'team_work_items'").get(),
     ).toBeTruthy();
     upgraded.close();
     openDbs.splice(openDbs.indexOf(upgraded), 1);
@@ -344,7 +350,7 @@ describe('M0.2 — database migration', () => {
     expect(
       (reopened.prepare('SELECT version FROM schema_migrations ORDER BY version').all() as { version: number }[])
         .map((row) => row.version),
-    ).toEqual([1, 2, 3]);
+    ).toEqual([1, 2, 3, 4]);
     expect(
       reopened.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = 2").get(),
     ).toEqual({ count: 1 });

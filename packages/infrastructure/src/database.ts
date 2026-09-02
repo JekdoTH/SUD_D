@@ -80,6 +80,63 @@ const MIGRATIONS: string[] = [
     WHERE status IN ('pending','approved');
   CREATE INDEX IF NOT EXISTS idx_approval_pending ON approval_requests(status, expires_at, created_at DESC);
   `,
+  // Migration 004 — Team Mode MVP safe orchestration metadata only
+  `
+  CREATE TABLE IF NOT EXISTS team_missions (
+    mission_id             TEXT PRIMARY KEY,
+    workspace_id           TEXT NOT NULL,
+    goal_summary           TEXT NOT NULL,
+    state                  TEXT NOT NULL CHECK(state IN ('planning','implementing','reviewing','completed','blocked','stopped')),
+    current_role           TEXT CHECK(current_role IN ('planner','implementer','reviewer')),
+    current_step_id        TEXT,
+    review_round           INTEGER NOT NULL DEFAULT 0,
+    blocked_reason_code    TEXT,
+    blocked_reason_summary TEXT,
+    freshness_kind         TEXT NOT NULL CHECK(freshness_kind IN ('git_status','workspace_time','none')),
+    freshness_value        TEXT NOT NULL,
+    created_at             TEXT NOT NULL,
+    updated_at             TEXT NOT NULL,
+    completed_at           TEXT,
+    stopped_at             TEXT
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_team_one_active_workspace
+    ON team_missions(workspace_id)
+    WHERE state IN ('planning','implementing','reviewing');
+  CREATE INDEX IF NOT EXISTS idx_team_workspace_state ON team_missions(workspace_id, state, updated_at DESC);
+
+  CREATE TABLE IF NOT EXISTS team_work_items (
+    work_item_id     TEXT PRIMARY KEY,
+    mission_id       TEXT NOT NULL REFERENCES team_missions(mission_id) ON DELETE CASCADE,
+    sequence         INTEGER NOT NULL,
+    title            TEXT NOT NULL,
+    status           TEXT NOT NULL CHECK(status IN ('pending','in_progress','done','blocked')),
+    target_path_hint TEXT,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_team_work_items_mission ON team_work_items(mission_id, sequence);
+
+  CREATE TABLE IF NOT EXISTS team_role_handoffs (
+    handoff_id   TEXT PRIMARY KEY,
+    mission_id   TEXT NOT NULL REFERENCES team_missions(mission_id) ON DELETE CASCADE,
+    from_role    TEXT NOT NULL CHECK(from_role IN ('planner','implementer','reviewer')),
+    outcome_code TEXT NOT NULL,
+    summary      TEXT NOT NULL,
+    created_at   TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_team_handoffs_mission ON team_role_handoffs(mission_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS team_reviewer_findings (
+    finding_id          TEXT PRIMARY KEY,
+    mission_id          TEXT NOT NULL REFERENCES team_missions(mission_id) ON DELETE CASCADE,
+    severity            TEXT NOT NULL CHECK(severity IN ('low','medium','high')),
+    summary             TEXT NOT NULL,
+    target_path_hint    TEXT,
+    expected_correction TEXT,
+    created_at          TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_team_findings_mission ON team_reviewer_findings(mission_id, created_at);
+  `,
 ];
 
 export function openDatabase(dbPath: string): Db {

@@ -31,6 +31,8 @@ export const IPC_CHANNELS = {
   ACTIVITY_LIST: 'activity:list',
   APPROVAL_LIST: 'approval:list',
   APPROVAL_RESPOND: 'approval:respond',
+  TEAM_STATUS: 'team:status',
+  TEAM_STOP: 'team:stop',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -200,6 +202,92 @@ export const DesktopApprovalResponseDtoSchema = z.object({
   message: z.string().min(1).max(200),
 }).strict();
 export type DesktopApprovalResponseDto = z.infer<typeof DesktopApprovalResponseDtoSchema>;
+
+// ---------------------------------------------------------------------------
+// Team Mode DTOs — safe renderer-facing orchestration metadata only
+// ---------------------------------------------------------------------------
+
+export const TeamRoleSchema = z.enum(['planner', 'implementer', 'reviewer']);
+export type TeamRoleDto = z.infer<typeof TeamRoleSchema>;
+
+export const TeamStateSchema = z.enum(['planning', 'implementing', 'reviewing', 'completed', 'blocked', 'stopped']);
+export type TeamStateDto = z.infer<typeof TeamStateSchema>;
+
+export const TeamBlockedReasonSchema = z.enum([
+  'EXECUTE_REQUIRED',
+  'NETWORK_REQUIRED',
+  'DELETE_REQUIRED',
+  'SECURITY_POLICY',
+  'APPROVAL_DENIED',
+  'APPROVAL_EXPIRED',
+  'WORKSPACE_STALE',
+  'GIT_STATE_STALE',
+  'SCOPE_MISMATCH',
+  'REVIEW_LOOP_LIMIT',
+  'UNSUPPORTED_OPERATION',
+  'INTERNAL_FAILURE',
+]);
+export type TeamBlockedReasonDto = z.infer<typeof TeamBlockedReasonSchema>;
+
+export const TeamWorkItemDtoSchema = z.object({
+  id: z.string().uuid(),
+  sequence: z.number().int().min(1),
+  title: z.string().min(1).max(160),
+  status: z.enum(['pending', 'in_progress', 'done', 'blocked']),
+  targetPathHint: z.string().min(1).max(1024).optional(),
+}).strict();
+export type TeamWorkItemDto = z.infer<typeof TeamWorkItemDtoSchema>;
+
+export const TeamHandoffDtoSchema = z.object({
+  id: z.string().uuid(),
+  fromRole: TeamRoleSchema,
+  outcome: z.enum(['plan_ready', 'implementation_ready', 'complete', 'changes_requested', 'blocked']),
+  summary: z.string().min(1).max(1000),
+  createdAt: z.string().datetime(),
+}).strict();
+export type TeamHandoffDto = z.infer<typeof TeamHandoffDtoSchema>;
+
+export const TeamFindingDtoSchema = z.object({
+  id: z.string().uuid(),
+  severity: z.enum(['low', 'medium', 'high']),
+  summary: z.string().min(1).max(240),
+  targetPathHint: z.string().min(1).max(1024).optional(),
+  expectedCorrection: z.string().min(1).max(240).optional(),
+  createdAt: z.string().datetime(),
+}).strict();
+export type TeamFindingDto = z.infer<typeof TeamFindingDtoSchema>;
+
+export const DesktopTeamMissionDtoSchema = z.object({
+  missionId: z.string().uuid(),
+  workspaceId: WorkspaceIdSchema,
+  goalSummary: z.string().min(1).max(240),
+  state: TeamStateSchema,
+  currentRole: TeamRoleSchema.optional(),
+  currentStepId: z.string().uuid().optional(),
+  reviewRound: z.number().int().min(0).max(3),
+  blockedReason: TeamBlockedReasonSchema.optional(),
+  blockedReasonSummary: z.string().min(1).max(240).optional(),
+  freshnessKind: z.enum(['git_status', 'workspace_time', 'none']).optional(),
+  freshnessValue: z.string().min(1).max(96).optional(),
+  workItems: z.array(TeamWorkItemDtoSchema).max(20),
+  handoffs: z.array(TeamHandoffDtoSchema).max(50),
+  findings: z.array(TeamFindingDtoSchema).max(20),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  completedAt: z.string().datetime().optional(),
+  stoppedAt: z.string().datetime().optional(),
+}).strict();
+export type DesktopTeamMissionDto = z.infer<typeof DesktopTeamMissionDtoSchema>;
+
+export const TeamStatusInputSchema = z.object({
+  missionId: z.string().uuid().optional(),
+}).strict();
+export type TeamStatusInput = z.infer<typeof TeamStatusInputSchema>;
+
+export const TeamStopInputSchema = z.object({
+  missionId: z.string().uuid().optional(),
+}).strict();
+export type TeamStopInput = z.infer<typeof TeamStopInputSchema>;
 
 // ---------------------------------------------------------------------------
 // Generic IPC result wrapper

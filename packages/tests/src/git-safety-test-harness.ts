@@ -31,7 +31,8 @@ export const WORKSPACE_TOOLS = [
   'workspace.create_text_file',
   'workspace.write_text_file',
 ] as const;
-export const APPROVED_TOOLS = [...WORKSPACE_TOOLS, ...GIT_TOOLS].sort();
+export const TEAM_TOOLS = ['team.start', 'team.status', 'team.submit', 'team.stop'] as const;
+export const APPROVED_TOOLS = [...WORKSPACE_TOOLS, ...GIT_TOOLS, ...TEAM_TOOLS].sort();
 export const LEGACY_PROTOCOL_VERSION = '2025-06-18';
 
 const tempDirs: string[] = [];

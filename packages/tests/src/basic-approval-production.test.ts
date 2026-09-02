@@ -10,6 +10,7 @@ import {
   createApprovalRepository,
   createAuditRepository,
   createGitSafetyAdapter,
+  createTeamRepository,
   createWorkspaceRepository,
   createWorkspaceTextFileSystem,
   openDatabase,
@@ -23,6 +24,10 @@ const APPROVED_TOOLS = [
   'git.detect',
   'git.diff',
   'git.status',
+  'team.start',
+  'team.status',
+  'team.stop',
+  'team.submit',
   'workspace.create_text_file',
   'workspace.list',
   'workspace.read_text',
@@ -147,6 +152,7 @@ async function makeHarness(options: { gitRepo?: boolean } = {}) {
     internalRoots: [],
     fileSystem: createWorkspaceTextFileSystem(),
     gitSafety: createGitSafetyAdapter(),
+    teamRepo: createTeamRepository(db),
     approval: approvalCoordinator,
   });
   const input = new PassThrough();
@@ -182,7 +188,7 @@ afterEach(async () => {
 });
 
 describe('Basic Approval - production MCP workspace flows', () => {
-  it('tools/list remains exactly 10, exposes no approval tool, and normal tools remain usable', async () => {
+  it('tools/list remains exactly 14, exposes no approval tool, and normal tools remain usable', async () => {
     const h = await makeHarness({ gitRepo: true });
     expect(h.initialized.result?.serverInfo?.name).toBe('SUD-D');
     const listed = await h.listTools();

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { PassThrough } from 'node:stream';
 
 import {
+  createTeamRepository,
   createWorkspaceTextFileSystem,
   type GitDetectResult,
   type GitDiffResult,
@@ -117,7 +118,7 @@ describe('Git Safety - status and production MCP surface', () => {
     expect(second.statusId).not.toBe(first.statusId);
   });
 
-  it('production tools/list exposes exactly six workspace plus four Git tools', async () => {
+  it('production tools/list exposes exactly six workspace, four Git, plus four Team tools', async () => {
     const h = await makeHarness();
     const server = createProductionMcpServer({
       workspaceRepo: h.workspaceRepo,
@@ -125,6 +126,7 @@ describe('Git Safety - status and production MCP surface', () => {
       internalRoots: [],
       fileSystem: createWorkspaceTextFileSystem(),
       gitSafety: h.gitSafety,
+      teamRepo: createTeamRepository(h.db),
     });
     const input = new PassThrough();
     const output = new PassThrough();
@@ -148,6 +150,7 @@ describe('Git Safety - status and production MCP surface', () => {
       internalRoots: [],
       fileSystem: createWorkspaceTextFileSystem(),
       gitSafety: h.gitSafety,
+      teamRepo: createTeamRepository(h.db),
     });
     const input = new PassThrough();
     const output = new PassThrough();

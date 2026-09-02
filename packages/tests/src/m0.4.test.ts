@@ -14,7 +14,8 @@ const PERSONAL_ALPHA_WORKSPACE_TOOLS = [
   'workspace.write_text_file',
 ] as const;
 const GIT_SAFETY_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS] as const;
+const TEAM_TOOLS = ['team.start', 'team.status', 'team.submit', 'team.stop'] as const;
+const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS, ...TEAM_TOOLS] as const;
 const children = new Set<ChildProcessWithoutNullStreams>();
 
 interface TestJsonRpcMessage {
@@ -302,7 +303,9 @@ describe('M0.4 — inert MCP gateway', () => {
       expect(source).toContain(`'${toolName}'`);
     }
     expect((source.match(/registerTool\s*\(/g) ?? [])).toHaveLength(APPROVED_PRODUCTION_TOOLS.length);
-    expect(source).not.toMatch(/workspace\.(?:delete|rename|move)|execute|shell|network|git\.(?:push|pull|fetch|clone|run)/i);
+    expect(source).not.toMatch(/workspace\.(?:delete|rename|move)|git\.(?:push|pull|fetch|clone|run)/i);
+    expect(source).not.toMatch(/registerTool\s*\(\s*['"][^'"]*(?:execute|shell|network|delete|recovery)[^'"]*['"]/i);
+    expect(source).not.toMatch(/child_process|node:(?:net|http|https)|execFile|spawn\s*\(|process\.env/i);
   });
 
   it('writes only JSON-RPC messages to the in-memory stdio stdout channel', async () => {

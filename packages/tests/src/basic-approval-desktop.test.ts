@@ -184,7 +184,7 @@ describe('Basic Approval - fixed-purpose Desktop IPC and UI surface', () => {
   it('preload exposes list/respond only and no approval creation or generic IPC authority', () => {
     const preload = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/electron/preload.ts'), 'utf8');
     const start = preload.indexOf('  approval: {');
-    const end = preload.indexOf('  connection: {', start);
+    const end = preload.indexOf('  team: {', start);
     const approvalSurface = start >= 0 && end > start ? preload.slice(start, end) : '';
     expect(approvalSurface).toContain('list:');
     expect(approvalSurface).toContain('respond:');

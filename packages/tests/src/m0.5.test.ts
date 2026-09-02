@@ -27,7 +27,8 @@ const PERSONAL_ALPHA_WORKSPACE_TOOLS = [
   'workspace.write_text_file',
 ] as const;
 const GIT_SAFETY_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS] as const;
+const TEAM_TOOLS = ['team.start', 'team.status', 'team.submit', 'team.stop'] as const;
+const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS, ...TEAM_TOOLS] as const;
 
 interface TunnelLaunchPlan {
   readonly executablePath: string;

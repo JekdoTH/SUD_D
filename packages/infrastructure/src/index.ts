@@ -9,4 +9,5 @@ export * from './path-adapter.js';
 export * from './workspace-text-file-system.js';
 export * from './git-safety-adapter.js';
 export * from './approval-repository.js';
+export * from './team-repository.js';
 export * from './doctor.js';

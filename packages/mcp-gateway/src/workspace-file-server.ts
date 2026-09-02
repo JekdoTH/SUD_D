@@ -6,6 +6,8 @@ import { z } from 'zod';
 import {
   createApprovalCoordinator,
   createGitSafetyCapabilities,
+  createTeamCapabilities,
+  createTeamService,
   createToolCapabilityRegistry,
   createToolKernel,
   createWorkspaceFileCapabilities,
@@ -20,12 +22,14 @@ import {
   createApprovalRepository,
   createAuditRepository,
   createGitSafetyAdapter,
+  createTeamRepository,
   createWorkspaceRepository,
   createWorkspaceTextFileSystem,
   getDataRoot,
   openDatabase,
   type AuditRepository,
   type GitSafetyAdapter,
+  type TeamRepository,
   type WorkspaceRepository,
   type WorkspaceTextFileSystem,
 } from '@sud-d/infrastructure';
@@ -68,18 +72,81 @@ const gitCheckpointInputSchema = z.object({
   expectedStatusId: z.string().regex(/^[0-9a-f]{64}$/),
 }).strict();
 
+const teamGoalSchema = z.string().min(1).max(2_000).refine((value) => !value.includes('\0'));
+const teamSummarySchema = z.string().min(1).max(1_000).refine((value) => !value.includes('\0'));
+const teamRelativeHintSchema = z.string().min(1).max(1_024).refine((value) => !value.includes('\0')).optional();
+const teamBlockedReasonSchema = z.enum([
+  'EXECUTE_REQUIRED',
+  'NETWORK_REQUIRED',
+  'DELETE_REQUIRED',
+  'SECURITY_POLICY',
+  'APPROVAL_DENIED',
+  'APPROVAL_EXPIRED',
+  'WORKSPACE_STALE',
+  'GIT_STATE_STALE',
+  'SCOPE_MISMATCH',
+  'REVIEW_LOOP_LIMIT',
+  'UNSUPPORTED_OPERATION',
+  'INTERNAL_FAILURE',
+]);
+const teamStartInputSchema = z.object({ goal: teamGoalSchema }).strict();
+const teamStatusInputSchema = z.object({ missionId: z.string().uuid().optional() }).strict();
+const teamStopInputSchema = z.object({ missionId: z.string().uuid().optional() }).strict();
+const teamWorkItemSchema = z.object({
+  title: z.string().min(1).max(160),
+  targetPathHint: teamRelativeHintSchema,
+}).strict();
+const teamFindingSchema = z.object({
+  severity: z.enum(['low', 'medium', 'high']),
+  summary: z.string().min(1).max(240),
+  targetPathHint: teamRelativeHintSchema,
+  expectedCorrection: z.string().min(1).max(240).optional(),
+}).strict();
+const teamSubmitInputSchema = z.discriminatedUnion('outcome', [
+  z.object({ outcome: z.literal('plan_ready'), summary: teamSummarySchema, workItems: z.array(teamWorkItemSchema).min(1).max(20) }).strict(),
+  z.object({ outcome: z.literal('implementation_ready'), summary: teamSummarySchema }).strict(),
+  z.object({ outcome: z.literal('complete'), summary: teamSummarySchema }).strict(),
+  z.object({ outcome: z.literal('changes_requested'), summary: teamSummarySchema, findings: z.array(teamFindingSchema).min(1).max(20) }).strict(),
+  z.object({ outcome: z.literal('blocked'), blockedReason: teamBlockedReasonSchema, summary: teamSummarySchema }).strict(),
+]);
+
 export interface ProductionMcpServerDependencies {
   readonly workspaceRepo: WorkspaceRepository;
   readonly auditRepo: AuditRepository;
   readonly internalRoots: readonly InternalRoot[];
   readonly fileSystem: WorkspaceTextFileSystem;
   readonly gitSafety?: GitSafetyAdapter;
+  readonly teamRepo: TeamRepository;
   readonly approval?: ToolKernelApprovalPort;
 }
 
 export function createProductionMcpServer(
   dependencies: ProductionMcpServerDependencies,
 ): McpServer {
+  const gitSafety = dependencies.gitSafety ?? createGitSafetyAdapter();
+  const teamService = createTeamService({
+    teamRepo: dependencies.teamRepo,
+    workspaceRepo: dependencies.workspaceRepo,
+    audit: dependencies.auditRepo,
+    freshness: {
+      current(workspace) {
+        const status = gitSafety.status(workspace.canonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
+        return status.ok
+          ? { ok: true, value: { kind: 'git_status', value: status.value.statusId } }
+          : { ok: true, value: { kind: 'none', value: 'unsupported' } };
+      },
+    },
+  });
+  const resolveTeamSecurity = () => {
+    try {
+      const active = dependencies.workspaceRepo.list().filter((workspace) => workspace.isActive);
+      return active.length === 1
+        ? { ok: true as const, value: { sensitivity: 'normal' as const, context: 'workspace' as const, workspaceId: active[0]!.id } }
+        : { ok: false as const, error: { code: 'WORKSPACE_NOT_FOUND' as const, message: 'Exactly one active Workspace is required' } };
+    } catch {
+      return { ok: false as const, error: { code: 'INTERNAL_ERROR' as const, message: 'Failed to resolve active Workspace' } };
+    }
+  };
   const capabilities = [
     ...createWorkspaceFileCapabilities({
       workspaceRepo: dependencies.workspaceRepo,
@@ -88,7 +155,11 @@ export function createProductionMcpServer(
     }),
     ...createGitSafetyCapabilities({
       workspaceRepo: dependencies.workspaceRepo,
-      gitSafety: dependencies.gitSafety ?? createGitSafetyAdapter(),
+      gitSafety,
+    }),
+    ...createTeamCapabilities({
+      teamService,
+      resolveWorkspaceSecurity: resolveTeamSecurity,
     }),
   ];
   const registry = createToolCapabilityRegistry(capabilities);
@@ -106,6 +177,7 @@ export function createProductionMcpServer(
 
   registerWorkspaceFileTools(server, kernel);
   registerGitSafetyTools(server, kernel);
+  registerTeamTools(server, kernel);
   return server;
 }
 
@@ -119,12 +191,14 @@ export function createDefaultProductionMcpServer(): McpServer {
   }
   const auditRepo = createAuditRepository(db);
   const approvalRepo = createApprovalRepository(db);
+  const teamRepo = createTeamRepository(db);
   const approval = createApprovalCoordinator({ repository: approvalRepo });
   return createProductionMcpServer({
     workspaceRepo: createWorkspaceRepository(db),
     auditRepo,
     internalRoots: [{ canonicalPath: canonicalDataRoot.value, label: 'SUD-D data root' }],
     fileSystem: createWorkspaceTextFileSystem(),
+    teamRepo,
     approval,
   });
 }
@@ -222,6 +296,45 @@ function registerGitSafetyTools(server: McpServer, kernel: ToolKernel): void {
       inputSchema: gitCheckpointInputSchema,
     },
     async (input) => invokeKernel(kernel, 'git.checkpoint', input),
+  );
+}
+
+function registerTeamTools(server: McpServer, kernel: ToolKernel): void {
+  server.registerTool(
+    'team.start',
+    {
+      title: 'Start Team mission',
+      description: 'Start one sequential Team Mode mission for the active Workspace.',
+      inputSchema: teamStartInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'team.start', input),
+  );
+  server.registerTool(
+    'team.status',
+    {
+      title: 'Read Team mission status',
+      description: 'Return safe Team Mode mission state without raw prompts, file contents, or diffs.',
+      inputSchema: teamStatusInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'team.status', input),
+  );
+  server.registerTool(
+    'team.submit',
+    {
+      title: 'Submit Team role result',
+      description: 'Submit the current logical role result and let SUD-D validate the next transition.',
+      inputSchema: teamSubmitInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'team.submit', input),
+  );
+  server.registerTool(
+    'team.stop',
+    {
+      title: 'Stop Team mission',
+      description: 'Stop the active Team mission without changing files, Git state, approvals, or processes.',
+      inputSchema: teamStopInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'team.stop', input),
   );
 }
 

@@ -8,6 +8,7 @@ import {
   canonicalizePath,
   createApprovalRepository,
   createAuditRepository,
+  createTeamRepository,
   createWorkspaceRepository,
   createWorkspaceTextFileSystem,
   openDatabase,
@@ -34,7 +35,8 @@ const APPROVED_TOOLS = [
   'workspace.write_text_file',
 ] as const;
 const GIT_SAFETY_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...APPROVED_TOOLS, ...GIT_SAFETY_TOOLS] as const;
+const TEAM_TOOLS = ['team.start', 'team.status', 'team.submit', 'team.stop'] as const;
+const APPROVED_PRODUCTION_TOOLS = [...APPROVED_TOOLS, ...GIT_SAFETY_TOOLS, ...TEAM_TOOLS] as const;
 
 const LEGACY_PROTOCOL_VERSION = '2025-06-18';
 const tempDirs: string[] = [];
@@ -200,6 +202,7 @@ async function makeProductionWireHarness() {
     auditRepo: h.auditRepo,
     internalRoots: [],
     fileSystem: h.fileSystem,
+    teamRepo: createTeamRepository(h.db),
   });
   const input = new PassThrough();
   const output = new PassThrough();
@@ -664,13 +667,13 @@ describe('Personal Alpha Workspace File Tools — production MCP boundary', () =
     await h.server.close();
   });
 
-  it('Delete, Execute, Network, Team Mode, and unapproved Git tools remain absent', async () => {
+  it('Delete, Execute, Network, and unapproved Git tools remain absent', async () => {
     const h = await makeProductionWireHarness();
     await h.initialize();
     h.send({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: {} });
     const response = await h.reader.next();
     const names = responseToolNames(response).join(' ');
-    expect(names).not.toMatch(/delete|rename|move|execute|shell|network|team|git\.(?:push|pull|fetch|clone|run)/i);
+    expect(names).not.toMatch(/delete|rename|move|execute|shell|network|git\.(?:push|pull|fetch|clone|run)/i);
     await h.server.close();
   });
 
