@@ -34,6 +34,16 @@ Governance implementation commit:
 
 This governance upgrade does not start or authorize the next product milestone.
 
+### Skill Router Hard-Gate v2
+
+**Status: COMPLETE — verified on 2026-09-02.**
+
+`AGENTS.md` now makes repo-local skill routing a mandatory session/task gate after minimum repository bootstrap and before substantive planning, investigation, debugging, design, editing, or skill-governed review. Every genuinely applicable skill must be loaded before its governed work; Serena/non-native runtimes must actually read the selected `.agents/skills/<skill>/SKILL.md`, while native repo-skill invocation counts as loading. The gate reruns for new sessions/tasks, device/runtime/handoff changes, material scope changes, and workflow phase transitions that newly trigger a skill. Progressive disclosure remains intact: route every time, load every applicable skill, never bulk-load the catalogue by default. The Pre-Implementation Compliance Check reuses the latest valid router result rather than performing a second selection pass.
+
+Acceptance scenarios: **6/6 PASS** — fresh bug investigation, investigation→source fix, governance/docs, new Serena chat, Home→Work handoff, and no matching skill. `git diff --check`: **PASS**; changed tracked paths are only `AGENTS.md` and `SUD_D_HANDOFF.md`; package/runtime/source/config files are unchanged; `.agents/skills/*` is untouched; `.serena/` remains local-only and unstaged. No product test suite/build was required or run for this governance-only diff.
+
+Immediate next approved task after this governance commit is **Impeccable pinned installation/integration** only. Do not start it from this task.
+
 ## Architecture / Process Decision
 
 - Risk-Based Development is adopted: Security/Data Critical boundaries retain strict verification, while low-risk UI, cosmetic, and documentation work uses proportional verification and faster iteration.

@@ -18,7 +18,7 @@ A skill is a subordinate workflow aid. It must never override a security boundar
 
 ## Start Every Session
 
-Before planning or changing anything:
+Before substantive task work:
 
 1. Run `git status` and preserve all user-owned or unrelated changes.
 2. Fetch and sync `origin/master` when it is safe. Inspect divergence first; use a fast-forward-only update, and never discard or overwrite local work to sync.
@@ -26,7 +26,11 @@ Before planning or changing anything:
 4. Read [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md).
 5. Read [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md).
 6. Read [SUD_D_HANDOFF.md](SUD_D_HANDOFF.md).
-7. Inspect the relevant package boundaries and recent Git history before proposing work.
+7. Read the active task specification and inspect recent Git history.
+8. Complete the **Mandatory Skill Router Gate** below.
+9. Only after the gate, inspect the relevant package/code boundaries as deeply as the task requires.
+
+Before the Skill Router Gate, limit work to the safety/context bootstrap above and reading only enough installed-skill metadata to route. Planning, deep investigation, debugging, architecture/design work, implementation/editing, and substantive skill-governed review begin only after the gate completes.
 
 If the documents disagree, use the roadmap for approved long-term direction, the handoff for current execution state, and the repository implementation for current technical facts. Report material conflicts instead of silently guessing.
 
@@ -45,14 +49,32 @@ STOP CONDITION ends the task.
 
 A skill may never start the next milestone, expand the current task, weaken security, bypass Policy/Approval/Audit/Recovery, change a STOP condition, override an explicit user instruction, or overwrite unrelated user work. A user- or task-specified `REQUIRED SKILL: <skill>` forces that exact skill for the related step; otherwise route every automatic skill whose trigger genuinely matches.
 
+### Mandatory Skill Router Gate
+
+Run a fresh Skill Router Gate after the minimum session/task bootstrap and **before** any substantive planning, investigation, debugging, design, implementation/editing, or skill-governed review. The gate also applies to read-only and documentation/governance tasks; the selected set may be small or empty.
+
+1. Evaluate the trigger metadata for all installed skills against the active task.
+2. Select **every** skill whose trigger genuinely matches; selection does not authorize work outside the active task or security/STOP boundaries.
+3. Load every selected skill before doing the work it governs:
+   - **Native Agent Skills runtime:** invoke the canonical repo skill; native invocation counts as loading it.
+   - **Serena / non-native runtime:** actually read `.agents/skills/<skill>/SKILL.md`. Merely naming, considering, or planning to read a skill later does not satisfy the gate.
+4. Report a concise `Selected Skill(s)` result with each skill, one-line trigger reason, and—on Serena/non-native runtimes—the exact `SKILL.md` path read. If nothing matches, explicitly report `None required`.
+5. If an applicable/required skill cannot be loaded, stop before the governed step and report the limitation.
+
+Default reporting stays short; do not paste long skill contents unless the user explicitly asks. For example:
+
+```text
+Skills: diagnosing-bugs — broken behavior — .agents/skills/diagnosing-bugs/SKILL.md
+Skills: tdd — source bug fix begins — .agents/skills/tdd/SKILL.md
+```
+
+Run the gate again when any of these changes invalidates the prior selection: a new chat/session, a new task, Home-PC ↔ Work-PC change, Serena ↔ Codex/other runtime change, explicit task handoff, material task/scope change, or a task phase entering a newly triggered workflow (for example investigation/debug → source-changing bug fix). For a new session/device/runtime/handoff, repeat the minimum repository bootstrap/context read before the fresh gate. Prior-session selection is never proof for a new session.
+
 ### Skill resolution and progressive disclosure
 
-At task start, load this file, the project context/roadmap/handoff, the active task specification, and only enough skill metadata to route. Do **not** load the full skill catalogue.
+The router evaluates trigger metadata across the installed skills but loads only the skills selected for the active task. **Run the router every time; load every applicable skill; do not load the whole catalogue by default.**
 
-- **Native Agent Skills runtime:** when `.agents/skills` is discovered natively, invoke the canonical skill normally.
-- **Non-native / Serena-assisted runtime:** route here, read `.agents/skills/<skill>/SKILL.md`, read only references required by that workflow branch, apply it manually, and report the selected skill in the Pre-Implementation Compliance Check when that check applies.
-- The absence of a dedicated skill UI is not an unavailable skill when its tracked repo-local files can be read. If required skill files truly cannot be accessed, report that limitation before the related step.
-- If a selected skill references another skill, load that second skill only when the active branch requires it; never recursively load the catalogue.
+- If a selected skill references another skill, load the second skill only when the active workflow branch genuinely requires it; never recursively load the catalogue.
 - Skill versions are pinned. See `.agents/skills/MATT-POCOCK-SKILLS.md`. Do not auto-update skills during product milestones; upgrades are separate governance/tooling tasks.
 
 **Skills consume existing repository/task context before asking the user.** If a decision or fact is already established by the active task `.md`, this `AGENTS.md`, `SUD_D_CONTEXT.md`, `SUD_D_ROADMAP.md`, `SUD_D_HANDOFF.md`, current implementation, Git baseline/history, or established conversation context, use that source instead of asking the user to repeat it. Ask only for a genuinely missing decision or fact that cannot be resolved safely from a source of truth.
@@ -99,15 +121,15 @@ Third-party skill files are copied from the pinned official upstream snapshot an
 Before implementation begins for any milestone or task that changes source code, publish a short check with all four headings below. Source code may be edited only after all four are reported:
 
 1. **Risk Level** — select `Security / Data Critical`, `Normal Functional`, or `Low-Risk UI / Cosmetic` using the Risk-Based Development policy. A mixed change uses its highest applicable tier.
-2. **Selected Skill(s)** — name each selected skill and give one short trigger reason. Write `None required` when no skill applies. Every skill named by `REQUIRED SKILL` in the milestone prompt must be used before its related step.
+2. **Selected Skill(s)** — reuse the latest still-valid Mandatory Skill Router Gate result; do not perform a second independent selection pass. Write `None required` when that gate selected nothing. If the work is entering a phase that newly triggers a skill, rerun the router first and use the updated result. Every skill named by `REQUIRED SKILL` in the milestone prompt must already be loaded before its related step.
 3. **Verification Plan** — list only the checks required by the risk tier and milestone specification, such as focused tests, regression tests, lint, typecheck, full suite, build, smoke/acceptance, and `code-review`. A milestone prompt may add requirements.
 4. **STOP CONDITION** — state the boundary that ends or blocks the work, such as stopping after verification plus commit/push, before the next milestone, on a security blocker, or when an environment or credential dependency is missing.
 
 This report is a gate, not a request for extra approval: after all four headings are present and no blocker is identified, implementation may begin. Without it, production source must remain unchanged.
 
-Read-only investigation, documentation-only tasks, and environment setup that does not change source are exempt. A documentation task that changes agent, process, or security policy may use a lightweight version of this check.
+Read-only investigation, documentation-only tasks, and environment setup that does not change source are exempt from this compliance report, **not** from the Mandatory Skill Router Gate. A documentation task that changes agent, process, or security policy may use a lightweight version of this check.
 
-The check never transfers across a chat session, Home-PC/Work-PC device, or Serena/Codex runtime. After any such change, the new agent must read `AGENTS.md`, `SUD_D_CONTEXT.md`, `SUD_D_ROADMAP.md`, and `SUD_D_HANDOFF.md`, then publish a fresh check before changing source.
+The compliance check remains valid only while its underlying Skill Router Gate remains valid. Any router re-run condition invalidates the prior skill selection for subsequent governed work.
 
 ## Scope and Milestone Control
 
