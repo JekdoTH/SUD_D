@@ -50,6 +50,75 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Execution State
 
+**Restricted Execute**
+
+**Status: BLOCKED — SANDBOX ENFORCEMENT NOT PROVEN on 2026-09-02.**
+
+Restricted Execute was evaluated after Basic Approval completion, but the mandatory Phase 0 Windows sandbox feasibility gate did not pass. No production Execute capability was implemented, no `dev.verify` MCP tool was registered, and Team Mode MVP remains **NOT STARTED**.
+
+### Restricted Execute Phase 0 findings
+
+The task requires a real Windows sandbox boundary before any production Execute capability because a normal process running Workspace code could read outside the Workspace, read secrets, write outside allowed areas, use network directly, spawn broader-authority children/grandchildren, or interact with host processes/devices/registry.
+
+Home-PC probe results:
+
+- OS: Windows 10 Pro `10.0.19045` / build `19045`
+- `HyperVisorPresent`: `False`
+- `wsb.exe`: missing
+- `WindowsSandbox.exe`: missing
+- `hcsdiag.exe`: missing
+- `processmodel.dll`: missing
+- `CheckNetIsolation.exe`: present, but this only confirms a system utility exists and does not prove a SUD-D AppContainer launch/enforcement path
+- `DISM /online /Get-FeatureInfo /FeatureName:Containers-DisposableClientVM`: blocked by elevation requirement (`Error 740`)
+- `cl.exe`, `csc.exe`, `dotnet.exe`: missing in this shell, so no local native AppContainer spike could be built here
+
+Mechanisms considered:
+
+- Windows Sandbox / `.wsb`: blocked because the launchers are not present and the feature state could not be inspected without elevation.
+- Microsoft Create Process In Sandbox APIs: blocked on this Home-PC because Microsoft documents them as Windows 11 experimental, `processmodel.dll` is absent locally, and the Home-PC is Windows 10 Pro 19045.
+- Legacy AppContainer launch: plausible as a future native-spike path, but not accepted as proven because this session did not have a working native launcher harness demonstrating the required SUD-D properties.
+- Job Objects: rejected as a standalone sandbox because they can manage process lifetime/tree behavior but do not enforce filesystem, network, or credential isolation.
+
+Phase 0 proof matrix:
+
+- outbound Internet denial: **NOT PROVEN**
+- local/LAN network denial: **NOT PROVEN**
+- outside-Workspace read denial: **NOT PROVEN**
+- outside-sandbox write denial: **NOT PROVEN**
+- host credential sentinel denial: **NOT PROVEN**
+- child process confinement: **NOT PROVEN**
+- grandchild process confinement: **NOT PROVEN**
+- whole-tree timeout cleanup: **NOT PROVEN** as a full sandbox property; Job Objects may supplement but are not sufficient alone
+- no privilege escalation: **NOT PROVEN**
+- no broad admin/global firewall mutation per run: **PASS as constraint**; no such mutation was attempted
+- fail closed when sandbox unavailable: **PASS by decision**
+- no insecure fallback: **PASS by decision**
+
+### Restricted Execute blocked-state review
+
+- **Standards:** PASS for blocked state. The repository security invariant requires fail-closed behavior and forbids weakening Network DENY, Outside Workspace/InternalRoot DENY, secret rules, or privileged execution architecture. Blocking before production Execute is the compliant outcome.
+- **Spec:** PASS for blocked state. The task explicitly requires `RESTRICTED EXECUTE: BLOCKED — SANDBOX ENFORCEMENT NOT PROVEN` when Phase 0 cannot demonstrate all required enforcement properties.
+
+### Restricted Execute delivery state
+
+- Production Execute capability/actions: **none**; no `dev.verify` tool exists.
+- Production MCP surface remains the Basic Approval surface: exactly **10 tools** — six Workspace + four Git Safety.
+- No generic shell/process/network/install/delete/recovery/Team Mode tool was added.
+- Network DENY, Outside Workspace DENY, InternalRoot DENY, credential policy, Basic Approval one-time semantics, Workspace File tools, and Git Safety remain unchanged.
+- Report: `.serena/reports/restricted-execute.md` (local-only, not committed).
+
+Smallest recommended next decision before retrying this milestone:
+
+1. Use a Windows 11 machine with Microsoft Create Process In Sandbox APIs and `processmodel.dll`, then build a native spike proving all Phase 0 properties.
+2. Enable/install Windows Sandbox and prove a practical `.wsb`/CLI workflow can run SUD-D verification actions with networking disabled and no host write grants.
+3. Build a dedicated legacy AppContainer native launcher spike with explicit grants plus Job Object lifetime control, then prove the full Phase 0 matrix locally.
+
+### Restricted Execute docs-only commit
+
+No production implementation commit was created; this handoff update is the only tracked delivery artifact for the blocked state.
+
+**Team Mode MVP** remains **NOT STARTED**.
+
 **Basic Approval**
 
 **Status: COMPLETE — Policy `ASK` now creates/reuses a safe pending approval, trusted Desktop Activity can Approve/Deny one exact action, an exact retry revalidates Policy/security and atomically consumes a one-time grant, production MCP remains exactly ten tools, credential-sensitive Workspace/Git flows pass end-to-end, production MCP/Desktop acceptance passed, and final Standards/Spec review found no blockers on 2026-09-02.**
