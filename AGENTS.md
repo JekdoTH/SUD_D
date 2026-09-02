@@ -75,7 +75,7 @@ Run the gate again when any of these changes invalidates the prior selection: a 
 The router evaluates trigger metadata across the installed skills but loads only the skills selected for the active task. **Run the router every time; load every applicable skill; do not load the whole catalogue by default.**
 
 - If a selected skill references another skill, load the second skill only when the active workflow branch genuinely requires it; never recursively load the catalogue.
-- Skill versions are pinned. See `.agents/skills/MATT-POCOCK-SKILLS.md`. Do not auto-update skills during product milestones; upgrades are separate governance/tooling tasks.
+- Skill versions are pinned. See the provenance records under `.agents/skills/` (including `MATT-POCOCK-SKILLS.md` and `IMPECCABLE-SKILL.md`). Do not auto-update skills during product milestones; upgrades are separate governance/tooling tasks.
 
 **Skills consume existing repository/task context before asking the user.** If a decision or fact is already established by the active task `.md`, this `AGENTS.md`, `SUD_D_CONTEXT.md`, `SUD_D_ROADMAP.md`, `SUD_D_HANDOFF.md`, current implementation, Git baseline/history, or established conversation context, use that source instead of asking the user to repeat it. Ask only for a genuinely missing decision or fact that cannot be resolved safely from a source of truth.
 
@@ -93,6 +93,7 @@ The router evaluates trigger metadata across the installed skills but loads only
 | `resolving-merge-conflicts` | An actual merge or rebase conflict is already in progress | Resolve by original intent and primary sources. SUD_D safety rules and preservation of user-owned work override any generic instruction that would risk data loss. Do not invoke merely because branches differ. |
 | `grilling` | A product/architecture/security/design decision has meaningful unresolved branches or hidden assumptions needing stress-testing | Use repository facts first. Do not interview the user when the task is already narrow, explicit, and fully specified; ask only genuinely unresolved decisions. |
 | `writing-for-agents` | `AGENTS.md`, skill routing, agent-facing context/instructions, or process/handoff docs primarily consumed by agents change | Keep instructions concise, use progressive disclosure, strengthen trigger pointers, and remove duplicated/conflicting agent guidance. |
+| `impeccable` | Designing, redesigning, shaping, critiquing, auditing, polishing, clarifying, hardening, adapting, laying out, typesetting, onboarding, or otherwise improving SUD_D Desktop frontend/UI/UX; includes interaction clarity, accessibility, responsive/window behavior, UX copy, empty/error states, and design-system work. Do not route for backend-only tasks. | Treat SUD_D Desktop as an **Operate**-mode product UI unless a narrower surface implies otherwise. Preserve product truth and all SUD_D security boundaries; design workflow grants no backend/privileged authority. Impeccable complements rather than replaces other applicable skills: `tdd`, `codebase-design`, and `prototype` still route independently when their triggers match. |
 
 ### Explicit / user-invoked skills
 
@@ -104,7 +105,7 @@ These skills remain available but do not start silently as routine automatic wor
 | `to-spec` | Synthesis of the current discussion into a formal specification; skip when an adequate task `.md` already exists unless another spec is requested |
 | `wayfinder` | A large multi-session or decision-map workflow; skip normal milestones that fit one bounded task |
 
-Third-party skill files are copied from the pinned official upstream snapshot and must not be silently rewritten for SUD_D. SUD_D-specific adaptations belong here. `deprecated`, `in-progress`, `grill-me`, `setup-matt-pocock-skills`, and unrelated upstream skills are intentionally not installed.
+Third-party skill files are copied from pinned official upstream snapshots and must not be silently rewritten for SUD_D. SUD_D-specific adaptations belong here. `deprecated`, `in-progress`, `grill-me`, `setup-matt-pocock-skills`, and unrelated upstream skills are intentionally not installed.
 
 ## Session Continuity Model
 
@@ -112,7 +113,7 @@ Third-party skill files are copied from the pinned official upstream snapshot an
 - `SUD_D_CONTEXT.md` owns stable project context.
 - `SUD_D_ROADMAP.md` owns long-term direction and milestone sequencing.
 - `SUD_D_HANDOFF.md` owns current progress and execution state.
-- Approved third-party workflow instructions are tracked under `.agents/skills/` at the pinned provenance recorded in `.agents/skills/MATT-POCOCK-SKILLS.md`.
+- Approved third-party workflow instructions are tracked under `.agents/skills/` with their pinned provenance records in that directory.
 - The Git repository is the source of truth.
 - `.serena/` is local tooling state, not project memory, and must not be committed.
 

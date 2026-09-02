@@ -1,0 +1,2 @@
+# Preserve the byte-exact pinned Impeccable third-party snapshot.
+.agents/skills/impeccable/** -whitespace

@@ -8,7 +8,7 @@ Long-term plan: see `SUD_D_ROADMAP.md`.
 
 SUD_D now tracks its approved Matt Pocock engineering workflows under `.agents/skills/` from the official `mattpocock/skills` repository pinned at `6654f6b60cd9d5be8b54c6fafe44346dabeb3b76` (MIT). Official selected skill directories are copied without SUD_D-specific edits; `.agents/skills/MATT-POCOCK-SKILLS.md` records provenance/update policy and `.agents/skills/MATT-POCOCK-LICENSE` preserves the upstream MIT notice.
 
-Installed automatic skills: `tdd`, `diagnosing-bugs`, `codebase-design`, `domain-modeling`, `code-review`, `prototype`, `research`, `resolving-merge-conflicts`, `grilling`, `writing-for-agents`.
+Installed automatic skills: `tdd`, `diagnosing-bugs`, `codebase-design`, `domain-modeling`, `code-review`, `prototype`, `research`, `resolving-merge-conflicts`, `grilling`, `writing-for-agents`, `impeccable`.
 
 Installed explicit/user-invoked skills: `handoff`, `to-spec`, `wayfinder`.
 
@@ -43,6 +43,35 @@ This governance upgrade does not start or authorize the next product milestone.
 Acceptance scenarios: **6/6 PASS** — fresh bug investigation, investigation→source fix, governance/docs, new Serena chat, Home→Work handoff, and no matching skill. `git diff --check`: **PASS**; changed tracked paths are only `AGENTS.md` and `SUD_D_HANDOFF.md`; package/runtime/source/config files are unchanged; `.agents/skills/*` is untouched; `.serena/` remains local-only and unstaged. No product test suite/build was required or run for this governance-only diff.
 
 Immediate next approved task after this governance commit is **Impeccable pinned installation/integration** only. Do not start it from this task.
+
+### Impeccable v4.1.3 pinned integration
+
+**Status: COMPLETE — pinned repo-local installation/integration verified on 2026-09-02.**
+
+- Official upstream: `https://github.com/pbakaus/impeccable`
+- Release tag: `skill-v4.1.3`
+- Pinned commit: `c0f495212236129c2e92aaf7714a3a9914569d13`
+- Skill metadata version: `4.1.3`
+- License: Apache-2.0, copied unchanged as `.agents/skills/IMPECCABLE-LICENSE`
+- Canonical `.agents/skills/impeccable/` snapshot is copied completely and without SUD_D-specific edits; existing Matt Pocock skill files remain untouched.
+- `.gitattributes` disables Git whitespace-error classification only for `.agents/skills/impeccable/**` because the pinned upstream snapshot contains whitespace that must remain byte-exact; this has no product/runtime effect.
+- `AGENTS.md` routes `impeccable` automatically for SUD_D Desktop frontend/UI/UX work while preserving the Mandatory Skill Router Hard-Gate, progressive disclosure, all other applicable skills, product truth, and security/least-privilege boundaries.
+- No Impeccable installer/update/init command, provider hook, global install, Serena connector change, `PRODUCT.md`, or `DESIGN.md` was created or run in this task.
+- Snapshot integrity, provenance/license, routing acceptance, `git diff --check`, source-scope checks, pinned-skill preservation, and `.serena/` local-only checks passed; no application/runtime/package source changed, so the product test suite/build was not required.
+
+Known UX findings intentionally deferred to the next explicit UI/UX task:
+
+- `Waiting for ChatGPT` remains after a successful real MCP tool call.
+- Connection should identify the current Tunnel clearly; a masked suffix is acceptable.
+- First-time setup should make Workspace → Tunnel ID → API Key → Test/Connect understandable.
+- Support Change/Remove Tunnel configuration.
+- Support Replace/Remove API Key.
+- Support resetting connection setup.
+- Advanced details are visually hidden / poorly discoverable.
+- A dev/runtime terminal window appears during Connect and should not appear in normal user experience.
+- Closing SUD-D should safely clean up/disconnect automatically instead of requiring the user to remember manual Disconnect.
+
+**Next explicit task:** SUD-D Desktop UX/UI audit + design pass using Impeccable. Do not start that audit/design from this integration task.
 
 ## Architecture / Process Decision
 
@@ -1236,11 +1265,11 @@ Exit code 0
 
 ## Immediate Next Action
 
-Product connector runtime compatibility is locally verified and ready for one remaining external acceptance: on Work-PC, connect real ChatGPT through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. Do not treat the local built acceptance as a substitute for that Work-PC external path.
+Impeccable v4.1.3 pinned installation/integration is COMPLETE. The next explicit task is **SUD-D Desktop UX/UI audit + design pass using Impeccable**. The deferred UX findings are recorded in the Impeccable section above; do not implement them until that task is explicitly started.
 
-After that acceptance, Team Mode MVP — No-Execute, Basic Approval, Git Safety + Integration, and Personal Alpha Workspace File Tools remain COMPLETE. Restricted Execute remains **DEFERRED / NOT STARTED** because sandbox enforcement was not proven. **STOP.**
+The product connector still has one separate external acceptance item: on Work-PC, connect real ChatGPT through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. Restricted Execute remains **DEFERRED / NOT STARTED** because sandbox enforcement was not proven.
 
-Do not begin Skill Router Hard-Gate v2, Impeccable, Restricted Execute, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or any later capability slice until this connector fix is committed/pushed and the user explicitly starts the next task.
+**STOP after this integration commit/push.** Do not begin the UX/UI audit/design, Personal Alpha retest, Restricted Execute, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or another capability slice without a new explicit instruction.
 
 ## Last Commit SHA
 
