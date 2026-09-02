@@ -8,10 +8,13 @@ import {
 } from '@sud-d/domain';
 import { credentialEnvVarNameForProfile } from './credential-store.js';
 
+export const GATEWAY_RUNTIME_EXECUTABLE_ENV = 'SUD_D_GATEWAY_RUNTIME_EXE';
+
 export interface SecureTunnelProfilePlan {
   readonly runtimeRoot: string;
   readonly profilePath: string;
   readonly healthUrlFile: string;
+  readonly gatewayRuntimeExecutablePath: string;
   readonly content: string;
 }
 
@@ -31,6 +34,28 @@ function validateTunnelReference(value: string | undefined): string {
     throw new ConnectionRuntimeFailure('TUNNEL_PROFILE_INVALID');
   }
   return value;
+}
+
+function validateGatewayRuntimeExecutable(filePath: string): void {
+  if (
+    filePath.includes('"') ||
+    filePath.includes('\r') ||
+    filePath.includes('\n') ||
+    path.extname(filePath).toLowerCase() !== '.exe' ||
+    !fs.existsSync(filePath)
+  ) {
+    throw new ConnectionRuntimeFailure('TUNNEL_PROFILE_INVALID');
+  }
+}
+
+function gatewayNodeShimContent(): string {
+  return [
+    '@echo off',
+    `if not defined ${GATEWAY_RUNTIME_EXECUTABLE_ENV} exit /b 1`,
+    'set "ELECTRON_RUN_AS_NODE=1"',
+    `"%${GATEWAY_RUNTIME_EXECUTABLE_ENV}%" %*`,
+    '',
+  ].join('\r\n');
 }
 
 export function resolveMcpGatewayEntryPath(moduleUrl: string): string {
@@ -59,12 +84,10 @@ export function prepareSecureTunnelProfile(
   const runtimeRoot = path.join(dataRoot, 'runtime', 'secure-tunnel');
   const profilePath = path.join(runtimeRoot, 'profiles', `${context.profileId}.yaml`);
   const healthUrlFile = path.join(runtimeRoot, 'health', `${context.profileId}.url`);
-  if (path.basename(nodeExecutablePath).toLowerCase() !== 'node.exe') {
-    throw new ConnectionRuntimeFailure('TUNNEL_PROFILE_INVALID');
-  }
+  validateGatewayRuntimeExecutable(nodeExecutablePath);
 
   const credentialReference = `env:${credentialEnvVarNameForProfile(context.profileId)}`;
-  const gatewayCommand = `node ${quoteCommandArgument(gatewayEntryPath)}`;
+  const gatewayCommand = `node.cmd ${quoteCommandArgument(gatewayEntryPath)}`;
 
   const content = [
     'config_version: 1',
@@ -87,7 +110,7 @@ export function prepareSecureTunnelProfile(
     '',
   ].join('\n');
 
-  return { runtimeRoot, profilePath, healthUrlFile, content };
+  return { runtimeRoot, profilePath, healthUrlFile, gatewayRuntimeExecutablePath: nodeExecutablePath, content };
 }
 
 export function writeSecureTunnelProfile(plan: SecureTunnelProfilePlan): void {
@@ -98,6 +121,10 @@ export function writeSecureTunnelProfile(plan: SecureTunnelProfilePlan): void {
 
   try {
     fs.rmSync(plan.healthUrlFile, { force: true });
+    const shimPath = path.join(plan.runtimeRoot, 'node.cmd');
+    const shimTempPath = `${shimPath}.tmp`;
+    fs.writeFileSync(shimTempPath, gatewayNodeShimContent(), { encoding: 'ascii' });
+    fs.renameSync(shimTempPath, shimPath);
     const tempPath = `${plan.profilePath}.tmp`;
     fs.writeFileSync(tempPath, plan.content, { encoding: 'utf8' });
     fs.renameSync(tempPath, plan.profilePath);

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 
 import { ConnectionRuntimeFailure } from '@sud-d/domain';
-import type { SecureTunnelProfilePlan } from './secure-tunnel-profile.js';
+import { GATEWAY_RUNTIME_EXECUTABLE_ENV, type SecureTunnelProfilePlan } from './secure-tunnel-profile.js';
 
 export interface TunnelLaunchPlan {
   readonly executablePath: string;
@@ -11,6 +11,7 @@ export interface TunnelLaunchPlan {
   readonly workingDirectory: string;
   readonly profilePath: string;
   readonly healthUrlFile: string;
+  readonly gatewayRuntimeExecutablePath: string;
   readonly shell: false;
 }
 
@@ -42,6 +43,12 @@ function isProcessAlive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+function withRuntimeRootFirstOnPath(environment: NodeJS.ProcessEnv, runtimeRoot: string): NodeJS.ProcessEnv {
+  const pathKey = Object.keys(environment).find((key) => key.toLowerCase() === 'path') ?? 'Path';
+  const currentPath = environment[pathKey] ?? '';
+  return { ...environment, [pathKey]: `${runtimeRoot}${path.delimiter}${currentPath}` };
 }
 
 export function isTunnelProcessStopFailure(
@@ -79,6 +86,9 @@ export function resolveTunnelClientExecutable(): string | undefined {
 }
 
 export function resolveNodeExecutable(): string | undefined {
+  if (process.versions.electron && fs.existsSync(process.execPath)) {
+    return process.execPath;
+  }
   if (
     path.basename(process.execPath).toLowerCase() === 'node.exe' &&
     fs.existsSync(process.execPath)
@@ -105,6 +115,7 @@ export function prepareTunnelLaunchPlan(
     workingDirectory: profile.runtimeRoot,
     profilePath: profile.profilePath,
     healthUrlFile: profile.healthUrlFile,
+    gatewayRuntimeExecutablePath: profile.gatewayRuntimeExecutablePath,
     shell: false,
   };
 }
@@ -118,6 +129,10 @@ export function createWindowsTunnelProcessLauncher(): TunnelProcessLauncher {
           cwd: plan.workingDirectory,
           shell: false,
           windowsHide: true,
+          env: {
+            ...withRuntimeRootFirstOnPath(process.env, plan.workingDirectory),
+            [GATEWAY_RUNTIME_EXECUTABLE_ENV]: plan.gatewayRuntimeExecutablePath,
+          },
           stdio: ['ignore', 'pipe', 'pipe'],
         });
       } catch {

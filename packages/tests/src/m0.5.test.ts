@@ -36,7 +36,12 @@ interface TunnelLaunchPlan {
   readonly workingDirectory: string;
   readonly profilePath: string;
   readonly healthUrlFile: string;
+  readonly gatewayRuntimeExecutablePath: string;
   readonly shell: false;
+}
+
+interface ChildProcessExitEventSourceLike {
+  once(event: 'exit', listener: () => void): void;
 }
 
 interface TunnelProcessHandleLike {
@@ -208,12 +213,111 @@ function profileCommand(profileText: string): string {
   return JSON.parse(value) as string;
 }
 
+function parseProductProfileCommand(command: string): { readonly executable: string; readonly args: readonly string[] } {
+  const match = /^(node(?:\.cmd)?)\s+"([^"]+)"$/.exec(command);
+  if (!match) throw new Error(`unexpected product profile command: ${command}`);
+  return { executable: match[1], args: [match[2].replaceAll('/', '\\')] };
+}
+
+function withRuntimeRootFirstOnPath(environment: NodeJS.ProcessEnv, runtimeRoot: string): NodeJS.ProcessEnv {
+  const pathKey = Object.keys(environment).find((key) => key.toLowerCase() === 'path') ?? 'Path';
+  const currentPath = environment[pathKey] ?? '';
+  return { ...environment, [pathKey]: `${runtimeRoot}${path.delimiter}${currentPath}` };
+}
+
+
+async function toolsListViaProductProfileCommand(
+  command: string,
+  workingDirectory: string,
+  environment: NodeJS.ProcessEnv,
+): Promise<string[]> {
+  const parsed = parseProductProfileCommand(command);
+  const child = parsed.executable.endsWith('.cmd')
+    ? spawn('cmd.exe', ['/d', '/c', parsed.executable, ...parsed.args], {
+        cwd: workingDirectory,
+        env: withRuntimeRootFirstOnPath(environment, workingDirectory),
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+    : spawn(parsed.executable, [...parsed.args], {
+        cwd: workingDirectory,
+        env: withRuntimeRootFirstOnPath(environment, workingDirectory),
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+  const childEvents = child as unknown as ChildProcessExitEventSourceLike;
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk: string) => stdout.push(chunk));
+  child.stderr.on('data', (chunk: string) => stderr.push(chunk));
+
+  const write = (message: unknown): void => {
+    child.stdin.write(`${JSON.stringify(message)}\n`);
+  };
+  write({
+    jsonrpc: '2.0',
+    id: 701,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      clientInfo: { name: 'product-profile-launch-test', version: '0.1.0' },
+    },
+  });
+  write({ jsonrpc: '2.0', method: 'notifications/initialized' });
+  write({ jsonrpc: '2.0', id: 702, method: 'tools/list', params: {} });
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('product profile command MCP timeout')), 4000);
+    const poll = setInterval(() => {
+      const lines = stdout.join('').split(/\r?\n/).filter(Boolean);
+      if (lines.some((line) => line.includes('"id":702'))) {
+        clearInterval(poll);
+        clearTimeout(timeout);
+        resolve();
+      }
+    }, 20);
+    childEvents.once('exit', () => {
+      clearInterval(poll);
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
+
+  child.stdin.end();
+  if (child.exitCode === null) {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('product profile command exit timeout')), 2000);
+      childEvents.once('exit', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+  }
+  const messages = stdout.join('').split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line) as {
+    readonly id?: number;
+    readonly error?: { readonly message?: string };
+    readonly result?: { readonly tools?: Array<{ readonly name?: string }> };
+  });
+  const init = messages.find((message) => message.id === 701);
+  if (init?.error) {
+    throw new Error(`product profile initialize failed: ${init.error.message ?? 'unknown'}; stderr=${stderr.join('').slice(0, 400)}`);
+  }
+  const tools = messages.find((message) => message.id === 702)?.result?.tools;
+  if (!tools) throw new Error(`product profile tools/list failed; stdout=${stdout.join('').slice(0, 400)} stderr=${stderr.join('').slice(0, 400)}`);
+  return tools.map((tool) => String(tool.name)).sort();
+}
+
 async function makeHarness(options: {
   credential?: boolean;
   tunnelReference?: string;
   resolveTunnelClient?: () => string | undefined;
   startError?: Error;
   stopError?: Error;
+  nodeExecutablePath?: string;
+  gatewayEntryPath?: string;
 } = {}) {
   const api = await loadM05();
   const root = tempDir('sudd-m05-root-');
@@ -251,11 +355,11 @@ async function makeHarness(options: {
 
   const trustedBinDir = path.join(root, 'Trusted Runtime', 'bin');
   const tunnelClientPath = makeExecutableFixture(trustedBinDir, 'tunnel-client.exe');
-  const nodeExecutablePath = makeExecutableFixture(
+  const nodeExecutablePath = options.nodeExecutablePath ?? makeExecutableFixture(
     path.join(root, 'Program Files', 'nodejs'),
     'node.exe',
   );
-  const gatewayEntryPath = makeExecutableFixture(
+  const gatewayEntryPath = options.gatewayEntryPath ?? makeExecutableFixture(
     path.join(root, 'Project Prompt', 'packages', 'mcp-gateway', 'dist'),
     'stdio-entry.js',
   );
@@ -499,7 +603,7 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
     expect(plan.workingDirectory).toContain('SUD-D');
     const command = profileCommand(fs.readFileSync(plan.profilePath, 'utf8'));
     expect(nodeExecutablePath.toLowerCase()).toMatch(/node\.exe$/);
-    expect(command).toBe(`node "${gatewayEntryPath.replaceAll('\\', '/')}"`);
+    expect(command).toBe(`node.cmd "${gatewayEntryPath.replaceAll('\\', '/')}"`);
   });
 
   it('uses a deterministic credential environment reference without serializing plaintext into profile or argv', async () => {
@@ -564,6 +668,19 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
     });
   });
 
+  it('rejects an arbitrary executable as the Gateway runtime before tunnel launch', async () => {
+    const arbitraryExecutable = makeExecutableFixture(tempDir('sudd-m05-arbitrary-runtime-'), 'arbitrary.exe');
+    const { profile, processLauncher, service } = await makeHarness({
+      nodeExecutablePath: arbitraryExecutable,
+    });
+
+    expect(service.start(profile.profileId)).toMatchObject({
+      ok: false,
+      error: { code: 'TUNNEL_START_FAILED', message: 'Secure Tunnel runtime failed to start' },
+    });
+    expect(processLauncher.plans).toHaveLength(0);
+  });
+
   it('maps raw process stop failure to a safe typed tunnel error', async () => {
     const { profile, service } = await makeHarness({
       stopError: new Error('raw taskkill failure with sensitive path'),
@@ -593,6 +710,28 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
     });
     expect(dto.error?.code).toBe('TUNNEL_EXITED_UNEXPECTEDLY');
     expect(JSON.stringify(dto)).not.toMatch(/api[_-]?key|credential|CONTROL_PLANE_API_KEY|sk-m05/i);
+  });
+
+  it('product tunnel profile command launches the built Gateway with a native-compatible runtime', async () => {
+    const api = await loadM05();
+    const runtimeExecutablePath = process.execPath;
+    expect(fs.existsSync(runtimeExecutablePath)).toBe(true);
+    const gatewayEntryPath = api.getDefaultMcpGatewayEntryPath();
+    const { profile, processLauncher, service } = await makeHarness({
+      nodeExecutablePath: runtimeExecutablePath,
+      gatewayEntryPath,
+    });
+    expect(service.start(profile.profileId).ok).toBe(true);
+
+    const plan = processLauncher.plans[0];
+    const command = profileCommand(fs.readFileSync(plan.profilePath, 'utf8'));
+    const tools = await toolsListViaProductProfileCommand(command, plan.workingDirectory, {
+      ...process.env,
+      LOCALAPPDATA: path.join(plan.workingDirectory, 'localappdata'),
+      APPDATA: path.join(plan.workingDirectory, 'appdata'),
+      SUD_D_GATEWAY_RUNTIME_EXE: plan.gatewayRuntimeExecutablePath,
+    });
+    expect(tools).toEqual([...APPROVED_PRODUCTION_TOOLS].sort());
   });
 
   it('preserves the fixed stdio gateway boundary while exposing only approved workspace and Git Safety tools', async () => {

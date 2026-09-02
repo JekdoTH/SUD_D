@@ -50,6 +50,37 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Execution State
 
+**SUD-D product connector runtime compatibility fix**
+
+**Status: VERIFIED — local regression, full Security/Data Critical gates, and built product-profile acceptance pass; real Work-PC ChatGPT-through-Secure-Tunnel acceptance is still required.**
+
+Root cause: the product Secure Tunnel profile launched the JavaScript MCP Gateway through plain `node`. The installed `better-sqlite3` native module is Electron-compatible, so the product profile could reach MCP `initialize` and fail with `-32603 Internal server error` before `tools/list` when the Gateway ran under an incompatible Node ABI.
+
+Fix:
+
+- production Electron context resolves the exact current Electron executable as the trusted Gateway runtime; plain trusted `node.exe` remains supported only outside Electron contexts
+- the SUD-D-owned tunnel profile uses fixed `node.cmd <Gateway entry>` syntax for tunnel-client Windows parsing compatibility
+- SUD-D atomically materializes an ASCII-only `node.cmd` shim under the secure-tunnel runtime root; it sets `ELECTRON_RUN_AS_NODE=1` and invokes only the trusted runtime path supplied internally through fixed `SUD_D_GATEWAY_RUNTIME_EXE`
+- the tunnel launcher prepends only the SUD-D-owned runtime root to PATH and overwrites the fixed runtime environment variable; renderer/client input cannot choose executable, argv, cwd, env, profile path, or runtime path
+- final security review also tightened the injected runtime seam: arbitrary existing `.exe` paths are rejected before launch; only `node.exe` or the exact current Electron executable is accepted
+- production MCP remains exactly **14 tools**: six Workspace + four Git Safety + four Team; no Execute, Network, Delete/Recovery, or approval-decision capability was added
+
+Fresh verification after the final review fix:
+
+- TDD focused M0.5: **26/26 passed**, including the product-profile built Gateway regression and arbitrary-runtime rejection
+- relevant connection/runtime regressions: **191/191 passed across 7 files**
+- typecheck: **PASS**
+- lint: **PASS**
+- full suite: **372/372 passed across 21 files**
+- production build: **PASS** for domain, contracts, infrastructure, application, MCP Gateway, and Desktop renderer/main/preload bundles
+- built product-connector acceptance under repo-standard Electron-as-Node runtime: **PASS** — trusted Electron resolver, runtime env override, runtime-root PATH precedence, MCP initialize, and exact **14-tool** `tools/list`
+- `git diff --check`: **PASS**
+- changed-surface secret scan: **PASS**
+- final Standards / Spec / Security review: **PASS** after one review finding was fixed with RED→GREEN coverage; no blocking findings remain
+- `.serena/`: **local-only / untracked**
+
+Remaining acceptance: perform one real Work-PC ChatGPT connection through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. The local built acceptance proves the fixed product-profile/runtime path but does not claim the external ChatGPT/control-plane path is complete on Work-PC.
+
 **Team Mode MVP — No-Execute**
 
 **Status: COMPLETE — sequential logical Team orchestration, safe persistence, exact 14-tool production MCP surface, Desktop Team read/stop UI, restart/resume, stale-state blocking, confidentiality gates, built MCP acceptance, built Desktop Team UI smoke, and final Standards/Spec review all passed on 2026-09-02.**
@@ -1195,9 +1226,11 @@ Exit code 0
 
 ## Immediate Next Action
 
-Team Mode MVP — No-Execute, Basic Approval, Git Safety + Integration, and Personal Alpha Workspace File Tools are COMPLETE. Restricted Execute remains **DEFERRED / NOT STARTED** because sandbox enforcement was not proven. **STOP.**
+Product connector runtime compatibility is locally verified and ready for one remaining external acceptance: on Work-PC, connect real ChatGPT through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. Do not treat the local built acceptance as a substitute for that Work-PC external path.
 
-The next possible product decision is whether to retry Restricted Execute only after choosing and proving a real sandbox route. Do not begin Restricted Execute, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or any later capability slice without a new explicit implementation instruction and Security/Data Critical review.
+After that acceptance, Team Mode MVP — No-Execute, Basic Approval, Git Safety + Integration, and Personal Alpha Workspace File Tools remain COMPLETE. Restricted Execute remains **DEFERRED / NOT STARTED** because sandbox enforcement was not proven. **STOP.**
+
+Do not begin Skill Router Hard-Gate v2, Impeccable, Restricted Execute, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or any later capability slice until this connector fix is committed/pushed and the user explicitly starts the next task.
 
 ## Last Commit SHA
 

@@ -68,6 +68,16 @@ function validateFixedRuntimePath(
   }
 }
 
+function validateGatewayRuntimePath(filePath: string): void {
+  const isNodeExecutable = path.basename(filePath).toLowerCase() === 'node.exe';
+  const isCurrentElectronExecutable =
+    Boolean(process.versions.electron) &&
+    path.resolve(filePath).toLowerCase() === path.resolve(process.execPath).toLowerCase();
+  if ((!isNodeExecutable && !isCurrentElectronExecutable) || !fs.existsSync(filePath)) {
+    throw new ConnectionRuntimeFailure('TUNNEL_START_FAILED');
+  }
+}
+
 export function createOpenAiSecureTunnelRuntimeWithDependencies(
   dependencies: OpenAiSecureTunnelRuntimeDependencies,
 ): OpenAiSecureTunnelRuntime {
@@ -114,11 +124,7 @@ export function createOpenAiSecureTunnelRuntimeWithDependencies(
         throw new ConnectionRuntimeFailure('TUNNEL_START_FAILED');
       }
 
-      validateFixedRuntimePath(
-        dependencies.nodeExecutablePath,
-        'node.exe',
-        'TUNNEL_START_FAILED',
-      );
+      validateGatewayRuntimePath(dependencies.nodeExecutablePath);
       validateFixedRuntimePath(
         dependencies.gatewayEntryPath,
         'stdio-entry.js',
