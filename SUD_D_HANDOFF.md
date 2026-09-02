@@ -59,7 +59,7 @@ Immediate next approved task after this governance commit is **Impeccable pinned
 - No Impeccable installer/update/init command, provider hook, global install, Serena connector change, `PRODUCT.md`, or `DESIGN.md` was created or run in this task.
 - Snapshot integrity, provenance/license, routing acceptance, `git diff --check`, source-scope checks, pinned-skill preservation, and `.serena/` local-only checks passed; no application/runtime/package source changed, so the product test suite/build was not required.
 
-Known UX findings intentionally deferred to the next explicit UI/UX task:
+Known Connection UX requirements intentionally deferred to the next explicit Connection task:
 
 - `Waiting for ChatGPT` remains after a successful real MCP tool call.
 - Connection should identify the current Tunnel clearly; a masked suffix is acceptable.
@@ -71,7 +71,41 @@ Known UX findings intentionally deferred to the next explicit UI/UX task:
 - A dev/runtime terminal window appears during Connect and should not appear in normal user experience.
 - Closing SUD-D should safely clean up/disconnect automatically instead of requiring the user to remember manual Disconnect.
 
-**Next explicit task:** SUD-D Desktop UX/UI audit + design pass using Impeccable. Do not start that audit/design from this integration task.
+### App Shell + Overview Hybrid UX/UI Pass
+
+**Status: COMPLETE — implemented, visually smoke-tested, Impeccable-reviewed, Security/Data Critical verified, and committed on 2026-09-03.**
+
+Implementation commit:
+
+`3bfbe61` — `feat: redesign app shell and overview`
+
+Delivered scope:
+
+- shared SUD-D Desktop App Shell now uses the approved SUD-D logo, restrained white/blue visual system, existing eight navigation destinations, clear active state, breadcrumb/current-page top bar, truthful health chip, and fixed-purpose `Open ChatGPT Web` action
+- Overview now follows the approved hierarchy: concise heading → one real connection/status card → compact Approved workspaces summary → Recent activity + Safety status; the Connection Method selector row is completely absent
+- Overview continues to consume existing connection/workspace/audit state and documented security facts; no Sign in, updater, account, Active Sessions, permissions, uptime, encryption, API-key suffix, or other unsupported capability/data was invented
+- `Open ChatGPT Web` uses a newly reviewed fixed-purpose Electron IPC seam. Renderer/preload accepts zero URL/executable/argv/cwd/env input; unexpected raw input and invalid senders fail closed; the handler opens only `https://chatgpt.com/`
+- other tab JSX/content was not redesigned; those pages only inherit the shared shell/common visual system
+- first real Impeccable UI run created `packages/desktop/PRODUCT.md`, `packages/desktop/DESIGN.md`, `.impeccable/design.json`, and the Overview surface brief; pinned third-party `.agents/skills/impeccable/**` remains byte-untouched
+
+Final evidence:
+
+- focused App Shell/Overview regression: **5/5 PASS**, including fixed URL/no arbitrary renderer URL authority, approved hierarchy, muted-text contrast, and inert initial connection CTA
+- relevant Desktop/security regressions: **74/74 PASS** across 6 files
+- full suite: **377/377 PASS across 22 files**; exact production MCP surface remains 14 tools
+- typecheck: **PASS**
+- lint: **PASS**
+- production build: **PASS**
+- Electron visual smoke: **PASS** at 1365×768 and 960×720 with no horizontal overflow/clipping; approved logo loaded; all existing navigation destinations remained reachable
+- real `Open ChatGPT Web` click through production Electron IPC: **PASS**
+- Impeccable detector: **PASS (`[]`)**
+- bounded Impeccable finish review: **`disposition: ship`** after one material fix batch (muted-text contrast + initial loading CTA) and one conclusive confirmation visual round
+- `git diff --check`: **PASS**
+- staged secret/log scan: **PASS**; `.serena/` remains local-only
+- final Standards / Spec code review: **PASS / PASS**, 0 blocking findings
+- Connection page source, MCP Gateway source, and pinned Impeccable third-party snapshot: **UNCHANGED**
+
+**Next explicit UI task:** **Connection tab UX/UI + onboarding/state correctness pass**. Preserve the Connection requirements above; do not start that task from this App Shell + Overview pass.
 
 ## Architecture / Process Decision
 
@@ -1265,13 +1299,17 @@ Exit code 0
 
 ## Immediate Next Action
 
-Impeccable v4.1.3 pinned installation/integration is COMPLETE. The next explicit task is **SUD-D Desktop UX/UI audit + design pass using Impeccable**. The deferred UX findings are recorded in the Impeccable section above; do not implement them until that task is explicitly started.
+App Shell + Overview UX/UI pass is COMPLETE. The next explicit task is **Connection tab UX/UI + onboarding/state correctness pass**. Preserve the Connection requirements recorded in the Impeccable section above and do not start that task from this finalize-only documentation step.
 
-The product connector still has one separate external acceptance item: on Work-PC, connect real ChatGPT through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. Restricted Execute remains **DEFERRED / NOT STARTED** because sandbox enforcement was not proven.
+The product connector still has one separate external acceptance item: on Work-PC, connect real ChatGPT through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. Restricted Execute remains **BLOCKED** because sandbox enforcement was not proven on Work-PC.
 
-**STOP after this integration commit/push.** Do not begin the UX/UI audit/design, Personal Alpha retest, Restricted Execute, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or another capability slice without a new explicit instruction.
+**STOP after the App Shell + Overview docs/handoff commit is pushed.** Do not begin the Connection task, Personal Alpha retest, Restricted Execute implementation, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or another capability slice without a new explicit instruction.
 
 ## Last Commit SHA
+
+App Shell + Overview implementation:
+
+`3bfbe61792f6f9e26e76ad97b93db3e00cc546ec` — `feat: redesign app shell and overview`
 
 Team Mode MVP — No-Execute implementation:
 
