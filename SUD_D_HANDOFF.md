@@ -125,72 +125,54 @@ Repo-local `code-review` routing was applied against task-start baseline `21baf5
 
 **Restricted Execute**
 
-**Status: BLOCKED — SANDBOX ENFORCEMENT NOT PROVEN on 2026-09-02.**
+**Status: BLOCKED — SANDBOX ENFORCEMENT NOT PROVEN ON WORK-PC on 2026-09-02.**
 
-Restricted Execute was evaluated after Basic Approval completion, but the mandatory Phase 0 Windows sandbox feasibility gate did not pass. No production Execute capability was implemented and no `dev.verify` MCP tool was registered. Team Mode MVP — No-Execute was completed later as the safe orchestration-only slice recorded above; Restricted Execute remains deferred.
+Restricted Execute was retried on the Work-PC after Team Mode MVP — No-Execute completed. The mandatory Phase 0 Windows sandbox gate still did not pass, so no production Execute capability was implemented and no `dev.verify` MCP tool was registered. Production MCP remains exactly 14 tools.
 
-### Restricted Execute Phase 0 findings
+### Restricted Execute Work-PC retry findings
 
-The task requires a real Windows sandbox boundary before any production Execute capability because a normal process running Workspace code could read outside the Workspace, read secrets, write outside allowed areas, use network directly, spawn broader-authority children/grandchildren, or interact with host processes/devices/registry.
+Work-PC capability inventory:
 
-Home-PC probe results:
+- OS: Windows 10 Pro `10.0.19045` / build `19045`, x64
+- `VirtualizationFirmwareEnabled`: `True`
+- `HyperVisorPresent`: `True`
+- Windows Sandbox / `Containers-DisposableClientVM`: **Enabled** (verified by user-run elevated probe)
+- `Microsoft-Hyper-V-All`: Disabled
+- `VirtualMachinePlatform`: Disabled
+- `HypervisorPlatform`: Disabled
+- `WindowsSandbox.exe`: present, version `10.0.19041.4957`
+- `wsb.exe`: absent
+- `processmodel.dll`: absent
+- `CheckNetIsolation.exe`: present
+- current Serena process: non-elevated
 
-- OS: Windows 10 Pro `10.0.19045` / build `19045`
-- `HyperVisorPresent`: `False`
-- `wsb.exe`: missing
-- `WindowsSandbox.exe`: missing
-- `hcsdiag.exe`: missing
-- `processmodel.dll`: missing
-- `CheckNetIsolation.exe`: present, but this only confirms a system utility exists and does not prove a SUD-D AppContainer launch/enforcement path
-- `DISM /online /Get-FeatureInfo /FeatureName:Containers-DisposableClientVM`: blocked by elevation requirement (`Error 740`)
-- `cl.exe`, `csc.exe`, `dotnet.exe`: missing in this shell, so no local native AppContainer spike could be built here
+Microsoft primary documentation confirms Windows Sandbox on Windows 10 supports `.wsb` configuration including disabled networking and read-only mapped folders, and uses hardware-based virtualization with a separate kernel. The newer Sandbox CLI with session IDs plus `start` / `exec` / `stop` automation begins with Windows 11 24H2; it is not available on this Windows 10 Work-PC.
 
-Mechanisms considered:
+A harmless local-only `.serena/` spike launched a custom `.wsb` successfully without elevation, with networking disabled and only a read-only mapped probe folder. However, on this Windows 10 Sandbox version there is no supported deterministic guest-to-host result/control channel while writable host mappings remain forbidden. The `LogonCommand` produced no host-observable completion result, and the Sandbox session remained running until the disposable instance was stopped from the host.
 
-- Windows Sandbox / `.wsb`: blocked because the launchers are not present and the feature state could not be inspected without elevation.
-- Microsoft Create Process In Sandbox APIs: blocked on this Home-PC because Microsoft documents them as Windows 11 experimental, `processmodel.dll` is absent locally, and the Home-PC is Windows 10 Pro 19045.
-- Legacy AppContainer launch: plausible as a future native-spike path, but not accepted as proven because this session did not have a working native launcher harness demonstrating the required SUD-D properties.
-- Job Objects: rejected as a standalone sandbox because they can manage process lifetime/tree behavior but do not enforce filesystem, network, or credential isolation.
+Because a writable mapped results folder would itself create a host write channel forbidden by the candidate acceptance requirement, it was not used as a workaround.
 
-Phase 0 proof matrix:
+Work-PC Phase 0 proof matrix therefore remains **NOT PROVEN** for Internet/localhost/LAN denial, outside-Workspace/user-profile/credential sentinel denial, child/grandchild confinement, guest timeout/tree cleanup, and privilege/capability containment. No broad admin/global firewall mutation was attempted; fail-closed behavior and absence of an unsandboxed fallback remain preserved.
 
-- outbound Internet denial: **NOT PROVEN**
-- local/LAN network denial: **NOT PROVEN**
-- outside-Workspace read denial: **NOT PROVEN**
-- outside-sandbox write denial: **NOT PROVEN**
-- host credential sentinel denial: **NOT PROVEN**
-- child process confinement: **NOT PROVEN**
-- grandchild process confinement: **NOT PROVEN**
-- whole-tree timeout cleanup: **NOT PROVEN** as a full sandbox property; Job Objects may supplement but are not sufficient alone
-- no privilege escalation: **NOT PROVEN**
-- no broad admin/global firewall mutation per run: **PASS as constraint**; no such mutation was attempted
-- fail closed when sandbox unavailable: **PASS by decision**
-- no insecure fallback: **PASS by decision**
+### Restricted Execute decision
+
+`RESTRICTED EXECUTE: BLOCKED — SANDBOX ENFORCEMENT NOT PROVEN ON WORK-PC`
+
+- Production Execute capability/actions: **none**
+- `dev.verify`: **absent**
+- Production MCP: exactly **14 tools** — six Workspace + four Git Safety + four Team
+- Team Mode MVP — No-Execute remains **COMPLETE** and separate
+- Network DENY, Outside Workspace DENY, InternalRoot DENY, credential rules, Basic Approval, audit ordering, Workspace File, and Git Safety invariants remain unchanged
+- Local report: `.serena/reports/restricted-execute.md` (local-only, not committed)
+
+Historical Home-PC Phase 0 evidence remains relevant only as historical evidence: Windows 10 Pro 19045 there lacked a proven usable Sandbox/AppContainer route at the time. The Work-PC retry supersedes the current Restricted Execute decision but does not claim Home-PC support.
 
 ### Restricted Execute blocked-state review
 
-- **Standards:** PASS for blocked state. The repository security invariant requires fail-closed behavior and forbids weakening Network DENY, Outside Workspace/InternalRoot DENY, secret rules, or privileged execution architecture. Blocking before production Execute is the compliant outcome.
-- **Spec:** PASS for blocked state. The task explicitly requires `RESTRICTED EXECUTE: BLOCKED — SANDBOX ENFORCEMENT NOT PROVEN` when Phase 0 cannot demonstrate all required enforcement properties.
+- **Standards:** PASS for blocked state. Fail-closed behavior was preserved and no production process capability or insecure fallback was added.
+- **Spec:** PASS for blocked state. The task requires blocking before production Execute when the full Phase 0 enforcement matrix cannot be proven.
 
-### Restricted Execute delivery state
-
-- Production Execute capability/actions: **none**; no `dev.verify` tool exists.
-- At the Restricted Execute blocked-state decision, production MCP remained the Basic Approval surface: exactly **10 tools** — six Workspace + four Git Safety. The later Team Mode MVP — No-Execute completion updates the current production surface to 14 tools as recorded above.
-- No generic shell/process/network/install/delete/recovery tool was added by Restricted Execute.
-- Network DENY, Outside Workspace DENY, InternalRoot DENY, credential policy, Basic Approval one-time semantics, Workspace File tools, and Git Safety remain unchanged.
-- Report: `.serena/reports/restricted-execute.md` (local-only, not committed).
-
-Smallest recommended next decision before retrying this milestone:
-
-1. Use a Windows 11 machine with Microsoft Create Process In Sandbox APIs and `processmodel.dll`, then build a native spike proving all Phase 0 properties.
-2. Enable/install Windows Sandbox and prove a practical `.wsb`/CLI workflow can run SUD-D verification actions with networking disabled and no host write grants.
-3. Build a dedicated legacy AppContainer native launcher spike with explicit grants plus Job Object lifetime control, then prove the full Phase 0 matrix locally.
-
-### Restricted Execute docs-only commit
-
-No production implementation commit was created; this handoff update is the only tracked delivery artifact for the blocked state.
-
-**Team Mode MVP** remains **NOT STARTED**.
+**Team Mode MVP** remains **COMPLETE — No-Execute**.
 
 **Basic Approval**
 
