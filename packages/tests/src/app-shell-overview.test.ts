@@ -140,6 +140,23 @@ describe('App Shell + Overview', () => {
     expect(css).toContain('.overview-bottom-grid');
   });
 
+  it('places Overview connection actions under the left copy and shows display-only workspace access', () => {
+    const home = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/HomePage.tsx'), 'utf8');
+    const css = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/index.css'), 'utf8');
+
+    expect(home).toMatch(
+      /<div className="overview-connection-copy">[\s\S]*<div className="overview-primary-actions">[\s\S]*id="overview-primary-connection-action"[\s\S]*Connection Setting[\s\S]*<\/div>[\s\S]*<\/div>\s*<\/div>\s*<dl className="overview-status-list">/u,
+    );
+    expect(css).not.toMatch(/\.overview-connection-card\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1\.35fr\)\s*minmax\(270px,\s*0\.9fr\)\s*minmax\(190px,\s*auto\)/u);
+    expect(css).toMatch(/\.overview-connection-card\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1\.35fr\)\s*minmax\(270px,\s*0\.9fr\)/u);
+
+    expect(home).toMatch(/role="columnheader">Access<\/span>/u);
+    expect(home).toContain('Read & write');
+    expect(home).toContain('workspace-access-badge');
+    expect(home).not.toMatch(/workspace-access[^\n]*(button|select|input|checkbox|onClick|onChange)/iu);
+    expect(home).not.toMatch(/permissions?|capability|policy/i);
+  });
+
   it('keeps muted UI text readable and the initial Overview connection action inert while loading', () => {
     const home = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/HomePage.tsx'), 'utf8');
     const css = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/index.css'), 'utf8');

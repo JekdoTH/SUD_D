@@ -175,6 +175,20 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
             {primaryAction?.reason && !primaryAction.enabled && (
               <span className="overview-inline-note">{primaryAction.reason}</span>
             )}
+            <div className="overview-primary-actions">
+              <button
+                id="overview-primary-connection-action"
+                className="btn btn-primary overview-primary-button"
+                disabled={busy || connection === null || (primaryAction !== null && !primaryAction.enabled && Boolean(connection?.profile))}
+                onClick={() => void runPrimaryAction()}
+              >
+                <UiIcon name="connection" size={16} />
+                {primaryActionLabel}
+              </button>
+              <button className="btn btn-ghost overview-details-link" onClick={() => onNavigate('connection')}>
+                Connection Setting
+              </button>
+            </div>
           </div>
         </div>
 
@@ -198,21 +212,6 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
             </dd>
           </div>
         </dl>
-
-        <div className="overview-primary-actions">
-          <button
-            id="overview-primary-connection-action"
-            className="btn btn-primary overview-primary-button"
-            disabled={busy || connection === null || (primaryAction !== null && !primaryAction.enabled && Boolean(connection?.profile))}
-            onClick={() => void runPrimaryAction()}
-          >
-            {primaryActionLabel}
-            <UiIcon name="arrow-right" size={16} />
-          </button>
-          <button className="btn btn-link overview-details-link" onClick={() => onNavigate('connection')}>
-            Connection Setting
-          </button>
-        </div>
       </section>
 
       <section className="card overview-section overview-workspaces" aria-labelledby="approved-workspaces-title">
@@ -236,6 +235,7 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
           <div className="overview-workspace-table" role="table" aria-label="Approved workspaces summary">
             <div className="overview-workspace-header" role="row">
               <span role="columnheader">Path</span>
+              <span role="columnheader">Access</span>
               <span role="columnheader">Status</span>
             </div>
             {visibleWorkspaces.map((workspace) => (
@@ -243,6 +243,9 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
                 <div className="overview-workspace-path" role="cell">
                   <UiIcon name="workspaces" size={19} />
                   <span title={workspace.canonicalRoot}>{workspace.canonicalRoot}</span>
+                </div>
+                <div className="overview-workspace-access" role="cell">
+                  <span className="workspace-access-badge">Read & write</span>
                 </div>
                 <div className="overview-workspace-status" role="cell">
                   <span className={`workspace-state-dot${workspace.isActive ? ' active' : ''}`} aria-hidden="true" />
