@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -69,15 +70,24 @@ describe('App Shell + Overview', () => {
     expect(main).not.toMatch(/shell\.openExternal\([^)]*(raw|event|input|href)/i);
   });
 
-  it('keeps SUD-D branding uncropped and wires a fixed local desktop icon', () => {
+  it('uses the latest approved SUD-D logo and icon without cropping or distortion', () => {
     const main = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/electron/main.ts'), 'utf8');
     const css = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/index.css'), 'utf8');
+    const logo = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/assets/sud-d-logo.png'));
     const icon = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/assets/sud-d-app-icon.png'));
-    const width = icon.readUInt32BE(16);
-    const height = icon.readUInt32BE(20);
+    const logoWidth = logo.readUInt32BE(16);
+    const logoHeight = logo.readUInt32BE(20);
+    const iconWidth = icon.readUInt32BE(16);
+    const iconHeight = icon.readUInt32BE(20);
 
-    expect(width).toBe(height);
-    expect(width).toBeGreaterThanOrEqual(32);
+    expect([logoWidth, logoHeight]).toEqual([375, 125]);
+    expect(createHash('sha256').update(logo).digest('hex')).toBe(
+      '13a25ffade5475ac448304724e81a89f68eb51e979af7ab1c5ba26f840229d99',
+    );
+    expect([iconWidth, iconHeight]).toEqual([192, 192]);
+    expect(createHash('sha256').update(icon).digest('hex')).toBe(
+      '172bb88ca88a94f1c013f4f589dbf4ebdcbe2405fd6d9d241764fcb921eba467',
+    );
     expect(main).toContain("path.join(__dirname, '../src/assets/sud-d-app-icon.png')");
     expect(main).toContain('icon: windowIconPath');
     expect(css).toMatch(/\.sidebar-logo-image\s*\{[\s\S]*?object-fit:\s*contain/u);
