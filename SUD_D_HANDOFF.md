@@ -146,6 +146,27 @@ Implementation commit:
 
 **Follow-up governance:** the Mandatory Impeccable UI Gate is now COMPLETE as recorded above. The next explicit product UI task remains **Connection tab UX/UI + onboarding/state correctness pass**; do not start it without a new explicit instruction.
 
+### Branding Logo + App Icon v2
+
+**Status: COMPLETE — approved branding renditions verified and implemented on Home PC; ready for Work-PC fast-forward pull after this handoff commit is pushed.**
+
+- Approved production logo: **375×125**, SHA-256 `13a25ffade5475ac448304724e81a89f68eb51e979af7ab1c5ba26f840229d99`, replacing the existing trusted path `packages/desktop/src/assets/sud-d-logo.png`.
+- Approved production app icon: **192×192**, SHA-256 `172bb88ca88a94f1c013f4f589dbf4ebdcbe2405fd6d9d241764fcb921eba467`, replacing the existing trusted path `packages/desktop/src/assets/sud-d-app-icon.png`.
+- Approved high-resolution originals were downsampled locally at the task-required dimensions with aspect ratio preserved; destination hashes exactly match the local approved production renditions. No asset path, CSS, App Shell component, IPC, MCP Gateway, or security-authority seam changed.
+- Focused App Shell/branding regression: **7/7 PASS** after the asset replacement; the same test was RED at **6/7** against the old committed assets.
+- Relevant Desktop/UI regressions: **76/76 PASS across 6 files**.
+- Real Electron branding smoke: **PASS** at **1365×768** and **960×720** across all eight shared-shell pages; logo loaded as 375×125, rendered proportionally with `object-fit: contain`, stayed inside the sidebar brand box, and produced no horizontal overflow.
+- Windows runtime icon verification: native window handle plus non-zero small/big/class `WM_GETICON`/class icon handles **PASS**, covering the running-window icon source used by the titlebar/task switcher/taskbar. A separately packaged executable icon was **not produced or claimed** in this task.
+- Impeccable: required context/polish/craft-floor workflow applied; manual detector invoked exactly once. Detector reported pre-existing advisory design-system drift outside this branding scope and **0 branding/logo/icon-related findings**; bounded finish disposition: **ship**.
+- Typecheck: **PASS**; lint: **PASS**; production build: **PASS**; `git diff --check`: **PASS**; changed-text secret scan: **PASS**.
+- `.agents/skills/impeccable/**`, MCP/core packages, Electron authority code, and unrelated page source: **UNCHANGED**. `.serena/` remains local-only and uncommitted.
+
+Branding implementation commit:
+
+`fef01754aa7ca799b476876e1ee68d502d5f3524` — `fix: refresh sud-d branding assets`
+
+**Work-PC continuation:** begin with `git status`, `git fetch origin`, then `git pull --ff-only origin master`; rerun the fresh session bootstrap + Mandatory Skill Router Gate. The next explicit product UI task remains **Connection tab UX/UI + onboarding/state correctness pass**, and the Mandatory Impeccable UI Gate requires loading `.agents/skills/impeccable/SKILL.md` before renderer-visible UI/UX work.
+
 ## Architecture / Process Decision
 
 - Risk-Based Development is adopted: Security/Data Critical boundaries retain strict verification, while low-risk UI, cosmetic, and documentation work uses proportional verification and faster iteration.
@@ -1338,13 +1359,19 @@ Exit code 0
 
 ## Immediate Next Action
 
-Mandatory Impeccable UI Gate governance is COMPLETE. The next explicit product UI task remains **Connection tab UX/UI + onboarding/state correctness pass**, but it is **NOT STARTED** and requires a new explicit instruction; when it starts, the new gate requires loading `impeccable` before any renderer-visible UI/UX work.
+Branding Logo + App Icon v2 is COMPLETE on Home PC. Work PC should begin with `git status`, `git fetch origin`, and `git pull --ff-only origin master`, then rerun the fresh session bootstrap + Mandatory Skill Router Gate.
+
+The next explicit product UI task remains **Connection tab UX/UI + onboarding/state correctness pass**, but it is **NOT STARTED** and requires a new explicit instruction; the Mandatory Impeccable UI Gate requires loading `impeccable` before any renderer-visible UI/UX work.
 
 The product connector still has one separate external acceptance item: on Work-PC, connect real ChatGPT through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. Restricted Execute remains **BLOCKED** because sandbox enforcement was not proven on Work-PC.
 
-**STOP after this governance task is committed/pushed and `origin/master...master` is `0 0`.** Do not begin Connection redesign, Personal Alpha retest, Restricted Execute implementation, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or another capability slice without a new explicit instruction.
+**STOP after Branding v2 handoff is committed/pushed and `origin/master...master` is `0 0`.** Do not begin Connection redesign, Personal Alpha retest, Restricted Execute implementation, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or another capability slice without a new explicit instruction.
 
 ## Last Commit SHA
+
+Branding Logo + App Icon v2 implementation:
+
+`fef01754aa7ca799b476876e1ee68d502d5f3524` — `fix: refresh sud-d branding assets`
 
 Mandatory Impeccable UI Gate governance implementation:
 
