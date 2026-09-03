@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { IPC_CHANNELS } from '@sud-d/contracts';
 import { registerDesktopAppIpcHandlers } from '../../desktop/electron/app-ipc.js';
+import { presentConnectionState } from '../../desktop/src/connection-ui-model.js';
 
 interface InvokeEventLike {
   readonly sender: unknown;
@@ -68,6 +69,37 @@ describe('App Shell + Overview', () => {
     expect(main).not.toMatch(/shell\.openExternal\([^)]*(raw|event|input|href)/i);
   });
 
+  it('keeps SUD-D branding uncropped and wires a fixed local desktop icon', () => {
+    const main = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/electron/main.ts'), 'utf8');
+    const css = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/index.css'), 'utf8');
+    const icon = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/assets/sud-d-app-icon.png'));
+    const width = icon.readUInt32BE(16);
+    const height = icon.readUInt32BE(20);
+
+    expect(width).toBe(height);
+    expect(width).toBeGreaterThanOrEqual(32);
+    expect(main).toContain("path.join(__dirname, '../src/assets/sud-d-app-icon.png')");
+    expect(main).toContain('icon: windowIconPath');
+    expect(css).toMatch(/\.sidebar-logo-image\s*\{[\s\S]*?object-fit:\s*contain/u);
+    expect(css).not.toMatch(/\.sidebar-logo-image\s*\{[^}]*object-fit:\s*cover/u);
+  });
+
+  it('uses real connection state for the shell status and fails safe when status cannot be read', () => {
+    const app = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/App.tsx'), 'utf8');
+
+    expect(presentConnectionState('connected')).toMatchObject({ label: 'Connected', tone: 'success' });
+    expect(presentConnectionState('stopped')).toMatchObject({ label: 'Disconnected', tone: 'neutral' });
+    expect(presentConnectionState('waiting_for_client')).toMatchObject({ label: 'Waiting for ChatGPT', tone: 'warning' });
+    expect(presentConnectionState('error')).toMatchObject({ label: 'Connection error', tone: 'danger' });
+
+    expect(app).toContain('window.sudD.connection.status()');
+    expect(app).toContain('presentConnectionState');
+    expect(app).not.toContain('window.sudD.health.check()');
+    expect(app).not.toContain('System healthy');
+    expect(app).toContain("label: 'Connection unavailable'");
+    expect(app).toContain('setShellConnectionPresentation(CONNECTION_UNAVAILABLE_PRESENTATION)');
+  });
+
   it('implements the approved shell and truthful Overview hierarchy without the connection-method selector', () => {
     const app = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/App.tsx'), 'utf8');
     const home = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/HomePage.tsx'), 'utf8');
@@ -75,11 +107,15 @@ describe('App Shell + Overview', () => {
 
     expect(app).toContain("./assets/sud-d-logo.png");
     expect(app).toContain('Open ChatGPT Web');
-    expect(app).toContain('System healthy');
+    expect(app).not.toContain('System healthy');
     expect(app).toContain('app-topbar');
     expect(app).not.toMatch(/Sign in|up to date|account/i);
 
-    expect(home).toContain('Manage your local ChatGPT connection, workspace, and safety status at a glance.');
+    expect(home).not.toContain('Manage your local ChatGPT connection, workspace, and safety status at a glance.');
+    expect(home).not.toMatch(/<h1[^>]*>Overview<\/h1>/u);
+    expect(home).toContain('Connection Setting');
+    expect(home).not.toContain('Connection details');
+    expect(home).toMatch(/Connection Setting[\s\S]{0,240}onNavigate\('connection'\)|onNavigate\('connection'\)[\s\S]{0,240}Connection Setting/u);
     expect(home).toContain('Approved workspaces');
     expect(home).toContain('Recent activity');
     expect(home).toContain('Safety status');

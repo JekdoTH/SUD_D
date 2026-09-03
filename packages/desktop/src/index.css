@@ -63,15 +63,18 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 
 .sidebar-brand {
   min-height: 92px;
+  flex: 0 0 auto;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   padding: 4px 20px 22px;
 }
 
 .sidebar-logo-image {
-  width: 188px;
-  height: auto;
   display: block;
+  width: 188px;
+  max-width: 100%;
+  height: auto;
+  flex: 0 1 auto;
   object-fit: contain;
 }
 
@@ -150,7 +153,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 .breadcrumb-chevron { color: #94a0b1; }
 
 .app-topbar-actions { display: flex; align-items: center; gap: 12px; }
-.shell-health-chip {
+.shell-status-chip {
   min-height: 34px;
   padding: 7px 12px;
   border: 1px solid var(--bg-border);
@@ -162,10 +165,12 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
   font-weight: 620;
   white-space: nowrap;
 }
-.shell-health-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-.shell-health-checking { color: #607089; background: #f8fafc; }
-.shell-health-healthy { color: #258b4f; background: #f3fbf5; border-color: #cfe8d6; }
-.shell-health-attention { color: var(--yellow); background: var(--yellow-soft); border-color: #f0d7b9; }
+.shell-status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.shell-status-neutral { color: #607089; background: #f8fafc; }
+.shell-status-info { color: #2d6297; background: #f3f8fd; border-color: #d7e5f3; }
+.shell-status-success { color: #258b4f; background: #f3fbf5; border-color: #cfe8d6; }
+.shell-status-warning { color: var(--yellow); background: var(--yellow-soft); border-color: #f0d7b9; }
+.shell-status-danger { color: var(--red); background: var(--red-soft); border-color: #f1caca; }
 .open-chatgpt-button {
   min-height: 38px;
   padding: 8px 14px;
@@ -416,8 +421,6 @@ tbody tr:hover td { background: #fafcff; }
   flex-direction: column;
   gap: 20px;
 }
-
-.overview-heading { padding: 2px 8px 2px; }
 
 .overview-connection-card {
   display: grid;
@@ -689,10 +692,11 @@ tbody tr:hover td { background: #fafcff; }
   .sidebar { width: 78px; min-width: 78px; }
   .sidebar-brand { min-height: 74px; padding: 2px 10px 18px; justify-content: center; }
   .sidebar-logo-image {
-    width: 50px;
-    height: 50px;
-    object-fit: cover;
-    object-position: left center;
+    width: 56px;
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+    object-position: center;
   }
   .sidebar-nav { padding-inline: 10px; }
   .nav-item { justify-content: center; padding-inline: 10px; }
@@ -709,7 +713,7 @@ tbody tr:hover td { background: #fafcff; }
 @media (max-width: 940px) {
   .app-topbar { min-height: 70px; flex-basis: 70px; gap: 14px; }
   .app-topbar-actions { gap: 8px; }
-  .shell-health-chip { padding-inline: 10px; }
+  .shell-status-chip { padding-inline: 10px; }
   .open-chatgpt-button { padding-inline: 11px; }
   .main { padding: 24px 20px 36px; }
   .page-title { font-size: 28px; }
@@ -731,8 +735,8 @@ tbody tr:hover td { background: #fafcff; }
 
 @media (max-width: 760px) {
   .breadcrumb-chevron, .breadcrumb > span { display: none; }
-  .shell-health-chip > span:last-child { display: none; }
-  .shell-health-chip { width: 34px; justify-content: center; padding: 0; }
+  .shell-status-chip > span:last-child { display: none; }
+  .shell-status-chip { width: 34px; justify-content: center; padding: 0; }
   .open-chatgpt-button > span { display: none; }
   .open-chatgpt-button { width: 40px; padding: 0; }
   .overview-workspace-header,

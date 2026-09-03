@@ -157,11 +157,6 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
 
   return (
     <div className="overview-page">
-      <header className="overview-heading">
-        <h1 className="page-title">Overview</h1>
-        <p className="page-subtitle">Manage your local ChatGPT connection, workspace, and safety status at a glance.</p>
-      </header>
-
       {error && (
         <div className="callout callout-error" role="alert">
           <strong>Connection needs attention</strong>
@@ -215,7 +210,7 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
             <UiIcon name="arrow-right" size={16} />
           </button>
           <button className="btn btn-link overview-details-link" onClick={() => onNavigate('connection')}>
-            Connection details
+            Connection Setting
           </button>
         </div>
       </section>

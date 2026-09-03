@@ -343,6 +343,7 @@ function createWindow(): BrowserWindow {
   const preloadPath = fs.existsSync(path.join(__dirname, 'preload.mjs'))
     ? path.join(__dirname, 'preload.mjs')
     : path.join(__dirname, 'preload.js');
+  const windowIconPath = path.join(__dirname, '../src/assets/sud-d-app-icon.png');
 
   const win = new BrowserWindow({
     width: 1280,
@@ -350,6 +351,7 @@ function createWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#f4f6f8',
+    icon: windowIconPath,
     show: false,
     webPreferences: {
       nodeIntegration: false,

@@ -9,6 +9,7 @@ import { DoctorPage } from './pages/DoctorPage';
 import { TeamPage } from './pages/TeamPage';
 import sudDLogo from './assets/sud-d-logo.png';
 import { UiIcon, type UiIconName } from './ui-icons';
+import { presentConnectionState, type ConnectionStatePresentation } from './connection-ui-model';
 
 export type AppPage =
   | 'overview'
@@ -31,11 +32,23 @@ const NAV_ITEMS: { id: AppPage; icon: UiIconName; label: string }[] = [
   { id: 'environment', icon: 'environment', label: 'Environment / Doctor' },
 ];
 
-type HealthState = 'checking' | 'healthy' | 'attention';
+const CHECKING_CONNECTION_PRESENTATION: ConnectionStatePresentation = {
+  label: 'Checking connection',
+  description: 'Reading local connection status.',
+  tone: 'neutral',
+};
+
+const CONNECTION_UNAVAILABLE_PRESENTATION: ConnectionStatePresentation = {
+  label: 'Connection unavailable',
+  description: 'Connection status could not be read.',
+  tone: 'danger',
+};
 
 export function App(): React.ReactElement {
   const [page, setPage] = useState<AppPage>('overview');
-  const [healthState, setHealthState] = useState<HealthState>('checking');
+  const [shellConnectionPresentation, setShellConnectionPresentation] = useState<ConnectionStatePresentation>(
+    CHECKING_CONNECTION_PRESENTATION,
+  );
   const [openingChatGPT, setOpeningChatGPT] = useState(false);
   const [shellMessage, setShellMessage] = useState('');
 
@@ -44,20 +57,24 @@ export function App(): React.ReactElement {
     [page],
   );
 
-  const refreshHealth = useCallback(async () => {
+  const refreshConnectionStatus = useCallback(async () => {
     try {
-      const result = await window.sudD.health.check();
-      setHealthState(result.ok && result.value.status === 'ok' ? 'healthy' : 'attention');
+      const result = await window.sudD.connection.status();
+      if (result.ok) {
+        setShellConnectionPresentation(presentConnectionState(result.value.runtime.state));
+        return;
+      }
     } catch {
-      setHealthState('attention');
+      // Fall through to the safe unavailable state below.
     }
+    setShellConnectionPresentation(CONNECTION_UNAVAILABLE_PRESENTATION);
   }, []);
 
   useEffect(() => {
-    void refreshHealth();
-    const timer = window.setInterval(() => void refreshHealth(), 5000);
+    void refreshConnectionStatus();
+    const timer = window.setInterval(() => void refreshConnectionStatus(), 2000);
     return () => window.clearInterval(timer);
-  }, [refreshHealth]);
+  }, [refreshConnectionStatus]);
 
   const openChatGPTWeb = async (): Promise<void> => {
     setOpeningChatGPT(true);
@@ -71,12 +88,6 @@ export function App(): React.ReactElement {
       setOpeningChatGPT(false);
     }
   };
-
-  const healthLabel = healthState === 'healthy'
-    ? 'System healthy'
-    : healthState === 'checking'
-      ? 'Checking system'
-      : 'System needs attention';
 
   return (
     <div className="layout">
@@ -115,9 +126,13 @@ export function App(): React.ReactElement {
           </div>
 
           <div className="app-topbar-actions">
-            <div className={`shell-health-chip shell-health-${healthState}`} role="status">
-              <span className="shell-health-dot" aria-hidden="true" />
-              <span>{healthLabel}</span>
+            <div
+              className={`shell-status-chip shell-status-${shellConnectionPresentation.tone}`}
+              role="status"
+              aria-label={`Connection status: ${shellConnectionPresentation.label}`}
+            >
+              <span className="shell-status-dot" aria-hidden="true" />
+              <span>{shellConnectionPresentation.label}</span>
             </div>
             <button
               id="open-chatgpt-web"
