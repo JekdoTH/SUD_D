@@ -197,6 +197,47 @@ Verification evidence:
 
 **Next explicit UI task remains:** **Connection tab UX/UI + onboarding/state correctness pass**. Do not start it from this Overview polish task.
 
+### Overview + Connection Minimal Refinement
+
+**Status: COMPLETE — final code-review PASS, verified implementation committed on 2026-09-03.**
+
+Implementation commit:
+
+`b82092c0c8fd59051626499d99cac03cad9640c8` — `fix: refine overview and connection setup`
+
+Delivered scope:
+
+- Overview now shows only the active workspace in Approved workspaces.
+- `+ Add Workspace` is visible and still navigates to the existing Workspaces page.
+- Sidebar order is now Overview → Connection → Workspaces → Activity → Team → Security → Recovery → Environment / Doctor.
+- The redundant Connection page-level title/subtitle/status row was removed; the shared topbar/breadcrumb remains, and the Connection hero now starts the page content.
+- The Connection hero and existing three setup cards were preserved; this task did not redesign the cards.
+- Runtime API Key card keeps the secure credential copy, places `Replace API Key` and `Remove API Key` on the same action row, and adds `Get API Key from OpenAI` below them.
+- Secure Tunnel card keeps `Change Tunnel configuration` and adds `Open Tunnel Settings` below it.
+- OpenAI setup navigation uses fixed-purpose zero-input Desktop IPC methods. The main process owns the exact allowed destinations: `https://platform.openai.com/settings/organization/api-keys` and `https://platform.openai.com/settings/organization/tunnels`.
+- The renderer received no generic arbitrary-URL authority, no direct `shell.openExternal`, and no credential plaintext/suffix exposure.
+
+Verification evidence:
+
+- TDD RED: **5 focused failures** captured before the implementation for fixed OpenAI app channels, active-only Overview, sidebar order, Connection header removal, and setup links.
+- Focused GREEN: `packages/tests/src/app-shell-overview.test.ts` **12/12 PASS**.
+- Full suite: **384/384 PASS across 22 files**.
+- Typecheck: **PASS**.
+- Lint: **PASS**.
+- Production build: **PASS**.
+- `git diff --check`: **PASS**.
+- Electron smoke: **1365×768 PASS** and **960×720 PASS**; Overview active-only/access/add-workspace and Connection minimal layout assertions passed with no horizontal overflow.
+- Real external-click smoke: **PASS** for both OpenAI setup buttons in the built Electron app; exact URL ownership is covered by the focused IPC regression.
+- Impeccable detector: invoked once; findings were advisory-only design-system drift, with no material blocker for this bounded task.
+- Final code-review: **Standards PASS / Spec-Security PASS**, 0 blocking findings.
+- Scope review: `.agents/skills/impeccable/**`, connection runtime semantics, workspace permission backend, credentials, and MCP production tool surface remain unchanged; `.serena/` remains local-only.
+
+Broader Connection correctness remains deferred and was not started here:
+
+- stale `Waiting for ChatGPT`
+- terminal suppression
+- close-app cleanup/disconnect
+
 ## Architecture / Process Decision
 
 - Risk-Based Development is adopted: Security/Data Critical boundaries retain strict verification, while low-risk UI, cosmetic, and documentation work uses proportional verification and faster iteration.
