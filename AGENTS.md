@@ -70,6 +70,10 @@ Skills: tdd — source bug fix begins — .agents/skills/tdd/SKILL.md
 
 Run the gate again when any of these changes invalidates the prior selection: a new chat/session, a new task, Home-PC ↔ Work-PC change, Serena ↔ Codex/other runtime change, explicit task handoff, material task/scope change, or a task phase entering a newly triggered workflow (for example investigation/debug → source-changing bug fix). For a new session/device/runtime/handoff, repeat the minimum repository bootstrap/context read before the fresh gate. Prior-session selection is never proof for a new session.
 
+#### Mandatory Impeccable UI Gate
+
+Any task that plans, designs, creates, modifies, fixes, reviews, audits, or polishes **renderer-visible SUD_D UI/UX** must select and load `impeccable` before that UI-governed work begins. This covers layout/spacing/visual hierarchy/typography/color/icons/navigation/app shell, UI copy and loading/empty/error states, forms/onboarding/settings/Connection UX, accessibility, responsive/window behavior, interactions/micro-interactions, cosmetic-only polish, renderer-visible bug fixes, and post-implementation visual review. On Serena/non-native runtimes, satisfying this gate requires actually reading `.agents/skills/impeccable/SKILL.md` before planning, designing, editing, or reviewing the UI work; naming or considering it is insufficient. If backend-only work later crosses into renderer-visible UI/UX, rerun the Skill Router Gate and load `impeccable` before that UI phase; backend-only work that neither changes nor reviews renderer-visible UI/UX does not trigger it. `impeccable` remains subordinate to security invariants, explicit user/task scope, STOP conditions, and fail-closed behavior, and it complements every other applicable skill rather than replacing them.
+
 ### Skill resolution and progressive disclosure
 
 The router evaluates trigger metadata across the installed skills but loads only the skills selected for the active task. **Run the router every time; load every applicable skill; do not load the whole catalogue by default.**
