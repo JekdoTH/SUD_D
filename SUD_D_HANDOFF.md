@@ -107,6 +107,33 @@ Final evidence:
 
 **Next explicit UI task:** **Connection tab UX/UI + onboarding/state correctness pass**. Preserve the Connection requirements above; do not start that task from this App Shell + Overview pass.
 
+### Overview Final Polish
+
+**Status: COMPLETE — implementation verified and committed; finalization handoff/push completes this task.**
+
+Final polish preserves the approved App Shell + Overview design and changes no Connection-tab content. The narrow-sidebar logo clipping root cause was the `<=1020px` rule forcing the approved 265×68 SUD-D logo into a 50×50 box with `object-fit: cover`; the rule now preserves the full logo proportionally with `contain`. A 68×68 `sud-d-app-icon.png`, derived directly from the approved logo without redraw, is wired as the fixed local Electron `BrowserWindow.icon`.
+
+The topbar status now reads the existing real `connection.status()` result and presents it through `presentConnectionState(...)`; a failed status read fails safe as `Connection unavailable` rather than leaving a stale positive state. Overview no longer repeats the standalone `Overview` heading/subtitle beneath the breadcrumb. The secondary connection action is labeled exactly `Connection Setting` and continues to route to the existing `connection` page.
+
+Verification evidence from the completed implementation session:
+
+- focused App Shell/Overview: **7/7 PASS**
+- relevant Desktop/UI regressions: **76/76 PASS**
+- full suite: **379/379 PASS across 22 files**
+- Electron smoke: **1365×768 PASS** and **960×720 PASS**, with no horizontal overflow; full logo ratio preserved and the existing Connection route remained reachable
+- typecheck: **PASS**
+- lint: **PASS**
+- production build: **PASS**
+- `git diff --check`: **PASS**
+- bounded Impeccable finish review: **`disposition: ship`**, no material blocker
+- Impeccable detector: **invoked once as required; Serena truncated the detector JSON because it exceeded the capture ceiling. Do not claim this final-polish detector returned `[]`.**
+
+Implementation commit:
+
+`5d9d0aff2db50969bcad954118ce531ffbeaa88e` — `fix: polish overview connection shell`
+
+**Next explicit task:** `Hard-require Impeccable for all renderer-visible UI/UX work in AGENTS.md`. Do not start that governance task from this finalization session.
+
 ## Architecture / Process Decision
 
 - Risk-Based Development is adopted: Security/Data Critical boundaries retain strict verification, while low-risk UI, cosmetic, and documentation work uses proportional verification and faster iteration.
@@ -1299,13 +1326,17 @@ Exit code 0
 
 ## Immediate Next Action
 
-App Shell + Overview UX/UI pass is COMPLETE. The next explicit task is **Connection tab UX/UI + onboarding/state correctness pass**. Preserve the Connection requirements recorded in the Impeccable section above and do not start that task from this finalize-only documentation step.
+Overview Final Polish is in finalization only. After its implementation/handoff commits are pushed, the next explicit task is **`Hard-require Impeccable for all renderer-visible UI/UX work in AGENTS.md`**. Do not start that governance task in this session.
 
 The product connector still has one separate external acceptance item: on Work-PC, connect real ChatGPT through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. Restricted Execute remains **BLOCKED** because sandbox enforcement was not proven on Work-PC.
 
-**STOP after the App Shell + Overview docs/handoff commit is pushed.** Do not begin the Connection task, Personal Alpha retest, Restricted Execute implementation, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or another capability slice without a new explicit instruction.
+**STOP after the Overview Final Polish implementation/handoff commits are pushed and `origin/master...master` is `0 0`.** Do not begin the AGENTS Impeccable governance task, Connection redesign, Personal Alpha retest, Restricted Execute implementation, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or another capability slice without a new explicit instruction.
 
 ## Last Commit SHA
+
+Overview Final Polish implementation:
+
+`5d9d0aff2db50969bcad954118ce531ffbeaa88e` — `fix: polish overview connection shell`
 
 App Shell + Overview implementation:
 
