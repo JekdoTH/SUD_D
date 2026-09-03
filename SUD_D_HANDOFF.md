@@ -59,6 +59,18 @@ Immediate next approved task after this governance commit is **Impeccable pinned
 - No Impeccable installer/update/init command, provider hook, global install, Serena connector change, `PRODUCT.md`, or `DESIGN.md` was created or run in this task.
 - Snapshot integrity, provenance/license, routing acceptance, `git diff --check`, source-scope checks, pinned-skill preservation, and `.serena/` local-only checks passed; no application/runtime/package source changed, so the product test suite/build was not required.
 
+### Mandatory Impeccable UI Gate
+
+**Status: COMPLETE — renderer-visible UI/UX now hard-requires Impeccable before UI-governed work.**
+
+`AGENTS.md` now requires every task that plans, designs, creates, modifies, fixes, reviews, audits, or polishes renderer-visible SUD_D UI/UX to select and load `impeccable` before that UI phase begins. Serena/non-native runtimes must actually read `.agents/skills/impeccable/SKILL.md`; merely naming it is insufficient. A backend-only task that later crosses into React/CSS or other renderer-visible UI/UX must rerun the Skill Router Gate and load `impeccable` before touching that phase, while backend-only work with no renderer-visible UI change/review does not trigger it. The gate remains subordinate to SUD_D security, explicit user/task scope, STOP conditions, fail-closed behavior, and all other genuinely applicable skills.
+
+Governance acceptance: **6/6 PASS** — spacing-only, UI copy/error label, Connection onboarding, renderer-visible state bug, backend-only no-UI, and backend→UI phase transition. `git diff --check`: **PASS**; no production source/package change; `.agents/skills/impeccable/**` unchanged; `.serena/` remains local-only and unstaged. No product suite/build was required for this governance-only change.
+
+Governance implementation commit:
+
+`0fc1be87f5b9f29e3bcd44050e7d518fa32ce4d4` — `docs: hard-require impeccable for ui work`
+
 Known Connection UX requirements intentionally deferred to the next explicit Connection task:
 
 - `Waiting for ChatGPT` remains after a successful real MCP tool call.
@@ -132,7 +144,7 @@ Implementation commit:
 
 `5d9d0aff2db50969bcad954118ce531ffbeaa88e` — `fix: polish overview connection shell`
 
-**Next explicit task:** `Hard-require Impeccable for all renderer-visible UI/UX work in AGENTS.md`. Do not start that governance task from this finalization session.
+**Follow-up governance:** the Mandatory Impeccable UI Gate is now COMPLETE as recorded above. The next explicit product UI task remains **Connection tab UX/UI + onboarding/state correctness pass**; do not start it without a new explicit instruction.
 
 ## Architecture / Process Decision
 
@@ -1326,13 +1338,17 @@ Exit code 0
 
 ## Immediate Next Action
 
-Overview Final Polish is in finalization only. After its implementation/handoff commits are pushed, the next explicit task is **`Hard-require Impeccable for all renderer-visible UI/UX work in AGENTS.md`**. Do not start that governance task in this session.
+Mandatory Impeccable UI Gate governance is COMPLETE. The next explicit product UI task remains **Connection tab UX/UI + onboarding/state correctness pass**, but it is **NOT STARTED** and requires a new explicit instruction; when it starts, the new gate requires loading `impeccable` before any renderer-visible UI/UX work.
 
 The product connector still has one separate external acceptance item: on Work-PC, connect real ChatGPT through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. Restricted Execute remains **BLOCKED** because sandbox enforcement was not proven on Work-PC.
 
-**STOP after the Overview Final Polish implementation/handoff commits are pushed and `origin/master...master` is `0 0`.** Do not begin the AGENTS Impeccable governance task, Connection redesign, Personal Alpha retest, Restricted Execute implementation, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or another capability slice without a new explicit instruction.
+**STOP after this governance task is committed/pushed and `origin/master...master` is `0 0`.** Do not begin Connection redesign, Personal Alpha retest, Restricted Execute implementation, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or another capability slice without a new explicit instruction.
 
 ## Last Commit SHA
+
+Mandatory Impeccable UI Gate governance implementation:
+
+`0fc1be87f5b9f29e3bcd44050e7d518fa32ce4d4` — `docs: hard-require impeccable for ui work`
 
 Overview Final Polish implementation:
 
