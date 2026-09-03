@@ -25,7 +25,7 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe('App Shell + Overview', () => {
-  it('opens only the fixed official ChatGPT web destination through a no-input desktop action', async () => {
+  it('opens only fixed external destinations through zero-input desktop app actions', async () => {
     const handlers = new Map<string, (event: InvokeEventLike, raw?: unknown) => unknown>();
     const openExternal = vi.fn(async (_url: string) => undefined);
 
@@ -39,23 +39,32 @@ describe('App Shell + Overview', () => {
       (sender) => sender === 'trusted-renderer',
     );
 
-    expect(IPC_CHANNELS.APP_OPEN_CHATGPT_WEB).toBe('app:openChatGPTWeb');
-    const handler = handlers.get(IPC_CHANNELS.APP_OPEN_CHATGPT_WEB);
-    expect(handler).toBeDefined();
+    const expectedActions = [
+      [IPC_CHANNELS.APP_OPEN_CHATGPT_WEB, 'app:openChatGPTWeb', 'https://chatgpt.com/'],
+      [IPC_CHANNELS.APP_OPEN_OPENAI_API_KEYS_PAGE, 'app:openOpenAiApiKeysPage', 'https://platform.openai.com/settings/organization/api-keys'],
+      [IPC_CHANNELS.APP_OPEN_OPENAI_TUNNEL_SETTINGS_PAGE, 'app:openOpenAiTunnelSettingsPage', 'https://platform.openai.com/settings/organization/tunnels'],
+    ] as const;
 
-    expect(await handler?.({ sender: 'untrusted-renderer' })).toMatchObject({
-      ok: false,
-      error: { code: 'VALIDATION_FAILED' },
-    });
-    expect(await handler?.({ sender: 'trusted-renderer' }, 'file:///C:/Windows/System32/calc.exe')).toMatchObject({
-      ok: false,
-      error: { code: 'VALIDATION_FAILED' },
-    });
-    expect(openExternal).not.toHaveBeenCalled();
+    for (const [channel, expectedChannel, expectedUrl] of expectedActions) {
+      expect(channel).toBe(expectedChannel);
+      const handler = handlers.get(channel);
+      expect(handler).toBeDefined();
 
-    expect(await handler?.({ sender: 'trusted-renderer' })).toEqual({ ok: true, value: null });
-    expect(openExternal).toHaveBeenCalledTimes(1);
-    expect(openExternal).toHaveBeenCalledWith('https://chatgpt.com/');
+      expect(await handler?.({ sender: 'untrusted-renderer' })).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION_FAILED' },
+      });
+      expect(await handler?.({ sender: 'trusted-renderer' }, 'file:///C:/Windows/System32/calc.exe')).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION_FAILED' },
+      });
+      expect(openExternal).not.toHaveBeenCalledWith('file:///C:/Windows/System32/calc.exe');
+
+      expect(await handler?.({ sender: 'trusted-renderer' })).toEqual({ ok: true, value: null });
+      expect(openExternal).toHaveBeenLastCalledWith(expectedUrl);
+    }
+
+    expect(openExternal).toHaveBeenCalledTimes(3);
   });
 
   it('wires the fixed-purpose action to Electron shell.openExternal in the main process', () => {
@@ -157,6 +166,44 @@ describe('App Shell + Overview', () => {
     expect(home).not.toMatch(/permissions?|capability|policy/i);
   });
 
+  it('shows only the active workspace in Overview and keeps add workspace navigation fixed', () => {
+    const home = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/HomePage.tsx'), 'utf8');
+
+    expect(home).toContain('const visibleWorkspaces = activeWorkspace ? [activeWorkspace] : [];');
+    expect(home).not.toContain('.slice(0, 3)');
+    expect(home).toContain('+ Add Workspace');
+    expect(home).toContain("onClick={() => onNavigate('workspaces')}");
+  });
+
+  it('orders the sidebar as Overview, Connection, Workspaces, Activity, Team, Security, Recovery, Environment', () => {
+    const app = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/App.tsx'), 'utf8');
+    const navBlock = app.slice(app.indexOf('const NAV_ITEMS'), app.indexOf('const CHECKING_CONNECTION_PRESENTATION'));
+
+    expect(navBlock).toMatch(/overview[\s\S]*connection[\s\S]*workspaces[\s\S]*activity[\s\S]*team[\s\S]*security[\s\S]*recovery[\s\S]*environment/u);
+  });
+
+  it('keeps the Connection hero and setup cards while removing the redundant page header row', () => {
+    const connection = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/ConnectionPage.tsx'), 'utf8');
+
+    expect(connection).not.toContain('page-header page-header-row');
+    expect(connection).not.toMatch(/<h1 className="page-title">Connection<\/h1>/u);
+    expect(connection).not.toContain('Set up and connect ChatGPT entirely from SUD-D.');
+    expect(connection).toContain('card connection-hero');
+    expect(connection).toContain('ChatGPT Connection');
+    expect(connection).toContain('OpenAI Secure MCP Tunnel');
+    expect((connection.match(/className="card setup-card"/g) ?? []).length).toBe(3);
+  });
+
+  it('adds fixed OpenAI setup links below existing Connection setup controls', () => {
+    const connection = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/ConnectionPage.tsx'), 'utf8');
+
+    expect(connection).toMatch(/id="connection-credential-setup"[\s\S]*Replace API Key[\s\S]*id="connection-credential-remove"[\s\S]*Remove API Key[\s\S]*setup-external-link-row[\s\S]*Get API Key from OpenAI/u);
+    expect(connection).toMatch(/Change Tunnel configuration[\s\S]*setup-external-link-row[\s\S]*Open Tunnel Settings/u);
+    expect(connection).toContain('openOpenAiApiKeysPage');
+    expect(connection).toContain('openOpenAiTunnelSettingsPage');
+    expect(connection).toContain('UiIcon name="external-link"');
+  });
+
   it('keeps muted UI text readable and the initial Overview connection action inert while loading', () => {
     const home = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/HomePage.tsx'), 'utf8');
     const css = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/index.css'), 'utf8');
@@ -179,8 +226,14 @@ describe('App Shell + Overview', () => {
     const appSurface = appStart >= 0 && appEnd > appStart ? preload.slice(appStart, appEnd) : '';
 
     expect(appSurface).toContain('openChatGPTWeb: ()');
+    expect(appSurface).toContain('openOpenAiApiKeysPage: ()');
+    expect(appSurface).toContain('openOpenAiTunnelSettingsPage: ()');
     expect(appSurface).toContain('IPC_CHANNELS.APP_OPEN_CHATGPT_WEB');
+    expect(appSurface).toContain('IPC_CHANNELS.APP_OPEN_OPENAI_API_KEYS_PAGE');
+    expect(appSurface).toContain('IPC_CHANNELS.APP_OPEN_OPENAI_TUNNEL_SETTINGS_PAGE');
     expect(appSurface).not.toMatch(/openChatGPTWeb:\s*\([^)]*(url|uri|href)/i);
+    expect(appSurface).not.toMatch(/openOpenAiApiKeysPage:\s*\([^)]*(url|uri|href)/i);
+    expect(appSurface).not.toMatch(/openOpenAiTunnelSettingsPage:\s*\([^)]*(url|uri|href)/i);
     expect(appSurface).not.toContain('shell.openExternal');
     expect(preload).not.toContain('ipcRenderer.send');
   });

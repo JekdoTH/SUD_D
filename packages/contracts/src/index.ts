@@ -34,6 +34,8 @@ export const IPC_CHANNELS = {
   TEAM_STATUS: 'team:status',
   TEAM_STOP: 'team:stop',
   APP_OPEN_CHATGPT_WEB: 'app:openChatGPTWeb',
+  APP_OPEN_OPENAI_API_KEYS_PAGE: 'app:openOpenAiApiKeysPage',
+  APP_OPEN_OPENAI_TUNNEL_SETTINGS_PAGE: 'app:openOpenAiTunnelSettingsPage',
 } as const;
 
 // ---------------------------------------------------------------------------

@@ -273,6 +273,15 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 
 /* ---- Buttons ---- */
 .button-row { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; margin-top: 16px; }
+.setup-card-action-row { margin-top: 14px; }
+.setup-external-link-row {
+  margin-top: 10px;
+  align-self: flex-start;
+  padding-inline: 0;
+  gap: 7px;
+}
+.btn.setup-external-link-row { display: flex; width: fit-content; }
+.setup-external-link-row:hover { background: transparent; color: var(--accent-hover); }
 .btn {
   display: inline-flex;
   align-items: center;

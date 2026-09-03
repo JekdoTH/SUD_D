@@ -36,6 +36,10 @@ const api = {
   app: {
     openChatGPTWeb: (): Promise<IpcResult<null>> =>
       ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_CHATGPT_WEB) as Promise<IpcResult<null>>,
+    openOpenAiApiKeysPage: (): Promise<IpcResult<null>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_OPENAI_API_KEYS_PAGE) as Promise<IpcResult<null>>,
+    openOpenAiTunnelSettingsPage: (): Promise<IpcResult<null>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_OPENAI_TUNNEL_SETTINGS_PAGE) as Promise<IpcResult<null>>,
   },
   health: {
     check: (): Promise<IpcResult<{ status: string; version: string }>> =>

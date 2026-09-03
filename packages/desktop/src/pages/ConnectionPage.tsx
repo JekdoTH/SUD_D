@@ -7,6 +7,7 @@ import {
   getConnectionPrimaryAction,
   presentConnectionState,
 } from '../connection-ui-model';
+import { UiIcon } from '../ui-icons';
 
 interface ConnectionPageProps {
   onNavigate: (page: AppPage) => void;
@@ -197,6 +198,26 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
     }
   };
 
+  const openOpenAiApiKeysPage = async (): Promise<void> => {
+    setError('');
+    try {
+      const result = await window.sudD.app.openOpenAiApiKeysPage();
+      if (!result.ok) setError(result.error.message);
+    } catch {
+      setError('Failed to open OpenAI API Keys page');
+    }
+  };
+
+  const openOpenAiTunnelSettingsPage = async (): Promise<void> => {
+    setError('');
+    try {
+      const result = await window.sudD.app.openOpenAiTunnelSettingsPage();
+      if (!result.ok) setError(result.error.message);
+    } catch {
+      setError('Failed to open OpenAI Tunnel Settings page');
+    }
+  };
+
   const runtimeError = snapshot?.runtime.error;
   const primaryLabel = primaryAction?.action === 'choose_workspace'
     ? 'Choose Workspace'
@@ -212,17 +233,6 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
 
   return (
     <>
-      <div className="page-header page-header-row">
-        <div>
-          <h1 className="page-title">Connection</h1>
-          <p className="page-subtitle">Set up and connect ChatGPT entirely from SUD-D.</p>
-        </div>
-        <div className={`status-chip tone-${presentation.tone}`}>
-          <span className="status-dot" />
-          {presentation.label}
-        </div>
-      </div>
-
       {(error || runtimeError) && (
         <div className="callout callout-error" role="alert">
           <strong>{runtimeError ? errorGuidance(runtimeError.code) : 'Connection needs attention'}</strong>
@@ -329,7 +339,7 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
           </div>
           <p className="card-description">The API Key is managed through the Windows-native secure prompt and is never displayed here.</p>
           {snapshot?.profile && snapshot.credentialStatus === 'configured' && (
-            <div className="button-row">
+            <div className="button-row setup-card-action-row">
               <button
                 id="connection-credential-setup"
                 className="btn btn-ghost"
@@ -348,6 +358,13 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
               </button>
             </div>
           )}
+          <button
+            className="btn btn-link setup-external-link-row"
+            onClick={() => void openOpenAiApiKeysPage()}
+          >
+            <UiIcon name="external-link" size={15} />
+            Get API Key from OpenAI
+          </button>
           {snapshot?.profile && snapshot.runtime.state !== 'stopped' && (
             <p className="fine-print">Disconnect ChatGPT before changing the Runtime API Key.</p>
           )}
@@ -372,6 +389,13 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
                 onClick={() => setEditingTunnel((current) => !current)}
               >
                 Change Tunnel configuration
+              </button>
+              <button
+                className="btn btn-link setup-external-link-row"
+                onClick={() => void openOpenAiTunnelSettingsPage()}
+              >
+                <UiIcon name="external-link" size={15} />
+                Open Tunnel Settings
               </button>
               {snapshot.runtime.state !== 'stopped' && (
                 <p className="fine-print">Disconnect ChatGPT before changing Secure Tunnel configuration.</p>

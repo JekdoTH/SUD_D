@@ -29,6 +29,8 @@ import type {
 interface SudDApi {
   app: {
     openChatGPTWeb(): Promise<IpcResult<null>>;
+    openOpenAiApiKeysPage(): Promise<IpcResult<null>>;
+    openOpenAiTunnelSettingsPage(): Promise<IpcResult<null>>;
   };
   health: {
     check(): Promise<IpcResult<{ status: string; version: string }>>;

@@ -64,12 +64,7 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
   }, [refresh]);
 
   const activeWorkspace = workspaces.find((workspace) => workspace.isActive);
-  const visibleWorkspaces = useMemo(
-    () => [...workspaces]
-      .sort((left, right) => Number(right.isActive) - Number(left.isActive))
-      .slice(0, 3),
-    [workspaces],
-  );
+  const visibleWorkspaces = activeWorkspace ? [activeWorkspace] : [];
   const statePresentation = connection
     ? presentConnectionState(connection.runtime.state)
     : { label: 'Checking…', description: 'Reading local connection status.', tone: 'neutral' as const };
@@ -221,7 +216,7 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
             <h2 id="approved-workspaces-title">Approved workspaces</h2>
           </div>
           <button className="btn btn-link" onClick={() => onNavigate('workspaces')}>
-            {workspaces.length === 0 ? 'Add workspace' : 'View all workspaces'}
+            + Add Workspace
             <UiIcon name="arrow-right" size={15} />
           </button>
         </div>

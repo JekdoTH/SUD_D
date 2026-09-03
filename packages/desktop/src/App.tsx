@@ -23,8 +23,8 @@ export type AppPage =
 
 const NAV_ITEMS: { id: AppPage; icon: UiIconName; label: string }[] = [
   { id: 'overview', icon: 'overview', label: 'Overview' },
-  { id: 'workspaces', icon: 'workspaces', label: 'Workspaces' },
   { id: 'connection', icon: 'connection', label: 'Connection' },
+  { id: 'workspaces', icon: 'workspaces', label: 'Workspaces' },
   { id: 'activity', icon: 'activity', label: 'Activity' },
   { id: 'team', icon: 'team', label: 'Team' },
   { id: 'security', icon: 'security', label: 'Security' },
