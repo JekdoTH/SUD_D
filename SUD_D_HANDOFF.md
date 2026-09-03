@@ -167,6 +167,36 @@ Branding implementation commit:
 
 **Work-PC continuation:** begin with `git status`, `git fetch origin`, then `git pull --ff-only origin master`; rerun the fresh session bootstrap + Mandatory Skill Router Gate. The next explicit product UI task remains **Connection tab UX/UI + onboarding/state correctness pass**, and the Mandatory Impeccable UI Gate requires loading `.agents/skills/impeccable/SKILL.md` before renderer-visible UI/UX work.
 
+### Overview Action Layout + Access Status
+
+**Status: COMPLETE — bounded Overview-only UI polish verified and committed on 2026-09-03.**
+
+Implementation commit:
+
+`0795e27` — `fix: refine overview connection actions`
+
+Delivered scope:
+
+- Overview connection actions now live under the left-side connection copy, directly beneath the connection description/note, matching the approved reference hierarchy while preserving `runPrimaryAction()` behavior and the existing `Connection Setting` route to the Connection page.
+- The connection card is now a two-region layout: left icon/copy/actions and right truthful Workspace / Runtime API Key / Secure Tunnel status list. No empty third action column remains.
+- Approved workspaces now include a display-only `Access` column. Each visible row shows `Read & write` as the current product workspace capability baseline only.
+- No per-workspace permission backend/model, IPC method, DTO field, database field, Policy setting, MCP Gateway change, Delete, Execute, or Network behavior was added.
+
+Verification evidence:
+
+- TDD RED: focused Overview regression failed against the previous layout because actions were still outside the left copy and the Access column was absent.
+- Focused Overview/App Shell GREEN: **8/8 PASS** in `packages/tests/src/app-shell-overview.test.ts`.
+- Full suite: **380/380 PASS across 22 files**; production MCP surface remains exactly 14 tools.
+- Typecheck: **PASS**.
+- Lint: **PASS**.
+- Production build: **PASS**.
+- `git diff --check`: **PASS**.
+- Electron smoke: **1365×768 PASS** and **960×720 PASS** using the built Desktop path with a seeded temporary workspace row. Actions were under the left copy, status remained on the right at wide width, Access / `Read & write` were visible, no horizontal overflow was detected, and both connection buttons accepted keyboard focus.
+- Impeccable: required context, layout reference, craft floor, and bounded smoke pass were applied. Detector output was captured under `.serena/reports/overview-impeccable-detect.json`; findings were advisory design-system drift only, not a blocker for this bounded layout task.
+- Scope verification: only `packages/desktop/src/pages/HomePage.tsx`, `packages/desktop/src/index.css`, `packages/tests/src/app-shell-overview.test.ts`, and this handoff section changed. `.agents/skills/impeccable/**`, contracts, domain, application, infrastructure, MCP Gateway, connection runtime, and Connection page content remain unchanged.
+
+**Next explicit UI task remains:** **Connection tab UX/UI + onboarding/state correctness pass**. Do not start it from this Overview polish task.
+
 ## Architecture / Process Decision
 
 - Risk-Based Development is adopted: Security/Data Critical boundaries retain strict verification, while low-risk UI, cosmetic, and documentation work uses proportional verification and faster iteration.
