@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   SERENA_ENGINE_MANIFEST,
+  createSerenaEngineProvisioner,
   createSerenaRuntimePaths,
   prepareManagedSerenaConfig,
 } from '@sud-d/infrastructure';
@@ -18,6 +19,23 @@ const temp = (): string => {
 afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
+
+function makePaths(root = temp()) {
+  return createSerenaRuntimePaths(path.join(root, 'data'), {
+    workspaceId: 'workspace-1',
+    canonicalRoot: path.join(root, 'workspace'),
+    projectName: 'workspace',
+  });
+}
+
+function fakeRunner(stdout: string) {
+  const calls: Array<{ command: string; args: readonly string[] }> = [];
+  const runProcess = async (command: string, args: readonly string[]) => {
+    calls.push({ command, args: [...args] });
+    return { exitCode: 0, stdout, stderrBytes: 0 };
+  };
+  return { calls, runProcess };
+}
 
 describe('Serena managed foundation', () => {
   it('pins the approved Serena Product Mode contract', () => {
@@ -54,5 +72,39 @@ describe('Serena managed foundation', () => {
     expect(config).toContain(JSON.stringify(paths.projectSerenaDir));
     expect(config).toContain('"trusted_project_path_patterns": []');
     expect(config).not.toContain(workspaceRoot + path.sep + '.serena');
+  });
+
+  it('reports unavailable when uv bootstrap is missing without probing global Serena', async () => {
+    const paths = makePaths();
+    const fake = fakeRunner('Serena 1.7.0');
+    const provisioner = createSerenaEngineProvisioner({
+      paths,
+      resolveUv: () => undefined,
+      runProcess: fake.runProcess,
+    });
+
+    await expect(provisioner.ensureInstalled()).rejects.toMatchObject({
+      code: 'CODING_ENGINE_BOOTSTRAP_UNAVAILABLE',
+    });
+    expect(fake.calls).toEqual([]);
+    expect(fs.existsSync(paths.engineRoot)).toBe(false);
+  });
+
+  it('rejects a managed Serena executable with the wrong version', async () => {
+    const paths = makePaths();
+    fs.mkdirSync(paths.binDir, { recursive: true });
+    const executablePath = path.join(paths.binDir, 'serena.cmd');
+    fs.writeFileSync(executablePath, '@echo off\n');
+    const fake = fakeRunner('Serena 9.9.9');
+    const provisioner = createSerenaEngineProvisioner({
+      paths,
+      resolveUv: () => 'C:\\tools\\uv.exe',
+      runProcess: fake.runProcess,
+    });
+
+    await expect(provisioner.ensureInstalled()).rejects.toMatchObject({
+      code: 'CODING_ENGINE_VERSION_MISMATCH',
+    });
+    expect(fake.calls).toEqual([{ command: executablePath, args: ['--version'] }]);
   });
 });
