@@ -9,6 +9,7 @@ import {
   buildSerenaServerArgs,
   buildUvEnvironment,
   createSerenaSpikePaths,
+  runSerenaRuntimeSpike,
 } from './serena-runtime-spike-harness.js';
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
@@ -49,5 +50,22 @@ describe('managed Serena runtime spike prerequisites', () => {
       '--mode', 'no-onboarding',
       '--open-web-dashboard', 'false',
     ]);
+  });
+
+  it('rejects a missing uv executable before creating runtime state', async () => {
+    await expect(runSerenaRuntimeSpike({
+      uvExecutable: 'C:\\missing\\uv.exe',
+      paths: createSerenaSpikePaths('C:\\temp\\spike'),
+      fixtureSource: fixtureRoot,
+    })).rejects.toThrow('SERENA_SPIKE_UV_NOT_FOUND');
+  });
+
+  it('rejects non-Windows real runs without platform fallback', async () => {
+    await expect(runSerenaRuntimeSpike({
+      uvExecutable: process.execPath,
+      paths: createSerenaSpikePaths('/tmp/spike'),
+      fixtureSource: fixtureRoot,
+      platform: 'linux',
+    })).rejects.toThrow('SERENA_SPIKE_WINDOWS_REQUIRED');
   });
 });
