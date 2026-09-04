@@ -1,7 +1,7 @@
 # SUD-D Managed Serena Coding Engine Architecture
 
 Date: 2026-09-04
-Status: Design approved in conversation; implementation not authorized by this document
+Status: Design approved in conversation; Product Mode Serena Allowlist amendment approved for documentation on 2026-09-04; implementation changes remain unapproved until explicit post-amendment approval
 Scope: Architectural design for integrating Serena as SUD-D's default advanced coding engine while retaining SUD-D as the authority/control plane
 
 ## 1. Decision summary
@@ -34,6 +34,8 @@ Trusted Developer Workspace
 The user interacts with SUD-D only. Serena is an implementation detail of the product and is not connected to the AI client directly in Product Mode.
 
 SUD-D remains responsible for authority, trust, approvals, audit, lifecycle, secrets policy, Team/Harness state, Git safety, recovery semantics, and product UX. Serena is responsible for advanced coding capabilities such as semantic navigation, symbol-aware editing/refactoring, diagnostics, and trusted developer shell execution.
+
+Product Mode authority is enforced by SUD-D, not by Serena mode semantics. SUD-D owns an explicit Product Mode Serena Allowlist for upstream capabilities it may reach through the managed adapter. Upstream `tools/list` is discovery/inventory only; allowlist membership is necessary but never sufficient for AI-facing authority, which still requires an approved SUD-D `code.*` mapping and the normal Tool Kernel/Policy/Approval/Audit path.
 
 ## 2. Goals
 
@@ -323,9 +325,23 @@ Every Serena capability reachable through Product Mode has explicit SUD-D metada
 - Approval requirements.
 - Supported upstream schema/version range.
 
-A Serena tool that appears after an update is `DENY` by default until reviewed and classified.
+### 13.1 Product Mode Serena Allowlist
 
-No dynamic passthrough of all upstream Serena tools is allowed.
+The **Product Mode Serena Allowlist** is a SUD-D-owned backend authority seam. It defines the maximum upstream Serena tool names that Product Mode infrastructure may dispatch to. It is distinct from the global SUD-D Policy engine and distinct from the public `code.*` facade.
+
+The governing rules are:
+
+- Upstream Serena `tools/list` is discovery/inventory only. Serena does not decide Product Mode authority by what it advertises.
+- The pinned 22-name set selected for the current Product Mode contract is the SUD-D-authorized upstream allowlist. Membership is necessary but not sufficient for AI-facing use; a later `code.*` milestone must still explicitly map/classify the capability and route it through Tool Kernel/Policy/Approval/Audit.
+- Product/AI callers must not be able to submit an arbitrary Serena tool name to the raw MCP `callTool(...)` path. The SUD-D Serena adapter/capability filter validates the requested upstream capability against the allowlist before dispatch.
+- An allowlisted tool that is missing or whose supported schema is incompatible is a Coding Engine health failure and fails closed.
+- An unexpected upstream tool is **Ready-but-blocked drift** when every allowlisted capability remains present and schema-compatible. It stays unreachable through Product Mode and does not become authority merely because Serena advertises it.
+- `--mode no-memories` remains enabled as defense-in-depth / best-effort upstream reduction only. Serena mode semantics are not the Product Mode security guarantee.
+- Raw upstream extra names/count may be inspected only as bounded in-memory compatibility diagnostics or acceptance evidence. Milestone B does not persist them to audit, UI, SQLite, or other durable product state.
+
+The pinned Serena 1.7.0 runtime has demonstrated why this separation is required: in the `desktop-app` context, `--mode no-memories` can still leave memory/onboarding tools advertised by upstream. SUD-D therefore treats mode configuration as a reduction hint, never as the authority seam.
+
+No dynamic passthrough of all upstream Serena tools is allowed. A new or previously unclassified Serena tool remains blocked until a separately approved change reviews its schema/classification and promotes it into the SUD-D allowlist.
 
 ## 14. `code.run` and shell policy
 
@@ -425,11 +441,12 @@ Health must verify more than process existence. At minimum it should establish:
 
 - managed process responsiveness,
 - expected Serena version/contract,
-- expected tool surface compatibility,
+- every SUD-D-allowlisted upstream tool is present and schema-compatible,
+- unexpected upstream tools remain blocked rather than gaining Product Mode authority,
 - correct active project,
 - usable LSP backend.
 
-Low-level PID/transport/config details belong in Advanced Diagnostics, not normal product UX.
+Unexpected upstream tools alone do not force `Needs repair` when the authorized allowlist remains compatible and enforcement is intact. `CodingEngineRuntimeHealth.toolCount` represents the effective SUD-D-authorized count, not the raw upstream discovery count. Low-level raw drift inventory, PID/transport/config details belong only in bounded diagnostics and must not become normal product state.
 
 ## 16. Source of truth and Serena memory
 
@@ -443,7 +460,7 @@ SUD-D is authoritative for long-lived product/workflow state:
 - Recovery metadata.
 - Runtime compatibility state.
 
-Serena memory is disabled by default in v1. Serena should remain as stateless as practical from SUD-D's perspective.
+Serena memory capability is disabled from Product Mode by the SUD-D allowlist in v1. SUD-D also requests Serena's `no-memories` mode as defense-in-depth, but upstream advertisement of memory/onboarding tools does not make them reachable. Serena should remain as stateless as practical from SUD-D's perspective.
 
 If Serena memory is enabled later, it may contain coding hints/cache only and must never become authoritative workflow state.
 
@@ -458,13 +475,13 @@ A controlled update flow is:
 1. Obtain the candidate pinned Serena build through the SUD-D update path.
 2. Install it side-by-side with the current known-good build where practical.
 3. Run a compatibility probe.
-4. Validate expected tool schemas.
-5. Verify every reachable upstream capability remains classified.
+4. Require every SUD-D-allowlisted upstream capability to remain present and schema-compatible.
+5. Confirm any unexpected upstream capabilities remain blocked/unreachable through Product Mode; record only bounded drift evidence for review.
 6. Run health/LSP probes.
 7. Promote only on success.
 8. Roll back to the previous known-good version on failure.
 
-A new Serena tool never gains Product Mode authority merely because upstream added it.
+A new Serena tool never gains Product Mode authority merely because upstream added it. Promoting a new tool into the allowlist is a separately reviewed compatibility/authority change; ordinary upstream drift is not self-authorizing.
 
 The exact initial pinned Serena version is selected during the implementation compatibility spike and recorded in a SUD-D-owned engine manifest. Production exposure of `code.*` cannot precede that pin.
 
@@ -548,7 +565,7 @@ STOP if lifecycle/transport cannot be made reliable without violating SUD-D inva
 
 ### Milestone B — managed runtime foundation
 
-Add runtime manager, health/degraded-mode state, engine manifest, and repair/restart backend plumbing. Native production tool behavior remains unchanged.
+Add runtime manager, health/degraded-mode state, engine manifest, SUD-D-owned Product Mode Serena Allowlist enforcement at the discovery/compatibility seam, and repair/restart backend plumbing. Milestone B validates that every authorized upstream tool is present/schema-compatible, treats unexpected tools as blocked drift, and exposes **no generic upstream tool-dispatch interface**. Native production tool behavior remains unchanged and no `code.*` capability is exposed yet.
 
 ### Milestone C — read-only semantic facade
 
@@ -560,7 +577,7 @@ Expose the first low-risk `code.*` subset:
 - search,
 - diagnostics.
 
-All calls pass Tool Kernel/Policy/Audit and adapter classification.
+All calls pass Tool Kernel/Policy/Audit and adapter classification. The Serena adapter uses fixed SUD-D `code.*` mappings and revalidates the mapped upstream tool against the Product Mode Serena Allowlist before raw MCP dispatch; no caller can supply an arbitrary upstream Serena tool name.
 
 ### Milestone D — semantic write facade
 
@@ -604,9 +621,10 @@ Each milestone needs focused tests plus full repository verification where execu
 At minimum the architecture requires tests for:
 
 - Workspace trust persistence and revocation.
-- AI cannot bypass SUD-D to call Serena directly in Product Mode.
-- Unclassified Serena tool is denied.
-- Upstream schema mismatch fails closed.
+- AI cannot bypass SUD-D to call Serena directly in Product Mode or supply an arbitrary upstream Serena tool name.
+- Unexpected/unclassified upstream Serena tools remain blocked and unreachable even when advertised by `tools/list`.
+- Unexpected upstream tools alone do not fail health when all allowlisted tools remain present and schema-compatible.
+- Missing or schema-incompatible allowlisted tools fail closed.
 - High-level path inputs cannot escape the active Workspace.
 - InternalRoot is denied.
 - Native tools remain usable when Serena is down.
@@ -631,13 +649,15 @@ At minimum the architecture requires tests for:
 SUD-D may claim:
 
 - Product Mode routes AI-accessible Serena capability through SUD-D policy/approval/audit.
+- SUD-D, not Serena mode semantics, enforces the Product Mode Serena Allowlist before any upstream Serena dispatch.
 - High-level facade path targets are constrained by SUD-D validation.
-- Unclassified upstream tools fail closed.
+- Unexpected/unclassified upstream tools remain blocked and cannot be invoked through Product Mode.
 - Risky direct actions require policy decisions and exact approvals according to their category.
 - Serena lifecycle/version is product-managed and controlled.
 
 SUD-D must not claim:
 
+- Serena `--mode no-memories` or any other upstream mode/configuration alone enforces the Product Mode authority boundary.
 - `code.run` is sandboxed merely because it is mediated.
 - command-string classification can prove the behavior of nested trusted code.
 - trusted host execution cannot access host resources.

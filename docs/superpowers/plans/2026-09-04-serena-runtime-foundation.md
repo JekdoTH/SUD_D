@@ -4,17 +4,19 @@
 
 **Goal:** Build Milestone B's production backend foundation that owns one pinned Serena 1.7.0 LSP runtime for the active SUD-D Workspace, reports stable Coding Engine health/degraded states, and supports stop/restart/repair without exposing any production `code.*` capability.
 
-**Architecture:** Add a small Coding Engine domain vocabulary and application lifecycle seam, then promote the proven Milestone A stdio/LSP mechanics into focused infrastructure modules: immutable engine manifest, SUD-D-owned paths/config, isolated uv provisioner, and managed Serena runtime. Product Mode Serena state is forced under `%LOCALAPPDATA%\SUD-D`; the source Workspace is never used for Serena metadata. The runtime is not wired into renderer UI or MCP in this milestone, so native production behavior remains unchanged while later milestones gain a tested backend seam.
+**Architecture:** Add a small Coding Engine domain vocabulary and application lifecycle seam, then promote the proven Milestone A stdio/LSP mechanics into focused infrastructure modules: immutable engine manifest, SUD-D-owned paths/config, isolated uv provisioner, SUD-D-owned Product Mode Serena allowlist/capability filtering, and managed Serena runtime. Product Mode Serena state is forced under `%LOCALAPPDATA%\SUD-D`; the source Workspace is never used for Serena metadata. Upstream `tools/list` is discovery/inventory only; Product Mode may dispatch only SUD-D-allowlisted upstream capabilities, and allowlist membership alone does not expose any AI-facing `code.*` authority. The runtime is not wired into renderer UI or MCP in this milestone, so native production behavior remains unchanged while later milestones gain a tested backend seam.
 
 **Tech Stack:** Windows 10/11, Node.js >=24, pnpm 10.34.5, TypeScript 5.8.3, Vitest 3.2.4, `@modelcontextprotocol/client` 2.0.0, Serena `serena-agent==1.7.0`, Python 3.13 via uv, stdio MCP, Serena LSP backend.
 
 **Spec:** `docs/superpowers/specs/2026-09-04-serena-coding-engine-architecture-design.md`
 
+**Amendment gate (2026-09-04):** Product Mode Serena authority is enforced by a SUD-D-owned allowlist/capability filter, not by Serena mode semantics. This document amendment is approved for review only; do not resume or change implementation until the user explicitly approves the written amendment.
+
 ## Global Constraints
 
 - This plan implements **Milestone B only — managed runtime foundation**.
 - Milestone A is the compatibility source of truth: `docs/superpowers/research/2026-09-04-serena-runtime-spike-results.md`.
-- Managed-config research is authoritative for Serena state placement and memory behavior: `docs/superpowers/research/2026-09-04-serena-managed-runtime-config-research.md`.
+- Managed-config research remains authoritative for Serena state placement/config mechanics: `docs/superpowers/research/2026-09-04-serena-managed-runtime-config-research.md`. Product Mode memory/tool **authority** follows this allowlist amendment rather than Serena mode semantics.
 - Serena package pin: `serena-agent==1.7.0`.
 - Serena upstream tag: `v1.7.0`.
 - Serena upstream commit: `949a27ef1e5fda1a6e7b561e777bcece345c6ffd`.
@@ -24,8 +26,8 @@
 - Transport remains **stdio**. No Streamable HTTP, SSE, local port, connector config, or user-visible MCP endpoint is introduced.
 - Language backend remains **LSP**.
 - Product Mode Serena context is `desktop-app` and mode is `no-memories`.
-- `no-onboarding` is not sufficient for Product Mode because it retains memory tools.
-- Expected Product Mode Serena tool contract is exactly the following 22 sorted names:
+- `--mode no-memories` is **defense-in-depth / best-effort upstream reduction only**. Serena mode semantics are not the Product Mode authority boundary; pinned Serena 1.7.0 may still advertise memory/onboarding tools in `desktop-app`.
+- The **SUD-D Product Mode Serena authorized allowlist** is exactly the following 22 sorted names:
   - `activate_project`
   - `create_text_file`
   - `execute_shell_command`
@@ -48,7 +50,12 @@
   - `replace_symbol_body`
   - `safe_delete_symbol`
   - `search_for_pattern`
-- Discovering a missing or additional Serena tool is a health failure. Unknown upstream tools do not gain authority.
+- Upstream Serena `tools/list` is discovery/inventory only. Product Mode dispatch authority comes from the SUD-D allowlist/capability filter, not from what Serena advertises.
+- Every allowlisted tool must be present and schema-compatible. Missing or schema-incompatible allowlisted tools are a health failure and fail closed.
+- Additional/unexpected upstream tools are **Ready-but-blocked drift** when all 22 allowlisted tools remain present and schema-compatible. They must remain unreachable through Product Mode and do not gain authority merely because Serena advertises them.
+- Product/AI callers must never be able to pass an arbitrary Serena tool name through to raw MCP `callTool(...)`; the SUD-D capability filter validates membership before dispatch.
+- `CodingEngineRuntimeHealth.toolCount` represents the effective SUD-D-authorized count (`22`), not the raw upstream discovery count.
+- Raw upstream extra names/count may be used only as bounded in-memory compatibility diagnostics/acceptance evidence and must not be persisted to audit, UI, SQLite, application state, errors, or other durable product state.
 - The production MCP surface remains exactly the existing 14 `workspace.*`, `git.*`, and `team.*` tools. Milestone B adds no `code.*`, no `dev.verify`, and no direct Serena passthrough.
 - No renderer-visible UI work occurs in Milestone B.
 - No Workspace Trust UI/persistence, Approval changes, `code.run`, delete authority, network policy UI, update promotion, rollback UI, or Team/Harness change occurs in Milestone B.
@@ -71,7 +78,7 @@
 - This milestone is **Security / Data Critical** because it creates a production process/runtime seam.
 - Final verification therefore requires focused TDD tests, relevant runtime/process regressions, lint, typecheck, full test suite, build, `git diff --check`, final `code-review`, and one real Windows managed-runtime acceptance run.
 - Capture the implementation baseline immediately before source edits: `git rev-parse HEAD`. Use that fixed SHA for final `code-review` and scope comparison.
-- STOP on any secret leak, Workspace metadata write, InternalRoot escape, uncontrolled process cleanup, wrong-version acceptance, tool-contract drift, global Serena fallback, or inability to prove the runtime health/cleanup contract.
+- STOP on any secret leak, Workspace metadata write, InternalRoot escape, uncontrolled process cleanup, wrong-version acceptance, Product Mode allowlist bypass, missing/schema-incompatible allowlisted tool, global Serena fallback, or inability to prove the runtime health/cleanup contract. Unexpected upstream tools alone are not a blocker when they remain unreachable and the authorized allowlist is fully compatible.
 - STOP after Milestone B verification + handoff + safe commit/push. Do not begin Milestone C without a new explicit user instruction.
 
 ## Pre-Implementation Compliance Check
@@ -114,11 +121,11 @@ Stop after Milestone B PASS/BLOCKED/INCONCLUSIVE evidence, handoff, commit/push,
 
 ### Infrastructure
 
-- Create: `packages/infrastructure/src/serena-engine-manifest.ts` — immutable Serena pin/tool contract/runtime flags.
+- Create: `packages/infrastructure/src/serena-engine-manifest.ts` — immutable Serena pin, 22-name Product Mode allowlist, reviewed input-schema compatibility metadata, and runtime flags.
 - Create: `packages/infrastructure/src/serena-runtime-paths.ts` — versioned engine paths and per-Workspace managed state paths under SUD-D DataRoot.
 - Create: `packages/infrastructure/src/serena-managed-config.ts` — deterministic SUD-D-owned `SERENA_HOME` config and pre-created project metadata directory.
 - Create: `packages/infrastructure/src/serena-engine-provisioner.ts` — isolated uv-managed Serena/Python install verification and repair; no global Serena fallback.
-- Create: `packages/infrastructure/src/serena-managed-runtime.ts` — stdio MCP lifecycle, exact tool-contract health, active-project/LSP health, and deterministic Windows cleanup.
+- Create: `packages/infrastructure/src/serena-managed-runtime.ts` — stdio MCP lifecycle, SUD-D allowlist/schema health, blocked-drift enforcement, active-project/LSP health, and deterministic Windows cleanup; no generic Product Mode Serena dispatch surface is exposed in Milestone B.
 - Modify: `packages/infrastructure/src/index.ts` — export managed Serena backend modules.
 - Modify: `packages/infrastructure/package.json` — add exact MCP client dependency.
 - Modify: `pnpm-lock.yaml` — lock production MCP client dependency placement.
@@ -332,6 +339,9 @@ describe('Serena managed foundation', () => {
     expect(SERENA_ENGINE_MANIFEST.modes).toEqual(['no-memories']);
     expect(SERENA_ENGINE_MANIFEST.expectedToolNames).toHaveLength(22);
     expect([...SERENA_ENGINE_MANIFEST.expectedToolNames].sort()).toEqual(SERENA_ENGINE_MANIFEST.expectedToolNames);
+    expect(Object.keys(SERENA_ENGINE_MANIFEST.expectedToolInputSchemas).sort()).toEqual(
+      [...SERENA_ENGINE_MANIFEST.expectedToolNames],
+    );
   });
 
   it('keeps Serena home and project metadata outside the source workspace', () => {
@@ -371,7 +381,9 @@ Expected: FAIL because manifest/path/config modules do not exist.
 
 - [ ] **Step 3: Implement the immutable manifest**
 
-Create `packages/infrastructure/src/serena-engine-manifest.ts` with an immutable object containing:
+Create `packages/infrastructure/src/serena-engine-manifest.ts`. First define an immutable `SERENA_V1_7_0_PRODUCT_MODE_INPUT_SCHEMAS` map containing exactly the reviewed `inputSchema` objects for the same 22 allowlisted names, copied from `docs/superpowers/research/2026-09-04-serena-v1.7.0-tool-schema.json` and keyed by tool name. Do not include the seven memory/onboarding drift tools and do not include descriptions in the compatibility contract.
+
+Then define the immutable manifest:
 
 ```ts
 export const SERENA_ENGINE_MANIFEST = Object.freeze({
@@ -409,10 +421,11 @@ export const SERENA_ENGINE_MANIFEST = Object.freeze({
     'safe_delete_symbol',
     'search_for_pattern',
   ] as const),
+  expectedToolInputSchemas: SERENA_V1_7_0_PRODUCT_MODE_INPUT_SCHEMAS,
 });
 ```
 
-Do not derive the contract from live Serena at runtime; the manifest is the expected authority and live discovery is compared against it.
+Do not derive authority from live Serena at runtime. `expectedToolNames` is the SUD-D Product Mode authorized allowlist. The manifest must also own immutable `expectedToolInputSchemas` entries for those same 22 names, copied from the reviewed Milestone A schema evidence at `docs/superpowers/research/2026-09-04-serena-v1.7.0-tool-schema.json`; production runtime must not read the research document directly. Compatibility compares canonical JSON structure for each allowlisted `inputSchema` with object-key order ignored; descriptions are not part of the health gate. Any structural schema change for an allowlisted tool fails closed until explicitly reviewed. Unexpected upstream tool definitions remain discovery drift and are not added to either manifest map automatically.
 
 - [ ] **Step 4: Implement managed paths**
 
@@ -605,6 +618,7 @@ git commit -m "feat: add managed Serena provisioner"
 - Create: `packages/application/src/coding-engine-runtime-port.ts`
 - Modify: `packages/application/src/index.ts`
 - Create: `packages/infrastructure/src/serena-managed-runtime.ts`
+- Modify: `packages/infrastructure/src/serena-engine-manifest.ts` — preserve the same 22 names and add reviewed input-schema compatibility metadata required by the amended health contract.
 - Modify: `packages/infrastructure/src/index.ts`
 - Modify: `packages/infrastructure/package.json`
 - Modify: `pnpm-lock.yaml`
@@ -648,17 +662,19 @@ Create `packages/application/src/coding-engine-runtime-port.ts` with the interfa
 
 Extend `packages/tests/src/serena-runtime-foundation.test.ts` to assert at least:
 
-1. exact 22 tools → health accepted;
-2. one extra tool → `CODING_ENGINE_TOOL_CONTRACT_MISMATCH`;
-3. one missing tool → same failure;
-4. `get_current_config` reporting the wrong active project → `CODING_ENGINE_PROJECT_MISMATCH`;
-5. config not reporting `Language backend: LSP` → `CODING_ENGINE_LSP_UNAVAILABLE`;
-6. symbolic `find_symbol` health probe rejecting/failing → `CODING_ENGINE_LSP_UNAVAILABLE`;
-7. MCP child exit/start failure → `CODING_ENGINE_START_FAILED`;
-8. repeated `stop()` calls are idempotent;
-9. stop failure that leaves the root process alive → `CODING_ENGINE_STOP_FAILED`.
+1. exact 22 allowlisted tools with compatible schemas → health accepted with `toolCount === 22`;
+2. the same 22 compatible tools plus one unexpected upstream tool → health still accepted with `toolCount === 22`, and the extra tool remains blocked/unreachable;
+3. one missing allowlisted tool → `CODING_ENGINE_TOOL_CONTRACT_MISMATCH`;
+4. one allowlisted tool with a structurally incompatible `inputSchema` → same failure;
+5. `get_current_config` reporting the wrong active project → `CODING_ENGINE_PROJECT_MISMATCH`;
+6. config not reporting `Language backend: LSP` → `CODING_ENGINE_LSP_UNAVAILABLE`;
+7. symbolic `find_symbol` health probe rejecting/failing → `CODING_ENGINE_LSP_UNAVAILABLE`;
+8. MCP child exit/start failure → `CODING_ENGINE_START_FAILED`;
+9. repeated `stop()` calls are idempotent;
+10. stop failure that leaves the root process alive → `CODING_ENGINE_STOP_FAILED`;
+11. the exported Milestone B runtime interface exposes no generic Serena `callTool`/tool-name dispatch surface, so an unexpected upstream tool cannot be invoked through Product Mode.
 
-Test the exported runtime factory/public seam. Do not reach into private functions.
+Test the exported runtime factory/public seam. Do not reach into private functions. The injected raw MCP session remains an infrastructure test seam only; it must never become the Product Mode interface.
 
 - [ ] **Step 4: Verify RED**
 
@@ -678,7 +694,9 @@ create managed paths
 → ensure pinned managed Serena is installed
 → launch pinned managed Serena over stdio
 → MCP initialize
-→ exact tools/list contract
+→ discover upstream tools/list inventory
+→ compute the effective 22-tool SUD-D allowlist surface
+→ require every allowlisted tool/schema; keep unexpected tools blocked
 → get_current_config project/backend check
 → symbolic find_symbol sentinel health probe
 → Ready health result
@@ -709,12 +727,17 @@ new StdioClientTransport({
 SERENA_HOME=<paths.serenaHome>
 ```
 
-Do not copy `process.env` wholesale.
+Do not copy `process.env` wholesale. Keep `--mode no-memories` in the launch plan as defense-in-depth, but never infer Product Mode authority from its effect on upstream discovery.
 
 After `client.connect(transport)`:
 
 - require `client.getServerVersion()?.name === 'Serena'` and a non-empty server version;
-- normalize `listTools().tools.map(t => t.name).sort()` and compare element-for-element with `SERENA_ENGINE_MANIFEST.expectedToolNames`;
+- treat `client.listTools().tools` as raw discovery inventory only;
+- build a name → definition lookup in memory and require every `SERENA_ENGINE_MANIFEST.expectedToolNames` entry to exist;
+- compare each allowlisted tool's `inputSchema` against `SERENA_ENGINE_MANIFEST.expectedToolInputSchemas[name]` by canonical JSON structure with object-key order ignored; any missing/incompatible allowlisted definition throws `CODING_ENGINE_TOOL_CONTRACT_MISMATCH`;
+- compute the effective Product Mode surface from the allowlist only. Extra upstream tools are ignored for authority and remain unreachable; they do not fail health by themselves;
+- return `toolCount: SERENA_ENGINE_MANIFEST.expectedToolNames.length`, never the raw `tools/list` count;
+- do not return or persist raw extra names/count in `CodingEngineRuntimeHealth`, application status, audit, UI, SQLite, or errors;
 - call `get_current_config` and inspect its text **in memory only**; require:
   - `Serena version: 1.7.0`
   - `Active project: ${context.projectName}`
@@ -736,7 +759,9 @@ await client.callTool({
 
 The sentinel need not find a symbol. Success means Serena could execute the LSP-backed symbolic path; any tool error maps to `CODING_ENGINE_LSP_UNAVAILABLE`.
 
-Return only the bounded `CodingEngineRuntimeHealth` DTO. Never return raw config/tool text.
+The raw MCP session's generic `callTool(...)` method is an infrastructure implementation/test seam only. Milestone B's exported managed-runtime interface remains `start/stop/repair` and exposes no generic Serena dispatch method. Every runtime-owned health call uses an allowlisted tool name. When a later `code.*` milestone introduces dispatch, its fixed adapter mapping must revalidate the mapped upstream name against the same manifest allowlist before raw MCP dispatch; callers still never supply an arbitrary Serena tool name.
+
+Return only the bounded `CodingEngineRuntimeHealth` DTO. Never return raw config/tool text or raw upstream drift inventory.
 
 - [ ] **Step 6: Implement deterministic Windows cleanup**
 
@@ -776,7 +801,7 @@ Expected: PASS.
 - [ ] **Step 9: Commit Task 4**
 
 ```powershell
-git add packages/application/src/coding-engine-runtime-port.ts packages/application/src/index.ts packages/infrastructure/src/serena-managed-runtime.ts packages/infrastructure/src/index.ts packages/infrastructure/package.json pnpm-lock.yaml packages/tests/src/serena-runtime-foundation.test.ts
+git add packages/application/src/coding-engine-runtime-port.ts packages/application/src/index.ts packages/infrastructure/src/serena-engine-manifest.ts packages/infrastructure/src/serena-managed-runtime.ts packages/infrastructure/src/index.ts packages/infrastructure/package.json pnpm-lock.yaml packages/tests/src/serena-runtime-foundation.test.ts
 git commit -m "feat: add managed Serena stdio runtime"
 ```
 
@@ -928,16 +953,18 @@ The live test must:
    - engine `serena`
    - version `1.7.0`
    - server name `Serena`
-   - tool count `22`
+   - `toolCount === 22`, meaning the effective SUD-D-authorized allowlist count rather than raw upstream discovery count
    - project name equals the copied Workspace folder name
    - `lspReady === true`;
-9. call runtime `stop()`;
-10. assert `developer-marker.txt` is still exactly `do-not-touch` and no new files appeared under the source Workspace `.serena`;
-11. assert SUD-D-managed `projectSerenaDir/project.yml` exists outside the source Workspace;
-12. assert the managed root PID/process tree is gone through the runtime's public cleanup result/stop success, supplemented by the bounded Windows process check used by the test harness;
-13. remove the temporary source Workspace and data root.
+9. through a **test-only bounded diagnostic seam**, inspect raw `tools/list` in memory only and assert all 22 allowlisted names are present; any unexpected upstream names are treated as drift evidence, not authority;
+10. assert the production managed-runtime interface exposes no generic `callTool`/arbitrary Serena tool-name dispatch method, and the test-only raw session records no invocation of an unexpected upstream tool;
+11. call runtime `stop()`;
+12. assert `developer-marker.txt` is still exactly `do-not-touch` and no new files appeared under the source Workspace `.serena`;
+13. assert SUD-D-managed `projectSerenaDir/project.yml` exists outside the source Workspace;
+14. assert the managed root PID/process tree is gone through the runtime's public cleanup result/stop success, supplemented by the bounded Windows process check used by the test harness;
+15. remove the temporary source Workspace and data root.
 
-Do not persist Serena output or process command lines into the test report.
+The diagnostic may report only bounded raw upstream tool count/names plus derived missing/unexpected name sets for acceptance evidence. If it wraps `listTools()`, it must forward the original tool definitions directly to the production runtime so schema health uses the real `inputSchema`; the diagnostic itself must not copy, print, serialize, or persist descriptions/schemas. Do not capture or persist raw Serena stdout/stderr, environment values, command lines, arbitrary MCP output, or secret-sensitive data.
 
 - [ ] **Step 2: Add the root acceptance command**
 
@@ -955,7 +982,7 @@ pnpm serena:managed-runtime
 
 Expected: PASS. The first run may install the pinned Serena/Python into the temporary SUD-D data root used by the acceptance test; no project source metadata may be created/changed.
 
-If this test cannot prove central metadata placement, LSP health, exact 22-tool contract, or cleanup, stop with Milestone B BLOCKED rather than weakening the contract.
+If this test cannot prove central metadata placement, LSP health, presence/schema compatibility of all 22 SUD-D-authorized tools, blocked/unreachable handling of unexpected upstream tools, or cleanup, stop with Milestone B BLOCKED rather than weakening the allowlist contract. Unexpected upstream tools alone are not a blocker when enforcement remains intact.
 
 - [ ] **Step 4: Assert production MCP remains 14 tools**
 
@@ -1002,7 +1029,7 @@ Expected: PASS.
 pnpm serena:managed-runtime
 ```
 
-Expected: PASS with 22-tool Product Mode Serena contract, central SUD-D metadata, LSP health, and clean process teardown.
+Expected: PASS with the 22-tool SUD-D Product Mode Serena allowlist fully present/schema-compatible, any upstream extras blocked as Ready-but-blocked drift, central SUD-D metadata, LSP health, and clean process teardown.
 
 - [ ] **Step 3: Run relevant runtime/process regressions**
 
@@ -1041,9 +1068,10 @@ Expected:
 - no `.serena/` staged/committed;
 - no renderer/UI implementation;
 - no production `code.*` registration;
-- no direct Serena passthrough;
+- no direct Serena passthrough and no exported generic Serena tool-name dispatch seam;
+- unexpected upstream Serena tools remain blocked by the SUD-D Product Mode allowlist and do not alter the effective `toolCount`;
 - no unexpected `packages/mcp-gateway` or renderer-visible Desktop behavior changes beyond a test-only 14-tool regression if that test location requires it;
-- no raw Serena output, environment dump, credential material, or user-global Serena path persisted.
+- no raw Serena output, raw upstream drift inventory, environment dump, credential material, or user-global Serena path persisted.
 
 - [ ] **Step 6: Run final `code-review` against the captured baseline**
 
@@ -1053,7 +1081,7 @@ Use the repo `code-review` skill with fixed point `<MILESTONE_B_BASE>` and spec:
 docs/superpowers/specs/2026-09-04-serena-coding-engine-architecture-design.md
 ```
 
-Review Standards and Spec separately. Security/runtime lifecycle, source Workspace mutation, secret leakage, global Serena fallback, missing cleanup, and unauthorized MCP/UI exposure are blocking findings.
+Review Standards and Spec separately. Security/runtime lifecycle, Product Mode allowlist bypass, missing/schema-incompatible allowlisted tools, source Workspace mutation, secret leakage, global Serena fallback, missing cleanup, and unauthorized MCP/UI exposure are blocking findings. Unexpected upstream tools are not blocking by themselves when the SUD-D filter keeps them unreachable and all allowlisted tools remain compatible.
 
 - [ ] **Step 7: Determine the milestone verdict**
 
@@ -1086,7 +1114,7 @@ Append a concise Milestone B section to `SUD_D_HANDOFF.md` containing:
 - exact verdict;
 - implementation baseline SHA;
 - milestone commit SHAs;
-- Serena manifest pin and 22-tool Product Mode upstream contract;
+- Serena manifest pin and 22-tool **SUD-D Product Mode Serena authorized allowlist**, with the distinction that raw upstream discovery may contain additional blocked tools;
 - managed state rule: `SERENA_HOME` + project metadata under SUD-D DataRoot, source `.serena` untouched;
 - real Windows acceptance result;
 - focused/full verification results;
@@ -1133,12 +1161,14 @@ Do not start Milestone C, do not expose `code.overview`, and do not add any othe
 ### Spec coverage
 
 - Product-owned managed Serena lifecycle: Tasks 2–6.
-- Exact pinned Serena manifest: Task 2.
+- Exact pinned Serena manifest with the unchanged 22-name SUD-D Product Mode allowlist and reviewed schema compatibility metadata: Tasks 2 and 4.
+- SUD-D-owned allowlist authority / Ready-but-blocked upstream drift semantics: Tasks 4 and 6.
 - SUD-D-owned Serena home/config/cache/project metadata: Tasks 2–4.
 - Existing Workspace `.serena` not adopted/mutated: Tasks 2 and 6.
-- Memory OFF by default: manifest + `--mode no-memories` in Tasks 2 and 4.
+- Serena memory/onboarding capability is blocked from Product Mode by the SUD-D allowlist; `--mode no-memories` remains defense-in-depth only: Tasks 2, 4, and 6.
 - stdio MCP only: Task 4.
-- Version/tool contract health: Task 4.
+- Version + allowlist/schema health: Task 4 requires all 22 authorized tools to remain present/schema-compatible while unexpected upstream tools remain blocked without becoming a health failure by themselves.
+- No arbitrary upstream tool dispatch: Task 4 keeps raw `callTool` internal and Task 6 proves the exported Milestone B runtime exposes no generic tool-name seam.
 - Correct active project check: Task 4 combines fixed canonical launch context with Serena-reported active project name.
 - LSP usable health: Task 4 symbolic sentinel plus Task 6 real semantic fixture acceptance.
 - One Workspace / one runtime and stop-before-rebind: Task 5.
@@ -1166,4 +1196,4 @@ The plan contains no `TBD`, `TODO`, “implement later”, or undefined product 
 
 ## Execution Handoff
 
-Plan complete. Execute Milestone B using `superpowers:subagent-driven-development` where available; otherwise use `superpowers:executing-plans`. Capture the implementation baseline after pulling this plan, then follow tasks in order. Do not implement Milestone C in the same execution.
+The Product Mode Serena Allowlist amendment is documented in this plan but **implementation is paused pending explicit user approval of the written amendment**. Do not change the current Milestone B implementation, manifest, or expected 22-name allowlist until that approval is given. After approval, resume Milestone B from the current repository state using the required execution workflow, apply the amended Task 4/Task 6 behavior through TDD, then continue the remaining Milestone B gates. Do not implement Milestone C in the same execution.
