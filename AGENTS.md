@@ -226,6 +226,9 @@ See [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) and [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md
 - Short results may be returned directly in chat.
 - Long progress updates, intermediate status reports, design reports, reviews, verification reports, architecture reports, or handoffs should be written to `.serena/reports/*.md` by default instead of being pasted in full into chat.
 - Long prompts, task specifications, implementation instructions, or agent-to-agent handoff instructions intended to be forwarded to another agent should be delivered as a `.md` file by default; use `.txt` when plain text is more appropriate.
+- For every user-mediated Serena/agent/device handoff, make the next action explicit in chat: state exactly **what file or exact short message to send**, and **which target agent/device** receives it (for example `@Serena SUD-D Work`). Never require the user to infer the handoff payload from surrounding discussion.
+- Prefer one concise forwardable `.md` instruction/handoff file when the payload has multiple steps, evidence, constraints, or STOP conditions. If a short message is sufficient, label that exact message as the payload to forward.
+- Home-PC and Work-PC are separate local execution environments. On cross-device continuation, name the target device, treat that device's local repository as the technical source of truth after local-state inspection, and carry forward any known unsynced-commit/worktree warnings before sync operations.
 - Use `.txt` for long raw logs, command output, or other plain-text evidence that does not benefit from Markdown.
 - The chat response for a long report or forwardable task should contain only a concise summary, status, blockers or open decisions, and the local file path.
 - During long-running work, chat progress messages should remain brief; keep cumulative details in the report file instead of repeating them in the conversation.
