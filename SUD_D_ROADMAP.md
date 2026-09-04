@@ -224,14 +224,14 @@ Connection Foundation + Connection UX COMPLETE
 → Personal Alpha Workspace File Tools: Read / Search / Write
 → Git Safety + Integration
 → Basic Approval
-→ Managed Serena Runtime Foundation (Milestone B) COMPLETE
+→ Milestone B CLOSED (Managed Serena Runtime Foundation)
 → Semantic Read
 → Semantic Write
 → Restricted Verify
 → Work Memory / Automatic Resume MVP
 → Team Mode MVP
-→ Full Recovery / Delete hardening
-→ broader Execute / installer / cross-platform / polish later
+→ real-world dogfooding
+→ later hardening only when usage proves the need
 ```
 
 This acceleration changes sequencing and scope, not the security architecture. No capability may bypass the Tool Kernel, Policy, Approval where applicable, workspace boundary, audit, or secret rules.
@@ -240,7 +240,7 @@ This acceleration changes sequencing and scope, not the security architecture. N
 
 Create the central typed execution path through which future tools must pass.
 
-M1 remains the next implementation milestone. It must establish the typed request/result, policy/classification, execution dispatch, audit, and fail-closed seams required by later tools without prematurely exposing broad privileged capability.
+M1 is complete. Its typed request/result, policy/classification, execution dispatch, audit, and fail-closed seams remain the foundation for later capabilities.
 
 ### Personal Alpha File Tools — Read / Search / Write
 
@@ -320,15 +320,19 @@ Team Mode MVP does **not** require full Delete/Recovery, generic Execute, instal
 
 ### Deferred until after Team Mode MVP
 
-The following remain important, but are intentionally moved behind the first usable Team Mode milestone:
+The following remain future product capabilities, but they do not block the first usable Team Mode MVP unless separately approved:
 
+- arbitrary/general shell and broader Execute
 - full Safe File Mutation + Recovery engine
 - Safe Delete semantics and recoverable delete
-- broader/general Process / Execute integration
-- installer / packaged distribution polish
+- Serena auto-update / unattended runtime promotion
+- Computer Use implementation unless separately approved earlier
+- bundled installer / packaged distribution polish
 - cross-platform support
 - enterprise/load/multi-user hardening
 - non-critical UI polish
+
+Prioritize real-world dogfooding after Team Mode MVP; promote later hardening when usage demonstrates the need.
 
 ### Privileged capability gate
 
@@ -445,17 +449,43 @@ Capabilities that are deferred at Team Mode MVP—especially Delete and broad Ex
 
 ### Serena's Role
 
-Serena is a development-time and optional specialist integration. It currently helps develop SUD_D and may serve as a semantic coding specialist, but Team Mode must not require Serena as a core runtime dependency.
+Target product experience: Serena behaves like a built-in SUD_D coding dependency rather than something the user installs, configures, starts, or repairs manually. SUD_D owns Serena install/provisioning, the reviewed version pin, managed config, start/stop lifecycle, health, and repair behind the SUD_D control plane.
 
-A future Software Development team may choose either or both specialist paths:
+Internally Serena remains a pinned SUD_D-managed runtime behind fixed SUD_D `code.*` mappings and the normal capability/security boundary. Do not fork, copy, or vendor Serena source into SUD_D merely to make the integration appear built in.
+
+Serena remains a specialist capability rather than a universal Team Mode dependency. A future Software Development team may choose either or both specialist paths:
 
 ```text
 Developer Agent
  ├─ SUD_D native code tools
- └─ Serena adapter (optional)
+ └─ Serena-backed semantic code tools
 ```
 
 Non-software presets such as Podcast Production and Research do not require Serena.
+
+### Approved Capability Vision
+
+The approved product direction is goal-based orchestration: the user supplies a Goal and constraints; SUD_D plans, coordinates, verifies, and advances the work until the Goal is complete or a user approval/stop condition is reached.
+
+- **Multi-agent handoff** uses the shared Goal / Task / Checkpoint / Artifact / Decision / Handoff model. Team Mode must not invent a parallel continuity system.
+- **Cross-chat continuation** is provided by Work Memory / Automatic Resume and its bounded Workspace-scoped Resume Context.
+- **Automatic result-checking and next-step dispatch** belong to the Lead / Orchestrator: inspect results, decide the next Task, dispatch it, and repeat within the approved constraints.
+- **Files / code / test / Git work** uses SUD_D secure tools, with Serena-backed semantic coding capabilities where appropriate.
+- **Computer Use** is an approved future browser/desktop-control capability direction. It must enter through SUD_D capability, Tool Kernel, Policy, Approval, and Audit boundaries and is not required before Team Mode MVP unless separately approved.
+- **Sensitive actions** remain governed by SUD_D Policy / Approval. Agent role, Serena capability, Computer Use, or orchestration status never grants bypass authority.
+
+Durable North Star:
+
+```text
+User gives Goal
+→ SUD_D Orchestrator plans/coordinates
+→ selects appropriate agent/tool/Serena/Computer Use capability
+→ executes through Tool Kernel / Policy / Approval / Audit
+→ verifies results
+→ dispatches the next step
+→ stores bounded Work Memory/checkpoints
+→ returns Final Result to the user
+```
 
 ### User and Harness Responsibilities
 
@@ -463,7 +493,7 @@ The user should primarily define the Goal or Brief, set constraints, approve sen
 
 ### Relationship to the Secure Core
 
-M0 plus the accelerated Personal Alpha foundation in Section 5 are the required near-term base for Team Mode MVP. Team Mode depends on the Workspace Boundary, Tool Kernel, Policy, Basic Approval, Audit, workspace file tools, Git safety, restricted process controls, and MCP/runtime foundations that are actually available at that time.
+M0 plus the accelerated Personal Alpha foundation in Section 5 are the required near-term base for Team Mode MVP. Team Mode depends on the Workspace Boundary, Tool Kernel, Policy, Basic Approval, Audit, workspace file tools, Git safety, Restricted Verify, Work Memory / Automatic Resume, and MCP/runtime foundations that are actually available at that time.
 
 Full Recovery, Safe Delete, broader Execute, installer polish, and cross-platform support are **post-MVP hardening** and are not prerequisites for the first Team Mode experiment. Until those capabilities are implemented, Team Mode must simply be unable to use them.
 
@@ -584,7 +614,7 @@ The bootstrap/resume contract is product-owned and authority-neutral:
 - never grant additional Tool Kernel / Policy / Approval / Audit authority;
 - never require raw ChatGPT conversation transcripts or a ChatGPT conversation ID as the source of truth.
 
-Minimal Resume Context remains bounded structured state per Workspace: Goal, current Task/status, Completed work, important Decisions, Blockers, Next Action, relevant Artifacts/changed paths, verification evidence summary, Git/checkpoint reference when available, and updated timestamp.
+Minimal Resume Context remains bounded structured state per Workspace, not one global memory pool: Goal, current Task/status, Completed work, important Decisions, Blockers, Next Action, relevant Artifacts/changed paths, verification evidence summary, Git/checkpoint reference when available, and updated timestamp.
 
 Use both automatic state derived from SUD_D tool/task activity where reliable and explicit checkpoints at meaningful boundaries. Checkpoints stay operational: Current Task / Completed / Decisions / Blocker / Next Action / Evidence.
 

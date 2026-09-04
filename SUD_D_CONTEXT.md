@@ -6,7 +6,7 @@ This document holds stable project context, not milestone progress. For approved
 
 SUD_D is a local-first Windows AI control gateway/runtime whose secure core supports the long-term North Star: a domain-agnostic **Personal AI Team Harness / Orchestrator**. A user defines a goal and constraints; Team Mode coordinates planning, specialist work, verification, review, handoff, memory, and final artifacts for user review or approval.
 
-The MCP Gateway is a foundation rather than the final product destination. Team Mode remains above the existing secure execution boundary, every agent role uses the same Tool Kernel → Policy → Approval → Execution path, and Serena is an optional specialist integration rather than a required core runtime dependency. Detailed Team Mode architecture is deferred until the secure core is sufficiently ready.
+The MCP Gateway is a foundation rather than the final product destination. Team Mode remains above the existing secure execution boundary, every agent role uses the same Tool Kernel → Policy → Approval → Execution path, and Serena is an optional specialist integration rather than a required core runtime dependency. For software workflows, the target product experience is that SUD_D manages Serena as a built-in dependency behind its own control plane and `code.*` facade rather than requiring manual Serena setup. Detailed Team Mode implementation remains gated by the approved roadmap prerequisites.
 
 SUD_D is local-first by design: project state and continuity live in Git, device runtime state stays local, and cloud infrastructure is not a prerequisite for the core product.
 
@@ -87,11 +87,11 @@ Add Workspace → Select Workspace → Connect ChatGPT → Connected
 
 Protected work should surface a clear Approve / Deny decision with enough context to understand the request. Normal users should not manage tunnel profile names, keys, executable paths, environment variables, or CLI commands. Advanced diagnostics may show safe technical metadata, never secret material or a renderer-controlled privileged surface.
 
-## Workspace Memory and Session Continuity
+## Work Memory / Automatic Resume and Session Continuity
 
-The long-term Workspace Memory direction is to let a new ChatGPT session resume project work from repository-backed task state, checkpoints, architecture decisions, open questions, verification, and commit history rather than depend on an old chat transcript. It is planned product direction, not permission to implement it now.
+Work Memory / Automatic Resume is an approved prerequisite immediately before Team Mode MVP. It is intended to let a new ChatGPT session resume unfinished Workspace work from bounded SUD_D-owned Goal/Task/checkpoint state rather than depend on an old chat transcript. This is approved product direction, not permission to implement it from an unrelated task.
 
-Until an approved Workspace Memory milestone exists, Git is the continuity mechanism: sync the repository, read the handoff, inspect recent commits, perform scoped work, update the handoff when project state changes, verify, commit, and push. `.serena/` is local tooling state and must not be treated as project memory or committed.
+Until that capability is implemented, Git plus `SUD_D_HANDOFF.md` remains the continuity mechanism: sync the repository, read the handoff, inspect recent commits, perform scoped work, update the handoff when project state changes, verify, commit, and push. `.serena/` is local tooling state and must not be treated as project memory or committed.
 
 ## Document Responsibilities
 
