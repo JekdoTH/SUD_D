@@ -11,3 +11,6 @@ export * from './git-safety-adapter.js';
 export * from './approval-repository.js';
 export * from './team-repository.js';
 export * from './doctor.js';
+export * from './serena-engine-manifest.js';
+export * from './serena-runtime-paths.js';
+export * from './serena-managed-config.js';
