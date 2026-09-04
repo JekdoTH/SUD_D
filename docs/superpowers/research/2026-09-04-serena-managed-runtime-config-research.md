@@ -136,6 +136,17 @@ Source:
 
 - `docs/superpowers/research/2026-09-04-serena-runtime-spike-results.md`
 
+## 7. Hash enforcement is broader than one top-level Serena wheel
+
+Astral's uv CLI supports `--require-hashes` for tool installation, but hash-checking mode is all-or-nothing: every requirement must be pinned and have a matching hash (or be a direct URL). Serena has transitive dependencies, so the single approved `serena-agent` wheel hash recorded by Milestone A is not by itself a complete hash-locked dependency graph.
+
+**Milestone B implication:** keep the exact Serena package/version/upstream commit/top-level wheel hash in the engine manifest, but do not claim that the Milestone B bootstrap path is a fully supply-chain-locked updater. Milestone B does not enable Serena auto-update or user-facing update. Before Milestone F enables production update/promotion, SUD-D must define and test a complete artifact/dependency verification strategy.
+
+Sources:
+
+- uv CLI reference, `uv tool install --require-hashes`: https://docs.astral.sh/uv/reference/cli/#uv-tool-install
+- uv settings reference, hash-checking constraints: https://docs.astral.sh/uv/reference/settings/#require-hashes
+
 ## Product constraints carried forward
 
 - No direct Product Mode AI → Serena connection.
