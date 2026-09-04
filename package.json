@@ -14,6 +14,7 @@
     "test": "pnpm --filter @sud-d/domain build && pnpm --filter @sud-d/mcp-gateway build && cross-env ELECTRON_RUN_AS_NODE=1 electron ./node_modules/vitest/vitest.mjs run",
     "build": "pnpm --filter @sud-d/domain build && pnpm --filter @sud-d/contracts build && pnpm --filter @sud-d/infrastructure build && pnpm --filter @sud-d/application build && pnpm --filter @sud-d/mcp-gateway build && pnpm --filter @sud-d/desktop build",
     "serena:spike": "cross-env SUD_D_SERENA_SPIKE=1 vitest run packages/tests/src/serena-runtime-spike.test.ts --reporter=verbose",
+    "serena:managed-runtime": "cross-env SUD_D_SERENA_MANAGED_RUNTIME=1 vitest run packages/tests/src/serena-managed-runtime.acceptance.test.ts --reporter=verbose",
     "dev": "pnpm --filter @sud-d/desktop dev",
     "postinstall": "pnpm --filter @sud-d/desktop rebuild"
   },

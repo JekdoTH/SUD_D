@@ -40,6 +40,11 @@ export interface SerenaRuntimeSpikeReport {
   readonly cleanup: 'clean';
 }
 
+interface ChildProcessEventSource {
+  once(event: 'error', listener: (error: Error) => void): void;
+  once(event: 'close', listener: (code: number | null) => void): void;
+}
+
 interface ProcessPair {
   readonly ProcessId: number;
   readonly ParentProcessId: number;
@@ -128,6 +133,7 @@ async function runBoundedProcess(
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    const childEvents = child as unknown as ChildProcessEventSource;
     let captured = 0;
     const onData = (chunk: Buffer): void => {
       captured += chunk.length;
@@ -139,11 +145,11 @@ async function runBoundedProcess(
       child.kill();
       reject(new Error('SERENA_SPIKE_PROCESS_TIMEOUT'));
     }, options.timeoutMs);
-    child.once('error', (error) => {
+    childEvents.once('error', (error) => {
       clearTimeout(timer);
       reject(error);
     });
-    child.once('close', (code) => {
+    childEvents.once('close', (code) => {
       clearTimeout(timer);
       if (code === 0) resolve();
       else reject(new Error('SERENA_SPIKE_PROCESS_FAILED'));

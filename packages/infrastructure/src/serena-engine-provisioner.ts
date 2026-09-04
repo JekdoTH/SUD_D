@@ -5,6 +5,11 @@ import { CodingEngineRuntimeFailure } from '@sud-d/domain';
 import { SERENA_ENGINE_MANIFEST } from './serena-engine-manifest.js';
 import type { SerenaRuntimePaths } from './serena-runtime-paths.js';
 
+interface ChildProcessEventSource {
+  once(event: 'error', listener: (error: Error) => void): void;
+  once(event: 'close', listener: (code: number | null) => void): void;
+}
+
 export interface SerenaProvisionedEngine {
   readonly executablePath: string;
   readonly version: '1.7.0';
@@ -176,6 +181,7 @@ async function runBoundedProcess(
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    const childEvents = child as unknown as ChildProcessEventSource;
     const timeout = setTimeout(() => {
       child.kill();
       resolve({ exitCode: 1, stdout: '', stderrBytes: OUTPUT_LIMIT_BYTES });
@@ -193,8 +199,8 @@ async function runBoundedProcess(
       stderrBytes += chunk.length;
       if (stdoutBytes + stderrBytes > OUTPUT_LIMIT_BYTES) child.kill();
     });
-    child.once('error', reject);
-    child.once('close', (code) => {
+    childEvents.once('error', reject);
+    childEvents.once('close', (code) => {
       clearTimeout(timeout);
       resolve({ exitCode: code ?? 1, stdout, stderrBytes });
     });

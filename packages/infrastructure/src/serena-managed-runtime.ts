@@ -171,12 +171,50 @@ function buildManagedSerenaLaunchPlan(
   };
 }
 
+function canonicalizeJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeJsonValue);
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new CodingEngineRuntimeFailure('CODING_ENGINE_TOOL_CONTRACT_MISMATCH');
+    return value;
+  }
+  if (typeof value !== 'object') {
+    throw new CodingEngineRuntimeFailure('CODING_ENGINE_TOOL_CONTRACT_MISMATCH');
+  }
+
+  const record = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.keys(record)
+      .sort()
+      .map((key) => [key, canonicalizeJsonValue(record[key])]),
+  );
+}
+
+function toolInputSchemaMatches(actual: unknown, expected: unknown): boolean {
+  try {
+    return JSON.stringify(canonicalizeJsonValue(actual)) === JSON.stringify(canonicalizeJsonValue(expected));
+  } catch {
+    return false;
+  }
+}
+
 async function assertToolContract(session: ManagedSerenaMcpSession): Promise<void> {
-  const names = (await session.listTools()).map((tool) => tool.name).sort();
-  const expected = SERENA_ENGINE_MANIFEST.expectedToolNames;
-  if (names.length !== expected.length) throw new CodingEngineRuntimeFailure('CODING_ENGINE_TOOL_CONTRACT_MISMATCH');
-  for (let index = 0; index < expected.length; index += 1) {
-    if (names[index] !== expected[index]) {
+  const discovered = await session.listTools();
+  const expectedNames = SERENA_ENGINE_MANIFEST.expectedToolNames;
+  const expectedNameSet = new Set<string>(expectedNames);
+  const definitionsByName = new Map<string, ManagedSerenaToolDefinition>();
+
+  for (const definition of discovered) {
+    if (definitionsByName.has(definition.name) && expectedNameSet.has(definition.name)) {
+      throw new CodingEngineRuntimeFailure('CODING_ENGINE_TOOL_CONTRACT_MISMATCH');
+    }
+    if (!definitionsByName.has(definition.name)) definitionsByName.set(definition.name, definition);
+  }
+
+  for (const name of expectedNames) {
+    const definition = definitionsByName.get(name);
+    const expectedSchema = SERENA_ENGINE_MANIFEST.expectedToolInputSchemas[name];
+    if (!definition || !toolInputSchemaMatches(definition.inputSchema, expectedSchema)) {
       throw new CodingEngineRuntimeFailure('CODING_ENGINE_TOOL_CONTRACT_MISMATCH');
     }
   }

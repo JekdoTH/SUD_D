@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CodingEngineRuntimeFailure } from '@sud-d/domain';
 import {
   SERENA_ENGINE_MANIFEST,
   createManagedSerenaRuntime,
@@ -11,6 +10,7 @@ import {
   prepareManagedSerenaConfig,
   type ManagedSerenaMcpSession,
   type ManagedSerenaProcessSupervisor,
+  type ManagedSerenaToolDefinition,
 } from '@sud-d/infrastructure';
 
 const roots: string[] = [];
@@ -66,28 +66,62 @@ function configText(projectName = 'workspace', backend = 'LSP') {
   return `Serena version: 1.7.0\nActive project: ${projectName}\nLanguage backend: ${backend}\nLanguage server status: ready\n`;
 }
 
+const capturedSerenaToolDefinitions = JSON.parse(
+  fs.readFileSync(
+    path.join(process.cwd(), 'docs/superpowers/research/2026-09-04-serena-v1.7.0-tool-schema.json'),
+    'utf8',
+  ),
+) as ManagedSerenaToolDefinition[];
+
+const capturedToolDefinitionsByName = new Map(
+  capturedSerenaToolDefinitions.map((definition) => [definition.name, definition] as const),
+);
+
+function compatibleToolDefinitions(): ManagedSerenaToolDefinition[] {
+  return SERENA_ENGINE_MANIFEST.expectedToolNames.map((name) => {
+    const definition = capturedToolDefinitionsByName.get(name);
+    if (!definition) throw new Error(`Captured Serena schema is missing ${name}`);
+    return definition;
+  });
+}
+
+function reverseObjectKeyOrder(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(reverseObjectKeyOrder);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .reverse()
+        .map(([key, nested]) => [key, reverseObjectKeyOrder(nested)]),
+    );
+  }
+  return value;
+}
+
 function fakeMcpSession(options: {
-  tools?: readonly string[];
+  toolDefinitions?: readonly ManagedSerenaToolDefinition[];
   config?: string;
   connectError?: unknown;
   findSymbolError?: unknown;
   rootPid?: number;
 } = {}) {
-  const session: ManagedSerenaMcpSession & { closeCalls: number; connectedArgs: readonly string[] | null } = {
+  const session: ManagedSerenaMcpSession & {
+    closeCalls: number;
+    connectedArgs: readonly string[] | null;
+    callToolNames: string[];
+  } = {
     closeCalls: 0,
     connectedArgs: null,
+    callToolNames: [],
     async connect(plan) {
       if (options.connectError) throw options.connectError;
       this.connectedArgs = plan.args;
       return { rootPid: options.rootPid ?? 101, serverName: 'Serena', serverVersion: '1.28.1' };
     },
     async listTools() {
-      return (options.tools ?? SERENA_ENGINE_MANIFEST.expectedToolNames).map((name) => ({
-        name,
-        inputSchema: {},
-      }));
+      return [...(options.toolDefinitions ?? compatibleToolDefinitions())];
     },
     async callTool(request) {
+      this.callToolNames.push(request.name);
       if (request.name === 'get_current_config') return { content: [{ type: 'text', text: options.config ?? configText() }] };
       if (request.name === 'find_symbol') {
         if (options.findSymbolError) throw options.findSymbolError;
@@ -217,24 +251,77 @@ describe('Serena managed foundation', () => {
     ]);
   });
 
-  it('fails health on added or missing upstream tools', async () => {
+  it('accepts unexpected upstream drift while keeping the Product Mode surface bounded', async () => {
     const root = temp();
-    const base = [...SERENA_ENGINE_MANIFEST.expectedToolNames];
-    const extra = createManagedSerenaRuntime({
+    const session = fakeMcpSession({
+      toolDefinitions: [
+        ...compatibleToolDefinitions(),
+        { name: 'write_memory', inputSchema: { type: 'object' } },
+      ],
+    });
+    const runtime = createManagedSerenaRuntime({
       dataRoot: path.join(root, 'data-extra'),
       provisioner: fakeProvisioner(),
-      createSession: () => fakeMcpSession({ tools: [...base, 'write_memory'] }),
+      createSession: () => session,
       processSupervisor: stoppedProcessSupervisor(),
     });
-    await expect(extra.start(makeWorkspace(root))).rejects.toMatchObject({ code: 'CODING_ENGINE_TOOL_CONTRACT_MISMATCH' });
 
-    const missing = createManagedSerenaRuntime({
+    const health = await runtime.start(makeWorkspace(root));
+
+    expect(health.toolCount).toBe(22);
+    expect(session.callToolNames).toEqual(['get_current_config', 'find_symbol']);
+    expect(session.callToolNames).not.toContain('write_memory');
+    expect('callTool' in runtime).toBe(false);
+  });
+
+  it('fails health when an allowlisted upstream tool is missing', async () => {
+    const root = temp();
+    const runtime = createManagedSerenaRuntime({
       dataRoot: path.join(root, 'data-missing'),
       provisioner: fakeProvisioner(),
-      createSession: () => fakeMcpSession({ tools: base.slice(1) }),
+      createSession: () => fakeMcpSession({ toolDefinitions: compatibleToolDefinitions().slice(1) }),
       processSupervisor: stoppedProcessSupervisor(),
     });
-    await expect(missing.start(makeWorkspace(root))).rejects.toMatchObject({ code: 'CODING_ENGINE_TOOL_CONTRACT_MISMATCH' });
+
+    await expect(runtime.start(makeWorkspace(root))).rejects.toMatchObject({
+      code: 'CODING_ENGINE_TOOL_CONTRACT_MISMATCH',
+    });
+  });
+
+  it('fails health when an allowlisted upstream tool has an incompatible input schema', async () => {
+    const root = temp();
+    const definitions = compatibleToolDefinitions();
+    definitions[0] = {
+      ...definitions[0],
+      inputSchema: { type: 'object', properties: { project: { type: 'number' } }, required: ['project'] },
+    };
+    const runtime = createManagedSerenaRuntime({
+      dataRoot: path.join(root, 'data-schema-mismatch'),
+      provisioner: fakeProvisioner(),
+      createSession: () => fakeMcpSession({ toolDefinitions: definitions }),
+      processSupervisor: stoppedProcessSupervisor(),
+    });
+
+    await expect(runtime.start(makeWorkspace(root))).rejects.toMatchObject({
+      code: 'CODING_ENGINE_TOOL_CONTRACT_MISMATCH',
+    });
+  });
+
+  it('accepts compatible input schemas regardless of object key order', async () => {
+    const root = temp();
+    const definitions = compatibleToolDefinitions();
+    definitions[0] = {
+      ...definitions[0],
+      inputSchema: reverseObjectKeyOrder(definitions[0].inputSchema),
+    };
+    const runtime = createManagedSerenaRuntime({
+      dataRoot: path.join(root, 'data-schema-order'),
+      provisioner: fakeProvisioner(),
+      createSession: () => fakeMcpSession({ toolDefinitions: definitions }),
+      processSupervisor: stoppedProcessSupervisor(),
+    });
+
+    await expect(runtime.start(makeWorkspace(root))).resolves.toMatchObject({ toolCount: 22, lspReady: true });
   });
 
   it('fails health when Serena reports the wrong active project or non-LSP backend', async () => {
