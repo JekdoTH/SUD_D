@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -116,12 +116,47 @@ function ensureDirectory(pathToCreate: string): void {
   fs.mkdirSync(pathToCreate, { recursive: true });
 }
 
-function installSerena(uvExecutable: string, paths: SerenaSpikePaths): void {
+async function runBoundedProcess(
+  command: string,
+  args: readonly string[],
+  options: { readonly cwd?: string; readonly env: Record<string, string>; readonly timeoutMs: number },
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(command, [...args], {
+      cwd: options.cwd,
+      env: options.env,
+      shell: false,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let captured = 0;
+    const onData = (chunk: Buffer): void => {
+      captured += chunk.length;
+      if (captured > 2 * 1024 * 1024) child.kill();
+    };
+    child.stdout?.on('data', onData);
+    child.stderr?.on('data', onData);
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error('SERENA_SPIKE_PROCESS_TIMEOUT'));
+    }, options.timeoutMs);
+    child.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once('close', (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error('SERENA_SPIKE_PROCESS_FAILED'));
+    });
+  });
+}
+
+async function installSerena(uvExecutable: string, paths: SerenaSpikePaths): Promise<void> {
   ensureDirectory(paths.root);
-  execFileSync(uvExecutable, [...buildSerenaInstallArgs()], {
+  await runBoundedProcess(uvExecutable, buildSerenaInstallArgs(), {
     env: { ...safeInheritedEnvironment(), ...buildUvEnvironment(paths) },
-    windowsHide: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    timeoutMs: 180_000,
   });
 }
 
@@ -247,7 +282,7 @@ export async function runSerenaRuntimeSpike(
   if (!fs.existsSync(options.fixtureSource)) throw new Error('SERENA_SPIKE_FIXTURE_NOT_FOUND');
   if (!fs.existsSync(options.paths.projectDir)) throw new Error('SERENA_SPIKE_PROJECT_NOT_FOUND');
 
-  installSerena(options.uvExecutable, options.paths);
+  await installSerena(options.uvExecutable, options.paths);
   const serenaExecutable = resolveInstalledSerenaExecutable(options.paths);
   const serenaVersion = readSerenaVersion(serenaExecutable, options.paths);
 

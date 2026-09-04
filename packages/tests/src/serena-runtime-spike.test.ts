@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -14,6 +15,19 @@ import {
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const fixtureRoot = path.resolve(testDir, '../fixtures/serena-runtime-spike-ts');
+const liveSpikeEnabled = process.platform === 'win32' && process.env.SUD_D_SERENA_SPIKE === '1';
+const live = liveSpikeEnabled ? it : it.skip;
+
+function resolveUvExecutable(): string {
+  const pathEntries = (process.env.Path ?? process.env.PATH ?? '')
+    .split(path.delimiter)
+    .filter(Boolean);
+  for (const entry of pathEntries) {
+    const candidate = path.join(entry, process.platform === 'win32' ? 'uv.exe' : 'uv');
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return 'uv.exe';
+}
 
 describe('managed Serena runtime spike prerequisites', () => {
   it('loads the official MCP v2 client and stdio transport', () => {
@@ -68,4 +82,37 @@ describe('managed Serena runtime spike prerequisites', () => {
       platform: 'linux',
     })).rejects.toThrow('SERENA_SPIKE_WINDOWS_REQUIRED');
   });
+
+  live('installs, starts, discovers, uses LSP, and cleans one pinned Serena runtime', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sud-d-serena-spike-'));
+    const paths = createSerenaSpikePaths(root);
+    fs.cpSync(fixtureRoot, paths.projectDir, { recursive: true });
+
+    try {
+      const report = await runSerenaRuntimeSpike({
+        uvExecutable: resolveUvExecutable(),
+        paths,
+        fixtureSource: fixtureRoot,
+      });
+
+      expect(report.serenaVersion).toContain('1.7.0');
+      expect(report.serverName.toLowerCase()).toContain('serena');
+      expect(report.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining([
+        'get_symbols_overview',
+        'find_symbol',
+        'find_referencing_symbols',
+        'search_for_pattern',
+        'replace_symbol_body',
+        'insert_before_symbol',
+        'insert_after_symbol',
+        'rename_symbol',
+        'execute_shell_command',
+      ]));
+      expect(report.overviewText).toContain('add');
+      expect(report.overviewText).toContain('Calculator');
+      expect(report.cleanup).toBe('clean');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 180_000);
 });
