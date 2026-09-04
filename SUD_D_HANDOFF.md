@@ -254,42 +254,52 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Execution State
 
-**Managed Serena Architecture — Milestone B cross-device checkpoint (Work-PC → Home-PC, 2026-09-04)**
+**Managed Serena Architecture — Milestone B managed runtime foundation (2026-09-04)**
 
-**Status: IN PROGRESS — Product Mode Serena Allowlist amendment approved; implementation continuation moves to Home-PC. Work-PC must not implement the amendment further.**
+**SERENA RUNTIME MILESTONE B: PASS**
 
-Approved amendment decision:
+Implementation baseline:
 
-- SUD-D, not Serena mode semantics, owns Product Mode Serena authority through a fixed **22-name Product Mode Serena Allowlist**.
-- Upstream Serena `tools/list` is discovery/inventory only. Unexpected upstream tools are Ready-but-blocked drift when all allowlisted tools remain present and schema-compatible; they gain no Product Mode authority.
-- Missing or schema-incompatible allowlisted tools remain fail-closed Coding Engine health failures.
-- `--mode no-memories` remains defense-in-depth/best-effort upstream reduction only, not the authority guarantee.
-- `CodingEngineRuntimeHealth.toolCount` represents the effective SUD-D-authorized count (`22`), not the raw upstream discovery count.
-- The approved architecture and implementation-plan amendments are the source of truth:
-  - `docs/superpowers/specs/2026-09-04-serena-coding-engine-architecture-design.md`
-  - `docs/superpowers/plans/2026-09-04-serena-runtime-foundation.md`
+- `6a4a47303628fee6b9dfbca1d22c422465f6463f` — approved managed Serena runtime foundation plan baseline.
 
-Current Milestone B committed state on Work-PC before this checkpoint:
+Milestone implementation history:
 
 - `7113079` — `feat: add coding engine domain vocabulary`
 - `a62d8bb` — `feat: define managed Serena runtime layout`
 - `49562b8` — `feat: add managed Serena provisioner`
 - `3457ebc` — `feat: add managed Serena stdio runtime`
 - `ce36d55` — `feat: add coding engine lifecycle service`
-- `9455bb5` — `docs: clarify agent handoff delivery` (governance-only)
-- Tasks 1–5 are committed. Task 6 real Windows acceptance/amended allowlist behavior is not completed or committed.
-- Production MCP remains exactly 14 Workspace/Git/Team tools. No production `code.*`, `dev.verify`, renderer UI, Workspace Trust/Policy/Approval changes, `code.run`, or Milestone C work has started.
+- `fb77c47` — `docs: checkpoint Serena allowlist handoff`
+- `8b98980b41aa129d4c7093caaea535ad4d481b1e` — `feat: complete managed Serena runtime foundation`
 
-Work-PC local-only diagnostic state is intentionally **not part of the Home-PC checkpoint** and must not be staged, committed, copied, or assumed to exist on Home-PC:
+Delivered contract:
 
-- modified `package.json`
-- modified `packages/infrastructure/src/serena-managed-runtime.ts`
-- untracked `packages/tests/src/serena-managed-runtime.acceptance.test.ts`
-- untracked `.serena/` local tooling/diagnostic state
+- SUD-D owns a fixed **22-name Product Mode Serena authorized allowlist** for the pinned `serena-agent==1.7.0` runtime. Upstream `tools/list` remains discovery/inventory only; unexpected upstream tools are Ready-but-blocked drift and gain no Product Mode authority.
+- Every allowlisted tool must remain present and input-schema compatible. Missing or schema-incompatible allowlisted tools fail Coding Engine health closed.
+- `CodingEngineRuntimeHealth.toolCount` is the effective SUD-D-authorized count (`22`), not raw upstream discovery count.
+- Managed state stays under SUD-D DataRoot: `SERENA_HOME`, engine/cache/runtime directories, and managed project metadata are product-owned. The source Workspace `.serena` is not adopted or mutated.
+- The exported managed runtime remains `start` / `stop` / `repair` only. Raw MCP `callTool(...)` exists only on the injected infrastructure/test session seam; Product Mode exposes no generic upstream tool-name dispatch surface.
+- Production MCP remains exactly **14 Workspace/Git/Team tools**. No production `code.*`, renderer UI, direct Serena passthrough, `code.run`, or Milestone C capability was added.
 
-These Work-PC files remain only as temporary diagnostic evidence. Home-PC must recreate any needed RED regression/acceptance work from the committed plan and local Home-PC repository state rather than importing this temporary diagnostic implementation.
+Final Home-PC verification:
 
-**Exact Home-PC next action:** On Home-PC, first inspect `git status --short --branch` and local divergence without discarding any local work, then `git fetch origin` and fast-forward to `origin/master` only when safe. Read `AGENTS.md`, `SUD_D_CONTEXT.md`, `SUD_D_ROADMAP.md`, this handoff, the approved architecture spec, and the amended Milestone B plan; inspect the committed Milestone B history; run a fresh Mandatory Skill Router Gate. Then resume **Milestone B only** from the committed runtime foundation by writing the amended Task 4 allowlist/schema regression RED first (22 compatible allowlisted tools accepted; extra upstream tool accepted-but-unreachable; missing/schema-incompatible allowlisted tool fails closed), apply the smallest SUD-D-owned enforcement fix, and continue Task 6 acceptance from the Home-PC local source of truth. Do not begin Milestone C.
+- focused Coding Engine tests: **26/26 PASS**
+- real Windows managed-runtime acceptance: **1/1 PASS** — pinned runtime, central metadata, all 22 authorized tools present/schema-compatible, upstream extras blocked, LSP health, source `.serena` preserved, and process cleanup complete
+- relevant Serena/runtime/process regressions: **99 PASS / 1 skipped**
+- production MCP 14-tool regression: **PASS** under the repository Electron test runtime
+- lint: **PASS**
+- typecheck: **PASS**
+- full suite: **417 PASS / 2 skipped across 27 files**
+- production build: **PASS**
+- `git diff --check`: **PASS**
+- security/scope/secret review: **PASS** — no Desktop/MCP source drift, no `.serena/` tracking, no production `code.*`, no debug instrumentation, no secret-shaped added diff, and no raw Serena runtime persistence/logging
+- final code review: **Standards PASS / Spec PASS**, blocking findings **0 / 0**
+
+Task 6 diagnosis note: the Home-PC acceptance crash was caused by Node v24.14.0 on Windows fail-fast behavior during recursive `fs.cpSync(...)` from a Thai/Unicode source path. The acceptance harness now uses deterministic directory walking plus `copyFileSync`; no production runtime behavior was changed for that issue. The later child-process `.once(...)` typecheck blocker was resolved with a narrow consumed-event type adapter, without runtime behavior change or dependency pin churn.
+
+Known Milestone B limitation: clean-machine/self-contained `uv` bootstrap and controlled Serena update/rollback promotion are **not enabled yet**; the current provisioner requires an available trusted `uv` bootstrap resolver.
+
+**Next gate:** Milestone C (Semantic Read / read-only `code.*` facade) requires a new explicit user instruction and a fresh Skill Router Gate. Do not start Milestone C from this milestone closure.
 
 **Managed Serena Architecture — Milestone A compatibility/runtime spike**
 
