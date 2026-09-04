@@ -15,3 +15,4 @@ export * from './serena-engine-manifest.js';
 export * from './serena-runtime-paths.js';
 export * from './serena-managed-config.js';
 export * from './serena-engine-provisioner.js';
+export * from './serena-managed-runtime.js';
