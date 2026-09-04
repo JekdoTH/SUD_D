@@ -224,7 +224,11 @@ Connection Foundation + Connection UX COMPLETE
 → Personal Alpha Workspace File Tools: Read / Search / Write
 → Git Safety + Integration
 → Basic Approval
-→ Restricted Execute
+→ Managed Serena Runtime Foundation (Milestone B) COMPLETE
+→ Semantic Read
+→ Semantic Write
+→ Restricted Verify
+→ Work Memory / Automatic Resume MVP
 → Team Mode MVP
 → Full Recovery / Delete hardening
 → broader Execute / installer / cross-platform / polish later
@@ -278,20 +282,19 @@ Implement the smallest approval workflow needed for protected Personal Alpha act
 
 The goal is not a generalized enterprise approval system. It is a simple, reliable user boundary for actions whose policy is ASK, especially restricted process execution and later sensitive Git/file operations.
 
-### Restricted Execute — Early Team Mode Prerequisite
+### Restricted Verify — Early Team Mode Prerequisite
 
-Add only the controlled execution needed for useful development/testing workflows before Team Mode MVP.
+Add only the fixed/validated project verification actions needed for useful development workflows before Work Memory / Automatic Resume and Team Mode MVP.
 
-The early Execute slice must remain narrow:
+The Restricted Verify slice must remain narrow:
 
-- Execute remains ASK by default
-- no unrestricted shell
+- no unrestricted or general shell surface
 - no renderer-controlled arbitrary executable, argv, cwd, or env
-- prefer fixed/validated development actions or tightly bounded command plans
-- preserve safe output/error handling and audit
+- prefer fixed/validated verification actions such as test, lint, typecheck, and build
+- preserve Policy / Approval where applicable, bounded safe output/error handling, and audit
 - no generic process manager surface
 
-Broader/general Execute remains deferred until after the MVP proves the narrower model is useful.
+General shell / broader Execute remains outside the critical path unless separately approved.
 
 ### Incremental Production MCP Exposure
 
@@ -301,7 +304,7 @@ This allows the Personal Alpha to become useful earlier without exposing Delete,
 
 ### Team Mode MVP — Primary Product Target
 
-After M1, Personal Alpha file tools, Git safety, Basic Approval, and Restricted Execute are sufficiently usable and verified, begin a deliberately small Team Mode MVP.
+After the secure Personal Alpha foundation, Semantic Read, Semantic Write, Restricted Verify, and Work Memory / Automatic Resume MVP are sufficiently usable and verified, begin a deliberately small Team Mode MVP.
 
 The MVP should prove the North Star flow:
 
@@ -413,7 +416,7 @@ Future Team Mode design is expected to reason about these concepts without creat
 - Work Queue
 - Artifact
 - Checkpoint
-- Workspace Memory
+- Work Memory / Automatic Resume
 - Task History
 - Review Result
 - Approval
@@ -554,52 +557,42 @@ Normal users should not need to manage tunnel profile names, keys, executable pa
 
 ---
 
-## 7. Workspace Memory / Session Continuity
+## 7. Work Memory / Automatic Resume
 
-**PLANNED FEATURE — do not implement before its approved task.**
+**APPROVED PREREQUISITE — implement only under a new explicit task.**
 
-Goal: a new ChatGPT session can continue project work without depending on the previous conversation transcript.
+Work Memory / Automatic Resume is now a required foundation immediately before Team Mode MVP. The goal is that a new ChatGPT conversation can connect to SUD_D and continue unfinished Workspace work without copying the previous chat. SUD_D owns continuation state; ChatGPT and Serena are not authoritative memory stores.
 
-Future Workspace Memory should support Team Mode continuity across chat sessions, devices, agent changes, and team handoffs. It may include:
-
-- Current Goal
-- Current Task and Subtasks
-- Completed Tasks and Task History
-- Checkpoints
-- Decisions
-- Artifacts
-- Review Results
-- Open Questions
-- Last Successful Verification
-- Last Commit
-- Suggested Next Action
-
-### Current strategy
+The intended flow is:
 
 ```text
-Home Chat ─┐
-           ├→ Git Repository
-Work Chat ─┘
-                ↓
-         SUD_D_HANDOFF.md
+New ChatGPT conversation
+→ connect to SUD_D
+→ automatic SUD_D session/workspace bootstrap
+→ load bounded Resume Context for the active Workspace
+→ validate live Workspace/Git state
+→ continue unfinished work
 ```
 
-Before starting a session:
+The bootstrap/resume contract is product-owned and authority-neutral:
 
-- git sync
-- read `SUD_D_HANDOFF.md`
-- inspect latest commit
+- expose an idempotent session/workspace bootstrap/resume capability;
+- instruct a new AI session to bootstrap before substantive project work;
+- resolve the active Workspace and return bounded Resume Context when unfinished work exists;
+- where practical, fail project-scoped privileged work closed until the current session/Workspace has bootstrapped;
+- require a fresh bootstrap when the active Workspace changes;
+- never grant additional Tool Kernel / Policy / Approval / Audit authority;
+- never require raw ChatGPT conversation transcripts or a ChatGPT conversation ID as the source of truth.
 
-Before ending a session:
+Minimal Resume Context remains bounded structured state per Workspace: Goal, current Task/status, Completed work, important Decisions, Blockers, Next Action, relevant Artifacts/changed paths, verification evidence summary, Git/checkpoint reference when available, and updated timestamp.
 
-- update handoff
-- verification
-- commit
-- push
+Use both automatic state derived from SUD_D tool/task activity where reliable and explicit checkpoints at meaningful boundaries. Checkpoints stay operational: Current Task / Completed / Decisions / Blocker / Next Action / Evidence.
 
-The **Git repository is the source of truth** for project state and continuity.
+Team Mode must reuse this same state model rather than create a second memory system. Shared concepts include Goal, Task/Subtask, Checkpoint, Artifact, Decision, Task History, Handoff, and Final Result.
 
-`.serena/` is local tooling state. It is **not** project memory and is not a source of truth.
+For Personal Alpha, Work Memory may remain local-first per device. Automatic Home-PC ↔ Work-PC memory synchronization is not required for this MVP; repository/handoff flow remains the cross-device continuity mechanism until a separate sync design is approved. `.serena/` remains local tooling state, not project memory.
+
+Durable architecture contract: `docs/superpowers/specs/2026-09-04-automatic-work-resume-architecture-decision.md`.
 
 ---
 
