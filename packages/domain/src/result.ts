@@ -1,3 +1,5 @@
+import type { CodingEngineFailureCode } from './coding-engine.js';
+
 // ---------------------------------------------------------------------------
 // Result monad
 // ---------------------------------------------------------------------------
@@ -58,6 +60,7 @@ export type AppErrorCode =
   | 'TEAM_TRANSITION_INVALID'
   | 'TEAM_REVIEW_LOOP_LIMIT'
   | 'TEAM_STALE'
+  | CodingEngineFailureCode
   | 'VALIDATION_FAILED'
   | 'INTERNAL_ERROR';
 
@@ -75,6 +78,22 @@ export function appError(
   return { code, message, ...(metadata ? { metadata } : {}) };
 }
 
+export const CODING_ENGINE_FAILURE_MESSAGES: Readonly<Record<CodingEngineFailureCode, string>> = {
+  CODING_ENGINE_WORKSPACE_NOT_SELECTED: 'Coding Engine requires an active Workspace',
+  CODING_ENGINE_BOOTSTRAP_UNAVAILABLE: 'Coding Engine bootstrap dependency is unavailable',
+  CODING_ENGINE_INSTALL_FAILED: 'Coding Engine failed to install the pinned Serena runtime',
+  CODING_ENGINE_START_FAILED: 'Coding Engine runtime failed to start',
+  CODING_ENGINE_VERSION_MISMATCH: 'Coding Engine runtime version does not match the pinned Serena manifest',
+  CODING_ENGINE_TOOL_CONTRACT_MISMATCH: 'Coding Engine tool contract does not match the pinned Serena manifest',
+  CODING_ENGINE_PROJECT_MISMATCH: 'Coding Engine runtime is not bound to the active Workspace',
+  CODING_ENGINE_LSP_UNAVAILABLE: 'Coding Engine LSP health check failed',
+  CODING_ENGINE_STOP_FAILED: 'Coding Engine runtime failed to stop cleanly',
+  CODING_ENGINE_REPAIR_FAILED: 'Coding Engine repair failed',
+};
+
+export function codingEngineRuntimeFailureAppError(code: CodingEngineFailureCode): AppError {
+  return appError(code, CODING_ENGINE_FAILURE_MESSAGES[code]);
+}
 
 export type ConnectionRuntimeFailureCode =
   | 'TUNNEL_CLIENT_NOT_FOUND'
