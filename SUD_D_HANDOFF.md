@@ -254,6 +254,59 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Execution State
 
+**Managed Serena Architecture — Milestone A compatibility/runtime spike**
+
+**Status: PASS on Work-PC (2026-09-04).**
+
+Milestone A proved that SUD-D can manage one pinned Serena/LSP runtime as a compatibility spike without exposing production `code.*` tools.
+
+Scope delivered:
+
+- Pin: `serena-agent==1.7.0`, upstream tag/commit `949a27ef1e5fda1a6e7b561e777bcece345c6ffd`, wheel SHA-256 `6dbf1459670d96fb0595f84932adef34260a6fe14ba5135b901fdb3c8c76e891`.
+- Transport: stdio through `@modelcontextprotocol/client@2.0.0` and `StdioClientTransport`.
+- Backend: Serena LSP backend with `--context desktop-app`, `--mode no-onboarding`, and `--open-web-dashboard false`.
+- Runtime model: OS-temp spike root with isolated `uv-tools`, `bin`, `python`, `uv-cache`, and copied TypeScript fixture project; no `.serena/` repo state committed.
+- LSP proof: `get_symbols_overview` on copied fixture `src/calculator.ts` returned the known `add` function and `Calculator` class.
+- Tool/schema capture: 29 Serena tools, sorted/unique canonical snapshot.
+- Cleanup proof: root/descendant PIDs captured as integers only; final live smoke reported `cleanup: clean`; no spike-owned process tree remained after final verification.
+
+Evidence:
+
+- `docs/superpowers/research/2026-09-04-serena-runtime-spike-results.md`
+- `docs/superpowers/research/2026-09-04-serena-v1.7.0-tool-schema.json`
+
+Final verification on Work-PC:
+
+- focused Serena spike tests: **PASS** — 7 passed / 1 skipped
+- live `pnpm serena:spike`: **PASS** — 8/8, stdio MCP initialize/discovery, LSP overview, deterministic cleanup
+- relevant runtime/process regressions: **PASS** — 87 passed / 1 skipped across 5 files
+- lint: **PASS**
+- typecheck: **PASS**
+- full `pnpm test`: **PASS** — 391 passed / 1 skipped across 23 files
+- production build: **PASS**
+- `git diff --check`: **PASS**
+- final Standards/Spec code review: **PASS**, blocking findings 0
+
+Security/scope confirmation:
+
+- production MCP remains exactly **14 tools**: six Workspace + four Git Safety + four Team.
+- no production `code.*` tool was exposed.
+- no `dev.verify`, no direct Serena passthrough, no renderer UI, no Workspace Trust/Policy/Approval changes, and no `code.run` implementation was added.
+- no raw environment dump, credential helper output, arbitrary raw Serena stdout/stderr, temp runtime, uv cache, Python install, or `.serena/` state is committed.
+
+Commits in this Milestone A slice:
+
+- `d59e833` — `test: add Serena runtime spike prerequisites`
+- `4c045da` — `test: add Serena TypeScript spike fixture`
+- `6769a62` — `test: define isolated Serena spike seam`
+- `e3ca65a` — `test: add managed Serena runtime spike harness`
+- `9afaa0b` — `test: prove Serena stdio LSP compatibility`
+- `ca47417` — `docs: record Serena runtime spike evidence`
+- `126c956` — `test: clean Serena spike harness lint`
+
+Immediate next action: **STOP.** Milestone B — managed runtime foundation requires a new explicit user authorization and a fresh Skill Router Gate. Do not start product Setup/Repair UI, runtime manager, `code.*`, Policy classification, approval interception, `code.run`, native tool removal, Restricted Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or another capability slice without a new explicit implementation instruction.
+
+
 **SUD-D product connector runtime compatibility fix**
 
 **Status: VERIFIED — local regression, full Security/Data Critical gates, and built product-profile acceptance pass; real Work-PC ChatGPT-through-Secure-Tunnel acceptance is still required.**
