@@ -20,7 +20,8 @@ export type CodingEngineFailureCode =
   | 'CODING_ENGINE_PROJECT_MISMATCH'
   | 'CODING_ENGINE_LSP_UNAVAILABLE'
   | 'CODING_ENGINE_STOP_FAILED'
-  | 'CODING_ENGINE_REPAIR_FAILED';
+  | 'CODING_ENGINE_REPAIR_FAILED'
+  | 'CODING_ENGINE_LIFECYCLE_BUSY';
 
 export interface CodingEngineWorkspaceContext {
   readonly workspaceId: string;

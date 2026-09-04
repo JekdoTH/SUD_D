@@ -89,6 +89,7 @@ export const CODING_ENGINE_FAILURE_MESSAGES: Readonly<Record<CodingEngineFailure
   CODING_ENGINE_LSP_UNAVAILABLE: 'Coding Engine LSP health check failed',
   CODING_ENGINE_STOP_FAILED: 'Coding Engine runtime failed to stop cleanly',
   CODING_ENGINE_REPAIR_FAILED: 'Coding Engine repair failed',
+  CODING_ENGINE_LIFECYCLE_BUSY: 'Coding Engine lifecycle operation is already in progress',
 };
 
 export function codingEngineRuntimeFailureAppError(code: CodingEngineFailureCode): AppError {
