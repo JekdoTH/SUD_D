@@ -361,6 +361,30 @@ describe('M0.7 — Activity integration', () => {
     expect(JSON.stringify(result.value)).not.toMatch(/replace_symbol|insert_before|RAW_SERENA|body|content/i);
   });
 
+  it('suppresses routine Work Memory success while keeping resume/security/persistence failures visible once', () => {
+    const events = [
+      auditEvent({ id: '00000000-0000-4000-8000-000000000744', action: 'tool_kernel.invoke', resultCode: 'EXECUTION_AUTHORIZED', metadata: { capability: 'work.resume', phase: 'pre_execution', outcome: 'authorized' } }),
+      auditEvent({ id: '00000000-0000-4000-8000-000000000745', action: 'tool_kernel.invoke', resultCode: 'EXECUTED', metadata: { capability: 'work.resume', phase: 'outcome', outcome: 'executed' } }),
+      auditEvent({ id: '00000000-0000-4000-8000-000000000746', action: 'tool_kernel.invoke', resultCode: 'EXECUTION_AUTHORIZED', metadata: { capability: 'work.checkpoint', phase: 'pre_execution', outcome: 'authorized', rawPayload: 'TOKEN=RAW_RESUME_CONTEXT_SENTINEL' } }),
+      auditEvent({ id: '00000000-0000-4000-8000-000000000747', action: 'tool_kernel.invoke', resultCode: 'EXECUTED', metadata: { capability: 'work.checkpoint', phase: 'outcome', outcome: 'executed' } }),
+      auditEvent({ id: '00000000-0000-4000-8000-000000000748', action: 'tool_kernel.invoke', resultCode: 'WORK_RESUME_REQUIRED', metadata: { capability: 'git.status', phase: 'outcome', outcome: 'blocked', transcript: 'RAW_CHAT_SENTINEL' } }),
+      auditEvent({ id: '00000000-0000-4000-8000-000000000749', action: 'tool_kernel.invoke', resultCode: 'INVALID_INPUT', metadata: { capability: 'work.checkpoint', phase: 'outcome', outcome: 'blocked', secret: 'RAW_SECRET_SENTINEL' } }),
+      auditEvent({ id: '00000000-0000-4000-8000-000000000750', action: 'tool_kernel.invoke', resultCode: 'EXECUTION_AUTHORIZED', metadata: { capability: 'work.checkpoint', phase: 'pre_execution', outcome: 'authorized' } }),
+      auditEvent({ id: '00000000-0000-4000-8000-000000000751', action: 'tool_kernel.invoke', resultCode: 'EXECUTION_FAILED', metadata: { capability: 'work.checkpoint', phase: 'outcome', outcome: 'executed', error: 'RAW_SQLITE_EXCEPTION_SENTINEL' } }),
+    ];
+    const controller = createDesktopDiagnosticsController(diagnosticsDependencies({ listAuditEvents: () => events }));
+    const result = controller.listActivity({ limit: 20 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.map((event) => [event.resultCode, event.tone])).toEqual([
+      ['WORK_RESUME_REQUIRED', 'error'],
+      ['INVALID_INPUT', 'error'],
+      ['EXECUTION_FAILED', 'error'],
+    ]);
+    expect(result.value).toHaveLength(3);
+    expect(JSON.stringify(result.value)).not.toMatch(/RAW_RESUME|RAW_CHAT|RAW_SECRET|RAW_SQLITE|transcript|stdout|stderr|Serena/i);
+  });
+
   it('summarizes Restricted Verify pass/fail without duplicate kernel noise', () => {
     const verifyAuthorized = auditEvent({
       id: '00000000-0000-4000-8000-000000000738',

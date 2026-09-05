@@ -12,6 +12,7 @@ import {
   createGitSafetyAdapter,
   createTeamRepository,
   createWorkspaceRepository,
+  createWorkMemoryRepository,
   createWorkspaceTextFileSystem,
   openDatabase,
   type Db,
@@ -38,6 +39,8 @@ const APPROVED_TOOLS = [
   'team.stop',
   'team.submit',
   'verify.run',
+  'work.checkpoint',
+  'work.resume',
   'workspace.create_text_file',
   'workspace.list',
   'workspace.read_text',
@@ -167,6 +170,7 @@ async function makeHarness(options: { gitRepo?: boolean } = {}) {
     semanticRead: { read: async () => ({ content: [] }) },
     semanticWrite: { write: async () => ({ content: [] }) },
     restrictedVerify: { run: async (_context, request) => { verifyCalls.push(request.action); return { action: request.action, passed: true, exitCode: 0, output: 'verify ok', truncated: false, durationMs: 1 }; } },
+    workMemoryRepo: createWorkMemoryRepository(db),
     approval: approvalCoordinator,
   });
   const input = new PassThrough();
@@ -186,6 +190,8 @@ async function makeHarness(options: { gitRepo?: boolean } = {}) {
     send({ jsonrpc: '2.0', id: callId, method: 'tools/call', params: { name, arguments: args } });
     return reader.next();
   };
+  const bootstrap = parsePayload(await call('work.resume', {}));
+  if (bootstrap['ok'] !== true) throw new Error('Work Memory bootstrap failed');
   const listTools = async () => {
     const callId = ++id;
     send({ jsonrpc: '2.0', id: callId, method: 'tools/list', params: {} });
@@ -202,7 +208,7 @@ afterEach(async () => {
 });
 
 describe('Basic Approval - production MCP workspace flows', () => {
-  it('tools/list exposes exactly 24 approved tools, no approval tool, and normal tools remain usable', async () => {
+  it('tools/list exposes exactly 26 approved tools, no approval tool, and normal tools remain usable', async () => {
     const h = await makeHarness({ gitRepo: true });
     expect(h.initialized.result?.serverInfo?.name).toBe('SUD-D');
     const listed = await h.listTools();

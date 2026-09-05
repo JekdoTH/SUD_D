@@ -11,6 +11,7 @@ import {
   createTeamRepository,
   createWorkspaceRepository,
   createWorkspaceTextFileSystem,
+  createWorkMemoryRepository,
   openDatabase,
   type Db,
 } from '@sud-d/infrastructure';
@@ -39,7 +40,8 @@ const TEAM_TOOLS = ['team.start', 'team.status', 'team.submit', 'team.stop'] as 
 const CODE_READ_TOOLS = ['code.overview', 'code.find_symbol', 'code.find_references', 'code.search', 'code.diagnostics'] as const;
 const CODE_WRITE_TOOLS = ['code.replace_symbol', 'code.insert_before', 'code.insert_after', 'code.rename'] as const;
 const VERIFY_TOOLS = ['verify.run'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...APPROVED_TOOLS, ...GIT_SAFETY_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS] as const;
+const WORK_MEMORY_TOOLS = ['work.resume', 'work.checkpoint'] as const;
+const APPROVED_PRODUCTION_TOOLS = [...APPROVED_TOOLS, ...GIT_SAFETY_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS, ...WORK_MEMORY_TOOLS] as const;
 
 const LEGACY_PROTOCOL_VERSION = '2025-06-18';
 const tempDirs: string[] = [];
@@ -209,6 +211,7 @@ async function makeProductionWireHarness() {
     semanticRead: { read: async () => ({ content: [] }) },
     semanticWrite: { write: async () => ({ content: [] }) },
       restrictedVerify: { run: async (_context, request) => ({ action: request.action, passed: true, exitCode: 0, output: '', truncated: false, durationMs: 1 }) },
+    workMemoryRepo: createWorkMemoryRepository(h.db),
   });
   const input = new PassThrough();
   const output = new PassThrough();
@@ -228,6 +231,8 @@ async function makeProductionWireHarness() {
     });
     const response = await reader.next();
     send({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} });
+    send({ jsonrpc: '2.0', id: 99, method: 'tools/call', params: { name: 'work.resume', arguments: {} } });
+    await reader.next();
     return response;
   };
   return { ...h, server, input, output, reader, send, initialize };

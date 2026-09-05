@@ -6,6 +6,7 @@ import { PassThrough } from 'node:stream';
 import {
   createTeamRepository,
   createWorkspaceTextFileSystem,
+  createWorkMemoryRepository,
   type GitDetectResult,
   type GitDiffResult,
   type GitStatusResult,
@@ -118,7 +119,7 @@ describe('Git Safety - status and production MCP surface', () => {
     expect(second.statusId).not.toBe(first.statusId);
   });
 
-  it('production tools/list exposes exactly six Workspace, four Git, four Team, five semantic reads, and four semantic writes', async () => {
+  it('production tools/list exposes exactly six Workspace, four Git, four Team, five semantic reads, four semantic writes, Restricted Verify, and two Work Memory tools', async () => {
     const h = await makeHarness();
     const server = createProductionMcpServer({
       workspaceRepo: h.workspaceRepo,
@@ -130,6 +131,7 @@ describe('Git Safety - status and production MCP surface', () => {
       semanticRead: { read: async () => ({ content: [] }) },
     semanticWrite: { write: async () => ({ content: [] }) },
       restrictedVerify: { run: async (_context, request) => ({ action: request.action, passed: true, exitCode: 0, output: '', truncated: false, durationMs: 1 }) },
+      workMemoryRepo: createWorkMemoryRepository(h.db),
     });
     const input = new PassThrough();
     const output = new PassThrough();
@@ -157,6 +159,7 @@ describe('Git Safety - status and production MCP surface', () => {
       semanticRead: { read: async () => ({ content: [] }) },
     semanticWrite: { write: async () => ({ content: [] }) },
       restrictedVerify: { run: async (_context, request) => ({ action: request.action, passed: true, exitCode: 0, output: '', truncated: false, durationMs: 1 }) },
+      workMemoryRepo: createWorkMemoryRepository(h.db),
     });
     const input = new PassThrough();
     const output = new PassThrough();
@@ -166,6 +169,8 @@ describe('Git Safety - status and production MCP surface', () => {
     send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: LEGACY_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: 'git-safety-test', version: '1.0.0' } } });
     await reader.next();
     send({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} });
+    send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'work.resume', arguments: {} } });
+    await reader.next();
     send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'git.status', arguments: { executable: 'cmd.exe', argv: ['/c', 'whoami'], cwd: 'C:\\', env: { X: '1' }, ref: 'refs/heads/main', effect: 'execute' } } });
     const response = await reader.next();
     expect(response.error ?? response.result).toBeTruthy();

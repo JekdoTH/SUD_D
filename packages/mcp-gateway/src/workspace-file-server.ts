@@ -9,6 +9,9 @@ import {
   createCodingSemanticWriteCapabilities,
   createGitSafetyCapabilities,
   createRestrictedVerifyCapabilities,
+  createWorkMemoryCapabilities,
+  createWorkMemoryService,
+  createWorkResumeGuardedToolKernel,
   createTeamCapabilities,
   createTeamService,
   createToolCapabilityRegistry,
@@ -20,7 +23,13 @@ import {
   type ToolKernel,
   type ToolKernelApprovalPort,
 } from '@sud-d/application';
-import { RESTRICTED_VERIFY_ACTIONS, type InternalRoot } from '@sud-d/domain';
+import {
+  RESTRICTED_VERIFY_ACTIONS,
+  WORK_MEMORY_LIMITS,
+  WORK_TASK_STATUSES,
+  type ClientSession,
+  type InternalRoot,
+} from '@sud-d/domain';
 import {
   GIT_SAFETY_LIMITS,
   WORKSPACE_TEXT_FILE_LIMITS,
@@ -32,6 +41,7 @@ import {
   createRestrictedVerifyAdapter,
   createTeamRepository,
   createWorkspaceRepository,
+  createWorkMemoryRepository,
   createWorkspaceTextFileSystem,
   getDataRoot,
   openDatabase,
@@ -40,10 +50,9 @@ import {
   type TeamRepository,
   type WorkspaceRepository,
   type WorkspaceTextFileSystem,
+  type WorkMemoryRepository,
 } from '@sud-d/infrastructure';
 import { MCP_GATEWAY_INFO } from './metadata.js';
-
-const MCP_STDIO_SESSION = Object.freeze({ id: 'mcp-stdio', type: 'mcp-stdio' as const });
 
 const relativePathSchema = z.string().min(1).max(WORKSPACE_TEXT_FILE_LIMITS.maxRelativePathChars);
 const listInputSchema = z.object({
@@ -122,6 +131,26 @@ const restrictedVerifyInputSchema = z.object({
   action: z.enum(RESTRICTED_VERIFY_ACTIONS),
 }).strict();
 
+const workResumeInputSchema = z.object({}).strict();
+const workMemoryTextItemSchema = z.string().min(1).max(WORK_MEMORY_LIMITS.maxItemChars).refine((value) => !value.includes('\0'));
+const workCheckpointInputSchema = z.object({
+  goal: z.string().min(1).max(WORK_MEMORY_LIMITS.maxGoalChars).refine((value) => !value.includes('\0')),
+  task: z.object({
+    title: z.string().min(1).max(WORK_MEMORY_LIMITS.maxTaskChars).refine((value) => !value.includes('\0')),
+    status: z.enum(WORK_TASK_STATUSES),
+  }).strict(),
+  completed: z.array(workMemoryTextItemSchema).max(WORK_MEMORY_LIMITS.maxCompletedItems),
+  decisions: z.array(workMemoryTextItemSchema).max(WORK_MEMORY_LIMITS.maxDecisionItems),
+  blockers: z.array(workMemoryTextItemSchema).max(WORK_MEMORY_LIMITS.maxBlockerItems),
+  nextAction: z.string().min(1).max(WORK_MEMORY_LIMITS.maxNextActionChars).refine((value) => !value.includes('\0')),
+  artifacts: z.array(z.string().min(1).max(WORK_MEMORY_LIMITS.maxArtifactPathChars).refine((value) => !value.includes('\0'))).max(WORK_MEMORY_LIMITS.maxArtifactItems),
+  verification: z.array(workMemoryTextItemSchema).max(WORK_MEMORY_LIMITS.maxVerificationItems),
+}).strict().superRefine((value, context) => {
+  if (Buffer.byteLength(JSON.stringify(value), 'utf8') > WORK_MEMORY_LIMITS.maxSerializedBytes) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Work Memory checkpoint exceeds the trusted size limit' });
+  }
+});
+
 const codeOverviewInputSchema = z.object({
   relativePath: relativePathSchema,
   depth: z.number().int().min(-1).max(8).optional(),
@@ -181,6 +210,7 @@ export interface ProductionMcpServerDependencies {
   readonly semanticRead: CodingSemanticReadPort;
   readonly semanticWrite: CodingSemanticWritePort;
   readonly restrictedVerify: RestrictedVerifyPort;
+  readonly workMemoryRepo: WorkMemoryRepository;
   readonly approval?: ToolKernelApprovalPort;
 }
 
@@ -188,6 +218,7 @@ export function createProductionMcpServer(
   dependencies: ProductionMcpServerDependencies,
 ): McpServer {
   const gitSafety = dependencies.gitSafety ?? createGitSafetyAdapter();
+  const workMemory = createWorkMemoryService({ repository: dependencies.workMemoryRepo, gitSafety });
   const teamService = createTeamService({
     teamRepo: dependencies.teamRepo,
     workspaceRepo: dependencies.workspaceRepo,
@@ -240,6 +271,12 @@ export function createProductionMcpServer(
       restrictedVerify: dependencies.restrictedVerify,
       summaryAudit: dependencies.auditRepo,
     }),
+    ...createWorkMemoryCapabilities({
+      workspaceRepo: dependencies.workspaceRepo,
+      internalRoots: dependencies.internalRoots,
+      fileSystem: dependencies.fileSystem,
+      workMemory,
+    }),
     ...createTeamCapabilities({
       teamService,
       resolveWorkspaceSecurity: resolveTeamSecurity,
@@ -249,13 +286,24 @@ export function createProductionMcpServer(
   if (!registry.ok) {
     throw new Error('SUD-D production tool registration failed');
   }
-  const kernel = createToolKernel({
+  const baseKernel = createToolKernel({
     registry: registry.value,
     audit: dependencies.auditRepo,
     ...(dependencies.approval ? { approval: dependencies.approval } : {}),
   });
+  const guardedKernel = createWorkResumeGuardedToolKernel({
+    kernel: baseKernel,
+    workspaceRepo: dependencies.workspaceRepo,
+    workMemory,
+    audit: dependencies.auditRepo,
+  });
+  const kernel = bindMcpSession(guardedKernel, Object.freeze({
+    id: `mcp-stdio-${randomUUID()}`,
+    type: 'mcp-stdio' as const,
+  }));
   const server = new McpServer(MCP_GATEWAY_INFO, {
     capabilities: { tools: { listChanged: false } },
+    instructions: 'Call work.resume before substantive project work. Resume Context is Workspace-scoped and does not grant additional tool authority.',
   });
 
   registerWorkspaceFileTools(server, kernel);
@@ -264,6 +312,7 @@ export function createProductionMcpServer(
   registerCodingSemanticReadTools(server, kernel);
   registerCodingSemanticWriteTools(server, kernel);
   registerRestrictedVerifyTools(server, kernel);
+  registerWorkMemoryTools(server, kernel);
   return server;
 }
 
@@ -294,6 +343,7 @@ export function createDefaultProductionMcpServer(): McpServer {
       write: (context, request) => codingRuntime.semanticWrite(context, request),
     },
     restrictedVerify,
+    workMemoryRepo: createWorkMemoryRepository(db),
     approval,
   });
 }
@@ -531,14 +581,51 @@ function registerRestrictedVerifyTools(server: McpServer, kernel: ToolKernel): v
     async (input) => invokeKernel(kernel, 'verify.run', input),
   );
 }
+
+function registerWorkMemoryTools(server: McpServer, kernel: ToolKernel): void {
+  server.registerTool(
+    'work.resume',
+    {
+      title: 'Resume Workspace work',
+      description: 'Load and validate the bounded Resume Context for the active Workspace and bootstrap this MCP session.',
+      inputSchema: workResumeInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'work.resume', input),
+  );
+  server.registerTool(
+    'work.checkpoint',
+    {
+      title: 'Checkpoint Workspace work',
+      description: 'Persist one bounded Work Memory checkpoint for the resumed active Workspace.',
+      inputSchema: workCheckpointInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'work.checkpoint', input),
+  );
+}
+
+interface SessionBoundToolKernel extends ToolKernel {
+  readonly session: ClientSession;
+}
+
+function bindMcpSession(kernel: ToolKernel, session: ClientSession): SessionBoundToolKernel {
+  const sessionKernel: SessionBoundToolKernel = {
+    session,
+    invoke(request) {
+      return kernel.invoke({ ...request, session });
+    },
+  };
+  return Object.freeze(sessionKernel);
+}
 async function invokeKernel(
   kernel: ToolKernel,
   capability: string,
   input: unknown,
 ) {
+  const session = (kernel as Partial<SessionBoundToolKernel>).session;
+  if (!session) throw new Error('SUD-D MCP session binding is unavailable');
   const result = await kernel.invoke({
     invocationId: randomUUID(),
-    session: MCP_STDIO_SESSION,
+    session,
     capability,
     input,
   });

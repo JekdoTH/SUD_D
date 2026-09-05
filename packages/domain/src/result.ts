@@ -1,5 +1,6 @@
 import type { CodingEngineFailureCode } from './coding-engine.js';
 import type { RestrictedVerifyFailureCode } from './restricted-verify.js';
+import type { WorkMemoryFailureCode } from './work-memory.js';
 
 // ---------------------------------------------------------------------------
 // Result monad
@@ -63,6 +64,7 @@ export type AppErrorCode =
   | 'TEAM_STALE'
   | CodingEngineFailureCode
   | RestrictedVerifyFailureCode
+  | WorkMemoryFailureCode
   | 'VALIDATION_FAILED'
   | 'INTERNAL_ERROR';
 

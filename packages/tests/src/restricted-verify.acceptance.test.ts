@@ -13,6 +13,7 @@ import {
   createRestrictedVerifyAdapter,
   createTeamRepository,
   createWorkspaceRepository,
+  createWorkMemoryRepository,
   createWorkspaceTextFileSystem,
   openDatabase,
   type Db,
@@ -31,6 +32,7 @@ const APPROVED_TOOLS = [
   'git.checkpoint', 'git.detect', 'git.diff', 'git.status',
   'team.start', 'team.status', 'team.stop', 'team.submit',
   'verify.run',
+  'work.checkpoint', 'work.resume',
   'workspace.create_text_file', 'workspace.list', 'workspace.read_text',
   'workspace.search_text', 'workspace.stat', 'workspace.write_text_file',
 ].sort();
@@ -173,6 +175,7 @@ describe('Restricted Verify Home-PC Windows production acceptance', () => {
       restrictedVerify: createRestrictedVerifyAdapter({
         limits: { maxOutputBytes: 32 * 1024, timeoutMs: 30_000 },
       }),
+      workMemoryRepo: createWorkMemoryRepository(db),
       approval,
     });
     const input = new PassThrough();
@@ -204,10 +207,11 @@ describe('Restricted Verify Home-PC Windows production acceptance', () => {
         .filter((name): name is string => typeof name === 'string')
         .sort();
       expect(names).toEqual(APPROVED_TOOLS);
-      expect(names).toHaveLength(24);
+      expect(names).toHaveLength(26);
       expect(names).not.toContain('code.run');
       expect(names).not.toContain('dev.verify');
       expect(names).not.toContain('execute_shell_command');
+      expect(parsePayload(await call('work.resume', {}))).toMatchObject({ ok: true, code: 'EXECUTED' });
 
       const injected = await call('verify.run', { action: 'test', executable: 'cmd.exe' });
       expect(injected.result?.isError).toBe(true);

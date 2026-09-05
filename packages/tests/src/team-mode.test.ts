@@ -17,6 +17,7 @@ import {
   createTeamRepository,
   createWorkspaceRepository,
   createWorkspaceTextFileSystem,
+  createWorkMemoryRepository,
   openDatabase,
   type Db,
 } from '@sud-d/infrastructure';
@@ -37,7 +38,8 @@ const TEAM_TOOLS = ['team.start', 'team.status', 'team.submit', 'team.stop'] as 
 const CODE_READ_TOOLS = ['code.overview', 'code.find_symbol', 'code.find_references', 'code.search', 'code.diagnostics'] as const;
 const CODE_WRITE_TOOLS = ['code.replace_symbol', 'code.insert_before', 'code.insert_after', 'code.rename'] as const;
 const VERIFY_TOOLS = ['verify.run'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...WORKSPACE_TOOLS, ...GIT_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS].sort();
+const WORK_MEMORY_TOOLS = ['work.resume', 'work.checkpoint'] as const;
+const APPROVED_PRODUCTION_TOOLS = [...WORKSPACE_TOOLS, ...GIT_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS, ...WORK_MEMORY_TOOLS].sort();
 
 const tempDirs: string[] = [];
 const openDbs: Db[] = [];
@@ -275,7 +277,7 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
     expect(requireOk(h.service.status({ missionId: start.missionId }))).toMatchObject({ state: 'blocked', blockedReason: 'EXECUTE_REQUIRED' });
   });
 
-  it('production MCP exposes exactly 24 tools with only the approved semantic reads and writes', async () => {
+  it('production MCP exposes exactly 26 tools with only the approved semantic reads and writes', async () => {
     const h = makeHarness();
     const server = createProductionMcpServer({
       workspaceRepo: h.workspaceRepo,
@@ -286,6 +288,7 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
       semanticRead: { read: async () => ({ content: [] }) },
       semanticWrite: { write: async () => ({ content: [] }) },
       restrictedVerify: { run: async (_context, request) => ({ action: request.action, passed: true, exitCode: 0, output: '', truncated: false, durationMs: 1 }) },
+      workMemoryRepo: createWorkMemoryRepository(h.db),
     });
     const input = new PassThrough();
     const output = new PassThrough();
@@ -301,6 +304,9 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
     expect(tools).toEqual(APPROVED_PRODUCTION_TOOLS);
     expect(tools.join(' ')).not.toMatch(/dev\.verify|execute|shell|network|delete|recovery|approval\./i);
     expect(tools.join(' ')).not.toMatch(/code\.run|serena|callTool/i);
+
+    send({ jsonrpc: '2.0', id: 20, method: 'tools/call', params: { name: 'work.resume', arguments: {} } });
+    expect(parsePayload(await reader.next())).toMatchObject({ ok: true, code: 'EXECUTED' });
 
     send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'team.start', arguments: { goal: 'Build a no-execute team plan' } } });
     expect(parsePayload(await reader.next())).toMatchObject({ ok: true, code: 'EXECUTED', policyDecision: 'allow', value: { state: 'planning', currentRole: 'planner' } });

@@ -137,6 +137,32 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX IF NOT EXISTS idx_team_findings_mission ON team_reviewer_findings(mission_id, created_at);
   `,
+  // Migration 005 — Work Memory bounded Workspace-scoped checkpoints
+  `
+  CREATE TABLE IF NOT EXISTS work_memory_checkpoints (
+    checkpoint_id     TEXT PRIMARY KEY,
+    workspace_id      TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    checkpoint_index  INTEGER NOT NULL,
+    is_current        INTEGER NOT NULL CHECK(is_current IN (0, 1)),
+    goal              TEXT NOT NULL,
+    task_title        TEXT NOT NULL,
+    task_status       TEXT NOT NULL CHECK(task_status IN ('pending','in_progress','blocked','completed')),
+    completed_json    TEXT NOT NULL,
+    decisions_json    TEXT NOT NULL,
+    blockers_json     TEXT NOT NULL,
+    next_action       TEXT NOT NULL,
+    artifacts_json    TEXT NOT NULL,
+    verification_json TEXT NOT NULL,
+    git_head_sha      TEXT,
+    git_status_id     TEXT,
+    updated_at        TEXT NOT NULL,
+    UNIQUE(workspace_id, checkpoint_index)
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_work_memory_one_current
+    ON work_memory_checkpoints(workspace_id) WHERE is_current = 1;
+  CREATE INDEX IF NOT EXISTS idx_work_memory_workspace_history
+    ON work_memory_checkpoints(workspace_id, checkpoint_index DESC);
+  `,
 ];
 
 export function openDatabase(dbPath: string): Db {

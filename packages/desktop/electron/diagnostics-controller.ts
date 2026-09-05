@@ -230,6 +230,16 @@ function semanticWriteActivityPresentation(event: AuditEvent): {
   };
 }
 
+const WORK_MEMORY_ACTIVITY_CAPABILITIES = new Set(['work.resume', 'work.checkpoint']);
+
+function isRoutineWorkMemoryActivity(event: AuditEvent): boolean {
+  const capability = event.metadata?.capability;
+  return event.action === 'tool_kernel.invoke'
+    && typeof capability === 'string'
+    && WORK_MEMORY_ACTIVITY_CAPABILITIES.has(capability)
+    && (event.resultCode === 'EXECUTION_AUTHORIZED' || event.resultCode === 'EXECUTED');
+}
+
 const RESTRICTED_VERIFY_ACTION_SET = new Set<string>(RESTRICTED_VERIFY_ACTIONS);
 
 function isRoutineRestrictedVerifyKernelActivity(event: AuditEvent): boolean {
@@ -394,6 +404,7 @@ export function createDesktopDiagnosticsController(
             .filter((event) => !isRoutineSemanticReadActivity(event))
             .filter((event) => !isRoutineSemanticWriteAuthorization(event))
             .filter((event) => !isRoutineRestrictedVerifyKernelActivity(event))
+            .filter((event) => !isRoutineWorkMemoryActivity(event))
             .map(toActivityEvent),
         );
       } catch {

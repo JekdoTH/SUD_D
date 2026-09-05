@@ -254,6 +254,43 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Execution State
 
+**Work Memory / Automatic Resume MVP (2026-09-05)**
+
+**WORK MEMORY / AUTOMATIC RESUME MVP: PASS — closed and ready to commit/push**
+
+Fixed implementation baseline:
+
+- `1cec2957ea42417f000b9256ab695e0c852285dd`
+
+Delivered contract:
+
+- Production MCP exposes exactly **26 tools**. Work Memory adds only `work.resume` and `work.checkpoint`; no generic memory, raw Serena-memory, shell/process, Network, Delete/Recovery, or new caller-selected authority was added.
+- A fresh MCP session must `work.resume` before substantive project-scoped tools. Bootstrap is ephemeral per session and active Workspace; persisted Resume Context is Workspace-scoped and does not grant tool authority.
+- `work.checkpoint` persists one bounded semantic context: goal, task/status, completed work, decisions, blockers, next action, safe artifact paths, verification, and trusted Git head/status references. History is capped at 20 with one authoritative current checkpoint per Workspace.
+- Public checkpoint input is strict, bounded, rejects secret-like/raw-selector/raw-output fields, and remains capped at **64 KiB**. InternalRoot/outside-Workspace artifact paths remain denied.
+- Trusted Git enrichment uses only existing Git Safety structured status. Sensitive paths are omitted; automatic paths are deterministically limited by count, **1,024-char path bound**, and remaining **64 KiB** checkpoint capacity. Excess enrichment is omitted rather than persisting an invalid context.
+- Resume validates trusted Git drift without mutating Git or replacing saved context. Workspace switches invalidate bootstrap and cannot expose another Workspace's Resume Context.
+- Activity suppresses routine successful Work Memory Tool Kernel noise while keeping resume-required, schema, persistence, and execution failures visible once; renderer DTOs remain free of raw checkpoint metadata.
+
+Final Home-PC evidence:
+
+- meaningful Git-enrichment RED: **PASS as RED evidence** — automatic overlong changed path violated the persisted artifact bound before the fix
+- focused Work Memory suite: **12 passed / 1 gated acceptance skipped** across 6 files
+- directly relevant Workspace/Git/Approval/MCP regressions: **111/111 PASS**
+- refreshed Home-PC production acceptance: **2/2 PASS**, including restart continuity, real non-mutating Git drift, pathological long/aggregate trusted-Git enrichment, bounded persisted context, and Workspace A/B isolation
+- lint: **PASS**
+- typecheck: **PASS**
+- final full repository suite: **35 files passed / 2 skipped; 476 tests passed / 4 skipped**
+- production build: **PASS**
+- final `git diff --check`: **PASS**
+- exact production MCP surface: **26 unique tools**
+- final Security/Data + Standards/Spec review: **PASS / PASS / PASS**, blockers **0**
+- `.serena/` remains local-only and must not be committed
+
+Closure note: the separate pre-existing Restricted Execute Home-PC note later in this handoff remains unrelated local working-tree state and must stay unstaged/uncommitted with Work Memory.
+
+**Next approved step:** **Team Mode MVP** only under a new explicit user task plus a fresh Skill Router Gate. STOP after this Work Memory commit/push/fetch with `HEAD == origin/master` and divergence `0 0`; do not start Team Mode or any later milestone from this task.
+
 **Restricted Verify — Personal Alpha (2026-09-05)**
 
 **RESTRICTED VERIFY PERSONAL ALPHA: PASS — closed and ready to commit/push**

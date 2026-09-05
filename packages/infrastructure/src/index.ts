@@ -18,3 +18,5 @@ export * from './serena-engine-provisioner.js';
 export * from './serena-managed-runtime.js';
 
 export * from './restricted-verify-adapter.js';
+
+export * from './work-memory-repository.js';
