@@ -51,10 +51,10 @@ A skill may never start the next milestone, expand the current task, weaken secu
 
 ### Mandatory Skill Router Gate
 
-Run a fresh Skill Router Gate after the minimum session/task bootstrap and **before** any substantive planning, investigation, debugging, design, implementation/editing, or skill-governed review. The gate also applies to read-only and documentation/governance tasks; the selected set may be small or empty.
+Run a fresh Skill Router Gate after the minimum session/task bootstrap and **before** any substantive planning, investigation, debugging, design, implementation/editing, or skill-governed review. Route against the **current work phase**, not every later phase named in the milestone or plan. The gate also applies to read-only and documentation/governance tasks; the selected set may be small or empty.
 
-1. Evaluate the trigger metadata for all installed skills against the active task.
-2. Select **every** skill whose trigger genuinely matches; selection does not authorize work outside the active task or security/STOP boundaries.
+1. Evaluate the trigger metadata for all installed skills against the current work phase.
+2. Select only the skills whose triggers genuinely match **now**. Do not preload skills merely because a later implementation, debugging, UI, review, research, or handoff phase may need them; selection does not authorize work outside the active task or security/STOP boundaries.
 3. Load every selected skill before doing the work it governs:
    - **Native Agent Skills runtime:** invoke the canonical repo skill; native invocation counts as loading it.
    - **Serena / non-native runtime:** actually read `.agents/skills/<skill>/SKILL.md`. Merely naming, considering, or planning to read a skill later does not satisfy the gate.
@@ -68,7 +68,7 @@ Skills: diagnosing-bugs — broken behavior — .agents/skills/diagnosing-bugs/S
 Skills: tdd — source bug fix begins — .agents/skills/tdd/SKILL.md
 ```
 
-Run the gate again when any of these changes invalidates the prior selection: a new chat/session, a new task, Home-PC ↔ Work-PC change, Serena ↔ Codex/other runtime change, explicit task handoff, material task/scope change, or a task phase entering a newly triggered workflow (for example investigation/debug → source-changing bug fix). For a new session/device/runtime/handoff, repeat the minimum repository bootstrap/context read before the fresh gate. Prior-session selection is never proof for a new session.
+Run the gate again when any of these changes invalidates the prior selection: a new chat/session, a new task, Home-PC ↔ Work-PC change, Serena ↔ Codex/other runtime change, explicit task handoff, material task/scope change, or a current-phase transition that changes which triggers apply (for example implementation → review, backend → renderer-visible UI, or investigation → source-changing bug fix). A phase rerun replaces the current-phase skill set; it is **not** a cumulative union of every skill used earlier in the milestone. Previously loaded skills create no continuing ceremony unless their trigger still applies. For a new session/device/runtime/handoff, repeat the minimum repository bootstrap/context read before the fresh gate. Prior-session selection is never proof for a new session. An expected TDD RED is normal evidence and does not by itself trigger `diagnosing-bugs`.
 
 #### Mandatory Impeccable UI Gate
 
@@ -76,7 +76,7 @@ Any task that plans, designs, creates, modifies, fixes, reviews, audits, or poli
 
 ### Skill resolution and progressive disclosure
 
-The router evaluates trigger metadata across the installed skills but loads only the skills selected for the active task. **Run the router every time; load every applicable skill; do not load the whole catalogue by default.**
+The router evaluates trigger metadata across the installed skills but loads only the skills selected for the current phase. **Run the router at each required gate; load every currently applicable skill; do not load the whole catalogue by default.**
 
 - If a selected skill references another skill, load the second skill only when the active workflow branch genuinely requires it; never recursively load the catalogue.
 - Skill versions are pinned. See the provenance records under `.agents/skills/` (including `MATT-POCOCK-SKILLS.md` and `IMPECCABLE-SKILL.md`). Do not auto-update skills during product milestones; upgrades are separate governance/tooling tasks.
@@ -87,16 +87,16 @@ The router evaluates trigger metadata across the installed skills but loads only
 
 | Skill | Route when | SUD_D adaptation |
 | --- | --- | --- |
-| `tdd` | Meaningful source behavior changes, bug fixes with a valid test seam, new functional/security capabilities, or integration behavior changes | Work red → green through observable public/trusted seams; avoid implementation-coupled or tautological tests. An acceptance matrix or public seam already defined by the task is pre-agreed; do not ask the user to reconfirm it. |
-| `diagnosing-bugs` | Something is broken, failing, flaky, unexpectedly slow, or a verification failure has an unclear root cause | Establish or reuse a tight red-capable feedback loop, reproduce and minimize, form falsifiable hypotheses, instrument selectively, then secure the root cause with a regression test; remove temporary instrumentation afterward. Skip speculation only when the root cause is already conclusive. |
-| `codebase-design` | Designing/changing a module interface, seam/port/adapter, cross-package contract, testability boundary, or architectural abstraction | Prefer deep, local interfaces with leverage; avoid shallow pass-through layers and speculative abstractions. Skip ordinary tiny changes with no interface/design question. |
-| `domain-modeling` | Core domain/security terminology, state-machine concepts, Policy/Approval/Recovery/Team concepts, or a stable ubiquitous-language decision changes | Align terminology, invariants, scenarios, code, tests, and durable docs. Do not churn `SUD_D_CONTEXT.md` for implementation trivia. |
-| `code-review` | Security/Data Critical final gate, explicit task review, architecture/shared-contract/cross-package behavior change, or privileged-boundary change | Review Standards and Spec separately. The current task/milestone `.md` is the primary Spec when available; `AGENTS.md`, repo docs, and security invariants are Standards. Use the captured task-start baseline as fixed point. Do not require `setup-matt-pocock-skills` or an external issue tracker. |
+| `tdd` | Current phase changes meaningful source behavior, fixes a bug with a valid test seam, adds a functional/security capability, or changes integration behavior | Work red → green through observable public/trusted seams; avoid implementation-coupled or tautological tests. An acceptance matrix or public seam already defined by the task is pre-agreed; do not ask the user to reconfirm it. Expected RED is evidence, not a `diagnosing-bugs` trigger. |
+| `diagnosing-bugs` | The current phase has an unexpected/unclear failure, broken behavior, flake, or unexplained slowdown | Establish or reuse a tight red-capable feedback loop, reproduce and minimize, form falsifiable hypotheses, instrument selectively, then secure the root cause with a regression test; remove temporary instrumentation afterward. A normal expected TDD RED does not trigger this skill. |
+| `codebase-design` | The current phase is designing or changing a module interface, seam/port/adapter, cross-package contract, testability boundary, or architectural abstraction | Prefer deep, local interfaces with leverage; avoid shallow pass-through layers and speculative abstractions. Implementing an already-approved fixed contract does not trigger this skill unless the interface/seam itself is changing. |
+| `domain-modeling` | The current phase changes core domain/security terminology, state-machine concepts, Policy/Approval/Recovery/Team concepts, or another stable ubiquitous-language decision | Align terminology, invariants, scenarios, code, tests, and durable docs. Merely using already-established terms does not trigger this skill; do not churn `SUD_D_CONTEXT.md` for implementation trivia. |
+| `code-review` | The current phase is an explicit review/final gate, including a required Security/Data Critical final review or a requested architecture/shared-contract/privileged-boundary review | Route when review actually begins, not as implementation-startup ceremony. Review Standards and Spec separately. The current task/milestone `.md` is the primary Spec when available; `AGENTS.md`, repo docs, and security invariants are Standards. Use the captured task-start baseline as fixed point. Do not require `setup-matt-pocock-skills` or an external issue tracker. |
 | `prototype` | Material UI/UX uncertainty, throwaway state/logic exploration, or multiple interaction designs need comparison | Skip trivial cosmetic tweaks. Prototype artifacts are disposable unless separately approved. |
 | `research` | Implementation depends on current external API/runtime/library/spec facts not established locally, or official technical behavior must be verified | Read SUD_D code/docs first, then use high-trust primary sources. Research may run synchronously when background agents are unavailable. Keep transient notes local unless they become approved durable documentation. |
 | `resolving-merge-conflicts` | An actual merge or rebase conflict is already in progress | Resolve by original intent and primary sources. SUD_D safety rules and preservation of user-owned work override any generic instruction that would risk data loss. Do not invoke merely because branches differ. |
 | `grilling` | A product/architecture/security/design decision has meaningful unresolved branches or hidden assumptions needing stress-testing | Use repository facts first. Do not interview the user when the task is already narrow, explicit, and fully specified; ask only genuinely unresolved decisions. |
-| `writing-for-agents` | `AGENTS.md`, skill routing, agent-facing context/instructions, or process/handoff docs primarily consumed by agents change | Keep instructions concise, use progressive disclosure, strengthen trigger pointers, and remove duplicated/conflicting agent guidance. |
+| `writing-for-agents` | The current phase changes `AGENTS.md`, skill routing, agent-facing context/instructions, or process/handoff docs primarily consumed by agents | Route only for that agent-facing docs phase. Keep instructions concise, use progressive disclosure, strengthen trigger pointers, and remove duplicated/conflicting agent guidance. |
 | `impeccable` | Designing, redesigning, shaping, critiquing, auditing, polishing, clarifying, hardening, adapting, laying out, typesetting, onboarding, or otherwise improving SUD_D Desktop frontend/UI/UX; includes interaction clarity, accessibility, responsive/window behavior, UX copy, empty/error states, and design-system work. Do not route for backend-only tasks. | Treat SUD_D Desktop as an **Operate**-mode product UI unless a narrower surface implies otherwise. Preserve product truth and all SUD_D security boundaries; design workflow grants no backend/privileged authority. Impeccable complements rather than replaces other applicable skills: `tdd`, `codebase-design`, and `prototype` still route independently when their triggers match. |
 
 ### Explicit / user-invoked skills
@@ -149,18 +149,21 @@ The compliance check remains valid only while its underlying Skill Router Gate r
 
 SUD_D is a personal-first project for one primary owner and approximately one occasional tester. Before planning verification, classify the change by the highest applicable risk tier; a mixed change inherits its highest-risk part. Keep one milestone checkpoint at a time, but choose its verification plan from the risk tier instead of applying one heavyweight checklist to every change. A milestone prompt may override or add verification, and every `REQUIRED verification` instruction is mandatory; no override or tier may weaken a security invariant.
 
+Use the lowest-friction path permitted by the actual product policy for routine read/search/status/inspection and safe local development work. Do not add approval, review, logging, confirmation, enterprise/multi-user controls, or speculative security layers merely because they might be useful later. Sensitive, destructive, network, privileged, secret-bearing, or containment-relevant actions keep the appropriate Policy/Approval/Audit boundary. **Risk, not user count, determines the hard boundary.**
+
 ### Verification Efficiency / Test Economy
 
-Use the smallest fresh verification set that gives trustworthy evidence for the current change. Do not repeatedly run expensive gates when narrower evidence is sufficient.
+**Default: focused-first, final-once, rerun-by-invalidation.** Use the smallest fresh verification set that gives trustworthy evidence for the current phase, then run the risk-tier/milestone final gates once after implementation is stable.
 
-- During implementation, prefer focused tests for changed behavior. Do not run the full suite after every edit.
-- Run only regressions relevant to the affected boundary during iteration. Expand coverage when a failure, shared contract, or cross-package change justifies it.
-- For Security / Data Critical work, the full suite and other required final gates remain mandatory, but normally run them once after the implementation is stable. Rerun only a gate whose evidence was invalidated by a later relevant change.
-- Treat lint, typecheck, build, smoke, acceptance, secret scans, and reviews the same way: keep fresh final evidence, but avoid repeating already-valid evidence without a reason.
-- When a runtime boundary changes, one conclusive real smoke/acceptance run is sufficient unless the related runtime code changes again or the result is inconclusive.
-- If a connector, terminal, or test harness fails without evidence of a SUD_D product failure, rerun only the missing or inconclusive gate rather than restarting the entire verification sequence.
+- During implementation, use focused RED/GREEN tests for changed behavior and only regressions relevant to the affected boundary. Do not run the full suite after every edit, task, or subtask.
+- Do not repeat lint, typecheck, build, smoke, acceptance, secret scans, or review merely because another phase completed. Existing evidence remains valid until a later relevant change invalidates the boundary it covered.
+- At milestone closure, run the final gates required by the selected risk tier and milestone specification once on the stable implementation. Security / Data Critical retains its mandatory full suite and security gates. For Normal Functional work, one final full-suite run is enough when the tier/milestone requires it.
+- A later change invalidates only the checks whose covered boundary changed. Rerun only invalidated or inconclusive checks; a handoff/docs-only edit after valid runtime evidence does not invalidate unrelated runtime evidence.
+- When a runtime boundary changes, one conclusive real smoke/acceptance run is sufficient unless that runtime boundary changes again or the result is inconclusive.
+- If a connector, environment, terminal, or test harness fails without evidence of a SUD_D product failure, rerun the missing/inconclusive check rather than restarting the verification sequence.
+- Documentation-only changes use diff/governance checks and do not trigger the product suite unless they alter generated or runtime configuration.
 - Do not add enterprise-scale, load, multi-user, cross-platform matrix, or speculative compatibility testing unless the approved milestone or explicit user instruction requires it.
-- Verification efficiency must never weaken a security invariant, hide a real failure, or skip a mandatory final gate.
+- Verification economy never weakens a security invariant, hides a real failure, or skips a mandatory final gate.
 
 ### A. Security / Data Critical
 
