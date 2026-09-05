@@ -36,7 +36,8 @@ const GIT_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint'] as 
 const TEAM_TOOLS = ['team.start', 'team.status', 'team.submit', 'team.stop'] as const;
 const CODE_READ_TOOLS = ['code.overview', 'code.find_symbol', 'code.find_references', 'code.search', 'code.diagnostics'] as const;
 const CODE_WRITE_TOOLS = ['code.replace_symbol', 'code.insert_before', 'code.insert_after', 'code.rename'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...WORKSPACE_TOOLS, ...GIT_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS].sort();
+const VERIFY_TOOLS = ['verify.run'] as const;
+const APPROVED_PRODUCTION_TOOLS = [...WORKSPACE_TOOLS, ...GIT_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS].sort();
 
 const tempDirs: string[] = [];
 const openDbs: Db[] = [];
@@ -274,7 +275,7 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
     expect(requireOk(h.service.status({ missionId: start.missionId }))).toMatchObject({ state: 'blocked', blockedReason: 'EXECUTE_REQUIRED' });
   });
 
-  it('production MCP exposes exactly 23 tools with only the approved semantic reads and writes', async () => {
+  it('production MCP exposes exactly 24 tools with only the approved semantic reads and writes', async () => {
     const h = makeHarness();
     const server = createProductionMcpServer({
       workspaceRepo: h.workspaceRepo,
@@ -284,6 +285,7 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
       teamRepo: h.teamRepo,
       semanticRead: { read: async () => ({ content: [] }) },
       semanticWrite: { write: async () => ({ content: [] }) },
+      restrictedVerify: { run: async (_context, request) => ({ action: request.action, passed: true, exitCode: 0, output: '', truncated: false, durationMs: 1 }) },
     });
     const input = new PassThrough();
     const output = new PassThrough();

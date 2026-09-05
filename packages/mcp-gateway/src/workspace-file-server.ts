@@ -8,6 +8,7 @@ import {
   createCodingSemanticReadCapabilities,
   createCodingSemanticWriteCapabilities,
   createGitSafetyCapabilities,
+  createRestrictedVerifyCapabilities,
   createTeamCapabilities,
   createTeamService,
   createToolCapabilityRegistry,
@@ -15,10 +16,11 @@ import {
   createWorkspaceFileCapabilities,
   type CodingSemanticReadPort,
   type CodingSemanticWritePort,
+  type RestrictedVerifyPort,
   type ToolKernel,
   type ToolKernelApprovalPort,
 } from '@sud-d/application';
-import type { InternalRoot } from '@sud-d/domain';
+import { RESTRICTED_VERIFY_ACTIONS, type InternalRoot } from '@sud-d/domain';
 import {
   GIT_SAFETY_LIMITS,
   WORKSPACE_TEXT_FILE_LIMITS,
@@ -27,6 +29,7 @@ import {
   createAuditRepository,
   createGitSafetyAdapter,
   createManagedSerenaRuntime,
+  createRestrictedVerifyAdapter,
   createTeamRepository,
   createWorkspaceRepository,
   createWorkspaceTextFileSystem,
@@ -115,6 +118,10 @@ const teamSubmitInputSchema = z.discriminatedUnion('outcome', [
   z.object({ outcome: z.literal('blocked'), blockedReason: teamBlockedReasonSchema, summary: teamSummarySchema }).strict(),
 ]);
 
+const restrictedVerifyInputSchema = z.object({
+  action: z.enum(RESTRICTED_VERIFY_ACTIONS),
+}).strict();
+
 const codeOverviewInputSchema = z.object({
   relativePath: relativePathSchema,
   depth: z.number().int().min(-1).max(8).optional(),
@@ -173,6 +180,7 @@ export interface ProductionMcpServerDependencies {
   readonly teamRepo: TeamRepository;
   readonly semanticRead: CodingSemanticReadPort;
   readonly semanticWrite: CodingSemanticWritePort;
+  readonly restrictedVerify: RestrictedVerifyPort;
   readonly approval?: ToolKernelApprovalPort;
 }
 
@@ -225,6 +233,13 @@ export function createProductionMcpServer(
       fileSystem: dependencies.fileSystem,
       semanticWrite: dependencies.semanticWrite,
     }),
+    ...createRestrictedVerifyCapabilities({
+      workspaceRepo: dependencies.workspaceRepo,
+      internalRoots: dependencies.internalRoots,
+      fileSystem: dependencies.fileSystem,
+      restrictedVerify: dependencies.restrictedVerify,
+      summaryAudit: dependencies.auditRepo,
+    }),
     ...createTeamCapabilities({
       teamService,
       resolveWorkspaceSecurity: resolveTeamSecurity,
@@ -248,6 +263,7 @@ export function createProductionMcpServer(
   registerTeamTools(server, kernel);
   registerCodingSemanticReadTools(server, kernel);
   registerCodingSemanticWriteTools(server, kernel);
+  registerRestrictedVerifyTools(server, kernel);
   return server;
 }
 
@@ -264,6 +280,7 @@ export function createDefaultProductionMcpServer(): McpServer {
   const teamRepo = createTeamRepository(db);
   const approval = createApprovalCoordinator({ repository: approvalRepo });
   const codingRuntime = createManagedSerenaRuntime({ dataRoot });
+  const restrictedVerify = createRestrictedVerifyAdapter();
   return createProductionMcpServer({
     workspaceRepo: createWorkspaceRepository(db),
     auditRepo,
@@ -276,6 +293,7 @@ export function createDefaultProductionMcpServer(): McpServer {
     semanticWrite: {
       write: (context, request) => codingRuntime.semanticWrite(context, request),
     },
+    restrictedVerify,
     approval,
   });
 }
@@ -502,6 +520,17 @@ function registerCodingSemanticWriteTools(server: McpServer, kernel: ToolKernel)
   );
 }
 
+function registerRestrictedVerifyTools(server: McpServer, kernel: ToolKernel): void {
+  server.registerTool(
+    'verify.run',
+    {
+      title: 'Run project verification',
+      description: 'Run one fixed project verification action in the active Workspace through Policy and Approval.',
+      inputSchema: restrictedVerifyInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'verify.run', input),
+  );
+}
 async function invokeKernel(
   kernel: ToolKernel,
   capability: string,

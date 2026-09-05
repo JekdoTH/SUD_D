@@ -361,6 +361,59 @@ describe('M0.7 — Activity integration', () => {
     expect(JSON.stringify(result.value)).not.toMatch(/replace_symbol|insert_before|RAW_SERENA|body|content/i);
   });
 
+  it('summarizes Restricted Verify pass/fail without duplicate kernel noise', () => {
+    const verifyAuthorized = auditEvent({
+      id: '00000000-0000-4000-8000-000000000738',
+      action: 'tool_kernel.invoke',
+      resultCode: 'EXECUTION_AUTHORIZED',
+      metadata: { capability: 'verify.run', phase: 'pre_execution', outcome: 'authorized' },
+    });
+    const verifyExecuted = auditEvent({
+      id: '00000000-0000-4000-8000-000000000739',
+      action: 'tool_kernel.invoke',
+      resultCode: 'EXECUTED',
+      metadata: { capability: 'verify.run', phase: 'outcome', outcome: 'executed' },
+    });
+    const verifyApproval = auditEvent({
+      id: '00000000-0000-4000-8000-000000000740',
+      action: 'tool_kernel.invoke',
+      resultCode: 'APPROVAL_REQUIRED',
+      metadata: { capability: 'verify.run', phase: 'outcome', outcome: 'blocked' },
+    });
+    const testPassed = auditEvent({
+      id: '00000000-0000-4000-8000-000000000741',
+      action: 'restricted_verify.run',
+      resultCode: 'VERIFY_PASSED',
+      metadata: { action: 'test', passed: true, exitCode: 0, truncated: false },
+    });
+    const buildFailed = auditEvent({
+      id: '00000000-0000-4000-8000-000000000742',
+      action: 'restricted_verify.run',
+      resultCode: 'VERIFY_FAILED',
+      metadata: { action: 'build', passed: false, exitCode: 1, truncated: false },
+    });
+    const buildTimedOut = auditEvent({
+      id: '00000000-0000-4000-8000-000000000743',
+      action: 'restricted_verify.run',
+      resultCode: 'VERIFY_TIMEOUT',
+      metadata: { action: 'build', passed: false },
+    });
+    const controller = createDesktopDiagnosticsController(diagnosticsDependencies({
+      listAuditEvents: () => [verifyAuthorized, verifyExecuted, verifyApproval, testPassed, buildFailed, buildTimedOut],
+    }));
+
+    const result = controller.listActivity({ limit: 20 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.map((event) => ({ title: event.title, tone: event.tone, category: event.category, resultCode: event.resultCode }))).toEqual([
+      { title: 'Project verification needs approval', tone: 'warning', category: 'workspace', resultCode: 'APPROVAL_REQUIRED' },
+      { title: 'Project test passed', tone: 'success', category: 'workspace', resultCode: 'VERIFY_PASSED' },
+      { title: 'Project build failed', tone: 'error', category: 'workspace', resultCode: 'VERIFY_FAILED' },
+      { title: 'Project build failed', tone: 'error', category: 'workspace', resultCode: 'VERIFY_TIMEOUT' },
+    ]);
+    expect(JSON.stringify(result.value)).not.toMatch(/stdout|stderr|RAW_VERIFY|TOKEN=/i);
+  });
   it('applies Activity noise exclusion before the audit LIMIT so real events are not starved', () => {
     const root = makeTempDir();
     const db = openDatabase(path.join(root, 'm07-activity-window.db'));

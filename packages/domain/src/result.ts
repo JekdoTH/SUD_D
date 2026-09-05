@@ -1,4 +1,5 @@
 import type { CodingEngineFailureCode } from './coding-engine.js';
+import type { RestrictedVerifyFailureCode } from './restricted-verify.js';
 
 // ---------------------------------------------------------------------------
 // Result monad
@@ -61,6 +62,7 @@ export type AppErrorCode =
   | 'TEAM_REVIEW_LOOP_LIMIT'
   | 'TEAM_STALE'
   | CodingEngineFailureCode
+  | RestrictedVerifyFailureCode
   | 'VALIDATION_FAILED'
   | 'INTERNAL_ERROR';
 

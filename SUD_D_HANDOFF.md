@@ -254,43 +254,43 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Execution State
 
-**Managed Serena Architecture — Milestone D Semantic Write (2026-09-05)**
+**Restricted Verify — Personal Alpha (2026-09-05)**
 
-**SERENA SEMANTIC WRITE MILESTONE D: PASS — closure ready**
+**RESTRICTED VERIFY PERSONAL ALPHA: PASS — closed and ready to commit/push**
 
-Fixed review point:
+Fixed implementation baseline:
 
-- `57246e7a07572c57ed747509c421ea42d52ee858`
+- `ad98d40972445f0c4e79fd5a69339c7d458723ff`
 
 Delivered contract:
 
-- Production MCP exposes exactly **23 tools**: the existing six Workspace, four Git Safety, four Team, and five semantic-read tools plus exactly four semantic writes: `code.replace_symbol`, `code.insert_before`, `code.insert_after`, and `code.rename`.
-- All four semantic writes follow MCP Gateway → Tool Kernel → Policy/Approval → fixed semantic adapter → Product Mode Serena allowlist/schema revalidation → managed runtime → active Workspace.
-- All four use the existing `modify` effect. Normal source paths remain ALLOW; existing sensitive-resource classification and exact one-time Approval behavior remain Policy-owned.
-- Fixed Serena mappings only: `code.replace_symbol → replace_symbol_body`, `code.insert_before → insert_before_symbol`, `code.insert_after → insert_after_symbol`, and `code.rename → rename_symbol`.
-- Path-bearing requests resolve existing targets through the Workspace file-security resolver; traversal, absolute paths, `.git`, InternalRoot, malformed/oversized inputs, and active-Workspace swaps fail closed before semantic dispatch.
-- Malformed `semanticWrite` requests cannot select `write_memory`, `execute_shell_command`, `safe_delete_symbol`, or another unexpected upstream tool.
-- Throwing and non-throwing Serena/MCP failures map to stable `CODING_ENGINE_UNAVAILABLE`; submitted bodies/raw upstream errors are not persisted into Tool Kernel audit or Activity serialization.
-- Activity presents semantic edits/renames as meaningful Workspace events while suppressing routine authorization noise. Normal Git status/diff continues to expose semantic-write changes.
-- No `code.run`, `dev.verify`, generic/raw Serena passthrough, general shell, Network, Delete/Recovery, Work Memory, Team Mode, or Computer Use authority was added.
+- Production MCP exposes exactly **24 tools**. Restricted Verify adds only `verify.run({action})`; actions are exactly `test | lint | typecheck | build`.
+- `verify.run` uses the existing `execute` effect, so current Policy is **ASK** with exact one-time Approval bound to the selected action. Changed actions cannot reuse an approval; explicit denial blocks dispatch.
+- Public input is strict and carries no caller-selected executable, argv, cwd, env, shell, Workspace root/id, raw Serena selector, Delete selector, or memory selector authority.
+- Execution stays inside the active Workspace through the fixed Restricted Verify adapter. The adapter resolves only the declared pnpm/npm verification script, launches the resolved Node executable with fixed argv and `shell:false`, filters the child environment, and fails closed when the profile/runtime is unavailable.
+- Workspace/InternalRoot resolution happens before approval; active-Workspace replacement is revalidated before dispatch. Workspace roots are immutable per repository Workspace ID, preventing same-ID root rebinding through the supported repository API.
+- Verifier output is useful but hard-bounded and secret-shaped lines are redacted. Durable `restricted_verify.run` audit stores only stable action/result metadata; raw verifier output, raw host errors, argv/env, and secret sentinel values are not persisted.
+- Timeout/process failure maps to stable Restricted Verify codes. Windows timeout proof confirms root + descendant process cleanup with no orphaned child.
+- Activity shows approval, pass, verification failure, and timeout outcomes as concise Workspace events while suppressing duplicate successful Tool Kernel noise.
+- No `code.run`, `dev.verify`, generic shell tool, raw Serena passthrough, Network tool, Delete/Recovery, package install/update, Work Memory, Team Mode, or Computer Use authority was added.
 
-Final Home-PC evidence retained under rerun-by-invalidation:
+Final Home-PC evidence:
 
-- real Windows managed semantic-write acceptance: **1/1 PASS** — all four fixed mappings, semantic effects, Git visibility, central managed state, source `.serena` preservation, and cleanup; **91.45s**
-- managed Serena runtime foundation after the final malformed-write regression: **23/23 PASS**
-- Activity semantic-write summaries: **PASS**
-- Git visibility/status/diff proof: **PASS**
+- Restricted Verify focused suite: **11/11 PASS**
+- relevant Security/Data Critical regressions: **132/132 PASS**
+- real Home-PC Windows production acceptance: **1/1 PASS** across `test`, `lint`, `typecheck`, and `build`; latest body runtime **5.32s**
 - lint: **PASS**
 - typecheck: **PASS**
-- full repository suite after the latest regression: **450 PASS / 2 skipped**
-- production build: **PASS** and remains valid because the latest implementation change after it was test-only
+- production build: **PASS**
+- final full repository suite: **29 files passed / 2 skipped; 463 tests passed / 3 skipped**
 - final `git diff --check`: **PASS**
-- final Standards / Spec review: **PASS / PASS**, blocking findings **0 / 0**
+- final security/data-boundary review: **PASS**
+- final Standards / Spec review: **PASS / PASS**, blockers **0**
 - `.serena/` remains local-only and must not be committed
 
-Closure note: the separate pre-existing Restricted Execute Home-PC note later in this handoff remains unrelated local working-tree state and must stay unstaged/uncommitted with Milestone D.
+Closure note: the separate pre-existing Restricted Execute Home-PC note later in this handoff remains unrelated local working-tree state and must stay unstaged/uncommitted with Restricted Verify.
 
-**Next gate:** **Restricted Verify** is the next approved capability in the accelerated sequence and requires a new explicit user instruction plus a fresh Skill Router Gate. STOP after Milestone D commit/push/fetch with `HEAD == origin/master` and divergence `0 0`; do not start Restricted Verify, `code.run`, Work Memory / Automatic Resume, Team Mode, Computer Use, general shell, or Full Recovery/Delete from this task.
+**Next approved step:** **Work Memory / Automatic Resume MVP** only, and only under a new explicit user task plus a fresh Skill Router Gate. STOP after this Restricted Verify commit/push/fetch with `HEAD == origin/master` and divergence `0 0`; do not start Work Memory, Team Mode, `code.run`, general shell, Network tooling, Delete/Recovery, package install/update, or Computer Use from this task.
 
 **Managed Serena Architecture — Milestone B managed runtime foundation (2026-09-04)**
 

@@ -1,6 +1,7 @@
 import {
   CODING_SEMANTIC_READ_CAPABILITY_NAMES,
   CODING_SEMANTIC_WRITE_CAPABILITY_NAMES,
+  RESTRICTED_VERIFY_ACTIONS,
   appError,
   err,
   ok,
@@ -229,6 +230,33 @@ function semanticWriteActivityPresentation(event: AuditEvent): {
   };
 }
 
+const RESTRICTED_VERIFY_ACTION_SET = new Set<string>(RESTRICTED_VERIFY_ACTIONS);
+
+function isRoutineRestrictedVerifyKernelActivity(event: AuditEvent): boolean {
+  return event.action === 'tool_kernel.invoke'
+    && event.metadata?.capability === 'verify.run'
+    && (event.resultCode === 'EXECUTION_AUTHORIZED' || event.resultCode === 'EXECUTED');
+}
+
+function restrictedVerifyActivityPresentation(event: AuditEvent): {
+  readonly title: string;
+  readonly category: 'workspace';
+  readonly tone: 'success' | 'warning' | 'error';
+} | null {
+  if (event.action === 'tool_kernel.invoke' && event.metadata?.capability === 'verify.run') {
+    if (event.resultCode === 'APPROVAL_REQUIRED') {
+      return { title: 'Project verification needs approval', category: 'workspace', tone: 'warning' };
+    }
+    return { title: 'Project verification failed', category: 'workspace', tone: 'error' };
+  }
+  if (event.action !== 'restricted_verify.run') return null;
+  const action = event.metadata?.action;
+  const safeAction = typeof action === 'string' && RESTRICTED_VERIFY_ACTION_SET.has(action) ? action : 'verification';
+  if (event.resultCode === 'VERIFY_PASSED') {
+    return { title: `Project ${safeAction} passed`, category: 'workspace', tone: 'success' };
+  }
+  return { title: `Project ${safeAction} failed`, category: 'workspace', tone: 'error' };
+}
 const SAFE_OPERATIONS = new Set(['start', 'stop', 'restart']);
 const SAFE_STATES = new Set([
   'stopped',
@@ -263,6 +291,7 @@ function activityDetails(event: AuditEvent): DesktopActivityDetailDto[] {
 }
 
 function toActivityEvent(event: AuditEvent): DesktopActivityEventDto {
+  const restrictedVerify = restrictedVerifyActivityPresentation(event);
   const semanticWrite = semanticWriteActivityPresentation(event);
   const presentation = ACTIVITY_PRESENTATION[event.action];
   const failed = event.resultCode !== 'OK';
@@ -270,12 +299,12 @@ function toActivityEvent(event: AuditEvent): DesktopActivityEventDto {
     id: event.id,
     timestamp: event.timestamp.toISOString(),
     action: event.action,
-    title: semanticWrite?.title ?? presentation?.title ?? genericActivityTitle(event.action),
-    category: semanticWrite?.category ?? presentation?.category
+    title: restrictedVerify?.title ?? semanticWrite?.title ?? presentation?.title ?? genericActivityTitle(event.action),
+    category: restrictedVerify?.category ?? semanticWrite?.category ?? presentation?.category
       ?? (event.action.startsWith('workspace') ? 'workspace'
         : event.action.includes('profile') || event.action.includes('credential') ? 'configuration'
           : 'other'),
-    tone: semanticWrite?.tone ?? (failed ? 'error' : presentation?.tone ?? 'success'),
+    tone: restrictedVerify?.tone ?? semanticWrite?.tone ?? (failed ? 'error' : presentation?.tone ?? 'success'),
     resultCode: event.resultCode,
     details: activityDetails(event),
   };
@@ -364,6 +393,7 @@ export function createDesktopDiagnosticsController(
             .filter((event) => !ACTIVITY_NOISE_ACTIONS.has(event.action))
             .filter((event) => !isRoutineSemanticReadActivity(event))
             .filter((event) => !isRoutineSemanticWriteAuthorization(event))
+            .filter((event) => !isRoutineRestrictedVerifyKernelActivity(event))
             .map(toActivityEvent),
         );
       } catch {

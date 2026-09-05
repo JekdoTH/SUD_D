@@ -37,6 +37,7 @@ const APPROVED_TOOLS = [
   'team.status',
   'team.stop',
   'team.submit',
+  'verify.run',
   'workspace.create_text_file',
   'workspace.list',
   'workspace.read_text',
@@ -155,6 +156,7 @@ async function makeHarness(options: { gitRepo?: boolean } = {}) {
     hmacKey: Buffer.alloc(32, 31),
   });
   const approvalService = createApprovalService(approvalRepo, auditRepo);
+  const verifyCalls: string[] = [];
   const server = createProductionMcpServer({
     workspaceRepo,
     auditRepo,
@@ -164,6 +166,7 @@ async function makeHarness(options: { gitRepo?: boolean } = {}) {
     teamRepo: createTeamRepository(db),
     semanticRead: { read: async () => ({ content: [] }) },
     semanticWrite: { write: async () => ({ content: [] }) },
+    restrictedVerify: { run: async (_context, request) => { verifyCalls.push(request.action); return { action: request.action, passed: true, exitCode: 0, output: 'verify ok', truncated: false, durationMs: 1 }; } },
     approval: approvalCoordinator,
   });
   const input = new PassThrough();
@@ -188,7 +191,7 @@ async function makeHarness(options: { gitRepo?: boolean } = {}) {
     send({ jsonrpc: '2.0', id: callId, method: 'tools/list', params: {} });
     return reader.next();
   };
-  return { base, workspaceRoot, db, workspaceRepo, auditRepo, approvalRepo, approvalService, server, initialized, call, listTools };
+  return { base, workspaceRoot, db, workspaceRepo, auditRepo, approvalRepo, approvalService, verifyCalls, server, initialized, call, listTools };
 }
 
 afterEach(async () => {
@@ -199,7 +202,7 @@ afterEach(async () => {
 });
 
 describe('Basic Approval - production MCP workspace flows', () => {
-  it('tools/list exposes exactly 23 approved tools, no approval tool, and normal tools remain usable', async () => {
+  it('tools/list exposes exactly 24 approved tools, no approval tool, and normal tools remain usable', async () => {
     const h = await makeHarness({ gitRepo: true });
     expect(h.initialized.result?.serverInfo?.name).toBe('SUD-D');
     const listed = await h.listTools();
@@ -218,6 +221,72 @@ describe('Basic Approval - production MCP workspace flows', () => {
     await h.server.close();
   });
 
+  it('verify.run requires exact one-time approval and rejects process-control fields before dispatch', async () => {
+    const h = await makeHarness();
+    const first = parsePayload(await h.call('verify.run', { action: 'test' }));
+    expect(first).toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED', policyDecision: 'ask' });
+    expect(h.verifyCalls).toEqual([]);
+    const requestId = approvalId(first);
+    expect(h.approvalService.respond(requestId, 'approve').ok).toBe(true);
+
+    const changedAction = parsePayload(await h.call('verify.run', { action: 'lint' }));
+    expect(changedAction).toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED', policyDecision: 'ask' });
+    const changedRequestId = approvalId(changedAction);
+    expect(changedRequestId).not.toBe(requestId);
+    expect(h.verifyCalls).toEqual([]);
+
+    const approved = parsePayload(await h.call('verify.run', { action: 'test' }));
+    expect(approved).toMatchObject({
+      ok: true,
+      code: 'EXECUTED',
+      policyDecision: 'ask',
+      approvalDecision: 'approved',
+      approvalRequestId: requestId,
+      value: { action: 'test', passed: true, exitCode: 0, output: 'verify ok' },
+    });
+    expect(h.verifyCalls).toEqual(['test']);
+
+    expect(h.approvalService.respond(changedRequestId, 'deny').ok).toBe(true);
+    const denied = parsePayload(await h.call('verify.run', { action: 'lint' }));
+    expect(denied).toMatchObject({
+      ok: false,
+      code: 'APPROVAL_DENIED',
+      policyDecision: 'ask',
+      approvalDecision: 'denied',
+      approvalRequestId: changedRequestId,
+    });
+    expect(h.verifyCalls).toEqual(['test']);
+
+    const again = parsePayload(await h.call('verify.run', { action: 'test' }));
+    expect(again).toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
+    expect(approvalId(again)).not.toBe(requestId);
+    expect(h.verifyCalls).toEqual(['test']);
+
+    for (const input of [
+      { action: 'test', executable: 'cmd.exe' },
+      { action: 'test', argv: ['/c', 'whoami'] },
+      { action: 'test', cwd: 'C:\\' },
+      { action: 'test', env: { SECRET: 'x' } },
+      { action: 'test', shell: true },
+      { action: 'test', toolName: 'execute_shell_command' },
+      { action: 'test', toolName: 'write_memory' },
+      { action: 'test', toolName: 'safe_delete_symbol' },
+      { action: 'test', toolName: 'get_symbols_overview' },
+      { action: 'test', toolName: 'replace_symbol_body' },
+      { action: 'test', workspaceRoot: 'C:\\outside' },
+      { action: 'test', workspaceId: 'outside-workspace' },
+      { action: 'test', relativePath: '..\\outside' },
+      {},
+      { action: '' },
+      { action: 'x'.repeat(4096) },
+      { action: 'other' },
+    ]) {
+      const response = await h.call('verify.run', input);
+      expect(response.result?.isError).toBe(true);
+    }
+    expect(h.verifyCalls).toEqual(['test']);
+    await h.server.close();
+  });
   it('credential read requires approval, exact retry reveals once, later identical action requires fresh approval', async () => {
     const h = await makeHarness();
     const secret = 'SENTINEL_APPROVAL_READ_SECRET_001';

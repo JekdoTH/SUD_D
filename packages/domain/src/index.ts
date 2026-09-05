@@ -4,6 +4,7 @@ export * from './connection.js';
 export * from './coding-engine.js';
 export * from './coding-semantic-read.js';
 export * from './coding-semantic-write.js';
+export * from './restricted-verify.js';
 export * from './classifier.js';
 export * from './policy.js';
 export * from './tool-kernel.js';

@@ -129,6 +129,7 @@ describe('Git Safety - status and production MCP surface', () => {
       teamRepo: createTeamRepository(h.db),
       semanticRead: { read: async () => ({ content: [] }) },
     semanticWrite: { write: async () => ({ content: [] }) },
+      restrictedVerify: { run: async (_context, request) => ({ action: request.action, passed: true, exitCode: 0, output: '', truncated: false, durationMs: 1 }) },
     });
     const input = new PassThrough();
     const output = new PassThrough();
@@ -155,6 +156,7 @@ describe('Git Safety - status and production MCP surface', () => {
       teamRepo: createTeamRepository(h.db),
       semanticRead: { read: async () => ({ content: [] }) },
     semanticWrite: { write: async () => ({ content: [] }) },
+      restrictedVerify: { run: async (_context, request) => ({ action: request.action, passed: true, exitCode: 0, output: '', truncated: false, durationMs: 1 }) },
     });
     const input = new PassThrough();
     const output = new PassThrough();

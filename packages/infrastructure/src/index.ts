@@ -16,3 +16,5 @@ export * from './serena-runtime-paths.js';
 export * from './serena-managed-config.js';
 export * from './serena-engine-provisioner.js';
 export * from './serena-managed-runtime.js';
+
+export * from './restricted-verify-adapter.js';

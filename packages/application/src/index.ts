@@ -6,6 +6,7 @@ export * from './coding-engine-runtime-port.js';
 export * from './coding-engine-service.js';
 export * from './coding-semantic-read-capabilities.js';
 export * from './coding-semantic-write-capabilities.js';
+export * from './restricted-verify-capabilities.js';
 export * from './tool-kernel.js';
 export * from './workspace-file-capabilities.js';
 export * from './git-safety-capabilities.js';
