@@ -254,40 +254,43 @@ Team Mode / Agent Orchestration is adopted as SUD_D's long-term domain-agnostic 
 
 ## Current Execution State
 
-**Managed Serena Architecture — Milestone C Semantic Read (2026-09-05)**
+**Managed Serena Architecture — Milestone D Semantic Write (2026-09-05)**
 
-**SERENA SEMANTIC READ MILESTONE C: PASS**
+**SERENA SEMANTIC WRITE MILESTONE D: PASS — closure ready**
 
-Implementation baseline:
+Fixed review point:
 
-- `3e5cbcb2780c338ce26c199228de8c419a619d7c` — post-Milestone-B product-direction baseline and fixed review point.
+- `57246e7a07572c57ed747509c421ea42d52ee858`
 
 Delivered contract:
 
-- Production MCP now exposes exactly **19 tools**: the existing six Workspace, four Git Safety, and four Team tools plus exactly five read-only semantic capabilities: `code.overview`, `code.find_symbol`, `code.find_references`, `code.search`, and `code.diagnostics`.
-- Every `code.*` read follows MCP Gateway → Tool Kernel → Policy/Audit → fixed semantic adapter. All five capability effects are `read`; no Semantic Write, `code.run`, `dev.verify`, shell, Delete, Network, or generic Serena passthrough was added.
-- SUD-D owns a closed semantic request vocabulary and fixed Serena mappings: `code.overview → get_symbols_overview`, `code.find_symbol → find_symbol`, `code.find_references → find_referencing_symbols`, `code.search → search_for_pattern`, and `code.diagnostics → get_diagnostics_for_file`.
-- The managed runtime dispatches only targets present in the pinned Serena Product Mode allowlist and the active schema-compatible validated set, forces bounded `max_answer_chars`, exposes no public raw `callTool`, and maps upstream call failure to stable `CODING_ENGINE_UNAVAILABLE` without serializing raw upstream errors.
-- Semantic paths are resolved through the existing Workspace file-security resolver before dispatch; traversal, absolute paths, `.git`, and InternalRoot targets fail closed. The authorized active Workspace is revalidated before execution so a Workspace swap cannot reuse prior authorization.
-- Managed Serena state remains under SUD-D DataRoot and source Workspace `.serena` remains untouched.
-- Detailed Tool Kernel audit remains durable. The primary Activity projection suppresses only routine successful/authorized semantic-read events; semantic failures and unrelated meaningful events remain visible.
+- Production MCP exposes exactly **23 tools**: the existing six Workspace, four Git Safety, four Team, and five semantic-read tools plus exactly four semantic writes: `code.replace_symbol`, `code.insert_before`, `code.insert_after`, and `code.rename`.
+- All four semantic writes follow MCP Gateway → Tool Kernel → Policy/Approval → fixed semantic adapter → Product Mode Serena allowlist/schema revalidation → managed runtime → active Workspace.
+- All four use the existing `modify` effect. Normal source paths remain ALLOW; existing sensitive-resource classification and exact one-time Approval behavior remain Policy-owned.
+- Fixed Serena mappings only: `code.replace_symbol → replace_symbol_body`, `code.insert_before → insert_before_symbol`, `code.insert_after → insert_after_symbol`, and `code.rename → rename_symbol`.
+- Path-bearing requests resolve existing targets through the Workspace file-security resolver; traversal, absolute paths, `.git`, InternalRoot, malformed/oversized inputs, and active-Workspace swaps fail closed before semantic dispatch.
+- Malformed `semanticWrite` requests cannot select `write_memory`, `execute_shell_command`, `safe_delete_symbol`, or another unexpected upstream tool.
+- Throwing and non-throwing Serena/MCP failures map to stable `CODING_ENGINE_UNAVAILABLE`; submitted bodies/raw upstream errors are not persisted into Tool Kernel audit or Activity serialization.
+- Activity presents semantic edits/renames as meaningful Workspace events while suppressing routine authorization noise. Normal Git status/diff continues to expose semantic-write changes.
+- No `code.run`, `dev.verify`, generic/raw Serena passthrough, general shell, Network, Delete/Recovery, Work Memory, Team Mode, or Computer Use authority was added.
 
-Final Home-PC verification:
+Final Home-PC evidence retained under rerun-by-invalidation:
 
-- production MCP surface/regressions: **139/139 PASS**, exact 19 tools
-- Activity focused verification: **13/13 PASS**; scoped Impeccable detector: **no findings**
-- real Windows managed semantic-read acceptance: **1/1 PASS** — all five fixed mappings, bounded results, central metadata, blocked upstream drift, LSP health, source `.serena` preservation, and managed process cleanup
-- focused Milestone C tests: **50/50 PASS**
-- relevant Security/Data regressions: **170/170 PASS**
+- real Windows managed semantic-write acceptance: **1/1 PASS** — all four fixed mappings, semantic effects, Git visibility, central managed state, source `.serena` preservation, and cleanup; **91.45s**
+- managed Serena runtime foundation after the final malformed-write regression: **23/23 PASS**
+- Activity semantic-write summaries: **PASS**
+- Git visibility/status/diff proof: **PASS**
 - lint: **PASS**
 - typecheck: **PASS**
-- full repository suite: **435 PASS / 2 skipped**
-- production build: **PASS**
-- `git diff --check`: **PASS**
-- security/data-boundary review: **PASS**
-- final code review: **Standards PASS / Spec PASS**, blocking findings **0 / 0**
+- full repository suite after the latest regression: **450 PASS / 2 skipped**
+- production build: **PASS** and remains valid because the latest implementation change after it was test-only
+- final `git diff --check`: **PASS**
+- final Standards / Spec review: **PASS / PASS**, blocking findings **0 / 0**
+- `.serena/` remains local-only and must not be committed
 
-**Next gate:** Milestone D (Semantic Write) requires a new explicit user instruction and a fresh Skill Router Gate. STOP after Milestone C closure; do not start Semantic Write or any later roadmap item from this handoff.
+Closure note: the separate pre-existing Restricted Execute Home-PC note later in this handoff remains unrelated local working-tree state and must stay unstaged/uncommitted with Milestone D.
+
+**Next gate:** **Restricted Verify** is the next approved capability in the accelerated sequence and requires a new explicit user instruction plus a fresh Skill Router Gate. STOP after Milestone D commit/push/fetch with `HEAD == origin/master` and divergence `0 0`; do not start Restricted Verify, `code.run`, Work Memory / Automatic Resume, Team Mode, Computer Use, general shell, or Full Recovery/Delete from this task.
 
 **Managed Serena Architecture — Milestone B managed runtime foundation (2026-09-04)**
 

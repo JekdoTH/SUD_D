@@ -1,5 +1,6 @@
 import {
   CODING_SEMANTIC_READ_CAPABILITY_NAMES,
+  CODING_SEMANTIC_WRITE_CAPABILITY_NAMES,
   appError,
   err,
   ok,
@@ -177,6 +178,7 @@ const ACTIVITY_NOISE_ACTIONS = new Set([
 ]);
 
 const SEMANTIC_READ_ACTIVITY_CAPABILITIES = new Set<string>(CODING_SEMANTIC_READ_CAPABILITY_NAMES);
+const SEMANTIC_WRITE_ACTIVITY_CAPABILITIES = new Set<string>(CODING_SEMANTIC_WRITE_CAPABILITY_NAMES);
 
 function isRoutineSemanticReadActivity(event: AuditEvent): boolean {
   const capability = event.metadata?.capability;
@@ -184,6 +186,47 @@ function isRoutineSemanticReadActivity(event: AuditEvent): boolean {
     && typeof capability === 'string'
     && SEMANTIC_READ_ACTIVITY_CAPABILITIES.has(capability)
     && (event.resultCode === 'EXECUTION_AUTHORIZED' || event.resultCode === 'EXECUTED');
+}
+
+function isRoutineSemanticWriteAuthorization(event: AuditEvent): boolean {
+  const capability = event.metadata?.capability;
+  return event.action === 'tool_kernel.invoke'
+    && typeof capability === 'string'
+    && SEMANTIC_WRITE_ACTIVITY_CAPABILITIES.has(capability)
+    && event.resultCode === 'EXECUTION_AUTHORIZED';
+}
+
+function semanticWriteActivityPresentation(event: AuditEvent): {
+  readonly title: string;
+  readonly category: 'workspace';
+  readonly tone: 'success' | 'warning' | 'error';
+} | null {
+  const capability = event.metadata?.capability;
+  if (event.action !== 'tool_kernel.invoke'
+    || typeof capability !== 'string'
+    || !SEMANTIC_WRITE_ACTIVITY_CAPABILITIES.has(capability)) {
+    return null;
+  }
+  const rename = capability === 'code.rename';
+  if (event.resultCode === 'EXECUTED') {
+    return {
+      title: rename ? 'Renamed a symbol' : 'Edited a file',
+      category: 'workspace',
+      tone: 'success',
+    };
+  }
+  if (event.resultCode === 'APPROVAL_REQUIRED') {
+    return {
+      title: rename ? 'Symbol rename needs approval' : 'Code edit needs approval',
+      category: 'workspace',
+      tone: 'warning',
+    };
+  }
+  return {
+    title: rename ? 'Symbol rename failed' : 'Code edit failed',
+    category: 'workspace',
+    tone: 'error',
+  };
 }
 
 const SAFE_OPERATIONS = new Set(['start', 'stop', 'restart']);
@@ -220,18 +263,19 @@ function activityDetails(event: AuditEvent): DesktopActivityDetailDto[] {
 }
 
 function toActivityEvent(event: AuditEvent): DesktopActivityEventDto {
+  const semanticWrite = semanticWriteActivityPresentation(event);
   const presentation = ACTIVITY_PRESENTATION[event.action];
   const failed = event.resultCode !== 'OK';
   return {
     id: event.id,
     timestamp: event.timestamp.toISOString(),
     action: event.action,
-    title: presentation?.title ?? genericActivityTitle(event.action),
-    category: presentation?.category
+    title: semanticWrite?.title ?? presentation?.title ?? genericActivityTitle(event.action),
+    category: semanticWrite?.category ?? presentation?.category
       ?? (event.action.startsWith('workspace') ? 'workspace'
         : event.action.includes('profile') || event.action.includes('credential') ? 'configuration'
           : 'other'),
-    tone: failed ? 'error' : presentation?.tone ?? 'success',
+    tone: semanticWrite?.tone ?? (failed ? 'error' : presentation?.tone ?? 'success'),
     resultCode: event.resultCode,
     details: activityDetails(event),
   };
@@ -319,6 +363,7 @@ export function createDesktopDiagnosticsController(
           dependencies.listAuditEvents(input.limit, [...ACTIVITY_NOISE_ACTIONS])
             .filter((event) => !ACTIVITY_NOISE_ACTIONS.has(event.action))
             .filter((event) => !isRoutineSemanticReadActivity(event))
+            .filter((event) => !isRoutineSemanticWriteAuthorization(event))
             .map(toActivityEvent),
         );
       } catch {

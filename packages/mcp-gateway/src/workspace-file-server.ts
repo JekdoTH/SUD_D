@@ -6,6 +6,7 @@ import { z } from 'zod';
 import {
   createApprovalCoordinator,
   createCodingSemanticReadCapabilities,
+  createCodingSemanticWriteCapabilities,
   createGitSafetyCapabilities,
   createTeamCapabilities,
   createTeamService,
@@ -13,6 +14,7 @@ import {
   createToolKernel,
   createWorkspaceFileCapabilities,
   type CodingSemanticReadPort,
+  type CodingSemanticWritePort,
   type ToolKernel,
   type ToolKernelApprovalPort,
 } from '@sud-d/application';
@@ -140,6 +142,27 @@ const codeDiagnosticsInputSchema = z.object({
   endLine: z.number().int().min(-1).optional(),
   minSeverity: z.number().int().min(1).max(4).optional(),
 }).strict();
+const codeNamePathSchema = z.string().min(1).max(2_048).refine((value) => !value.includes('\0'));
+const codeWriteBodySchema = z.string().min(1).refine((value) => !value.includes('\0')).superRefine((value, context) => {
+  if (Buffer.byteLength(value, 'utf8') > WORKSPACE_TEXT_FILE_LIMITS.maxTextBytes) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Semantic write body exceeds the trusted size limit',
+    });
+  }
+});
+const codeReplaceSymbolInputSchema = z.object({
+  namePath: codeNamePathSchema,
+  relativePath: relativePathSchema,
+  body: codeWriteBodySchema,
+}).strict();
+const codeInsertBeforeInputSchema = codeReplaceSymbolInputSchema;
+const codeInsertAfterInputSchema = codeReplaceSymbolInputSchema;
+const codeRenameInputSchema = z.object({
+  namePath: codeNamePathSchema,
+  relativePath: relativePathSchema,
+  newName: z.string().min(1).max(2_048).refine((value) => !value.includes('\0')),
+}).strict();
 
 export interface ProductionMcpServerDependencies {
   readonly workspaceRepo: WorkspaceRepository;
@@ -149,6 +172,7 @@ export interface ProductionMcpServerDependencies {
   readonly gitSafety?: GitSafetyAdapter;
   readonly teamRepo: TeamRepository;
   readonly semanticRead: CodingSemanticReadPort;
+  readonly semanticWrite: CodingSemanticWritePort;
   readonly approval?: ToolKernelApprovalPort;
 }
 
@@ -195,6 +219,12 @@ export function createProductionMcpServer(
       fileSystem: dependencies.fileSystem,
       semanticRead: dependencies.semanticRead,
     }),
+    ...createCodingSemanticWriteCapabilities({
+      workspaceRepo: dependencies.workspaceRepo,
+      internalRoots: dependencies.internalRoots,
+      fileSystem: dependencies.fileSystem,
+      semanticWrite: dependencies.semanticWrite,
+    }),
     ...createTeamCapabilities({
       teamService,
       resolveWorkspaceSecurity: resolveTeamSecurity,
@@ -217,6 +247,7 @@ export function createProductionMcpServer(
   registerGitSafetyTools(server, kernel);
   registerTeamTools(server, kernel);
   registerCodingSemanticReadTools(server, kernel);
+  registerCodingSemanticWriteTools(server, kernel);
   return server;
 }
 
@@ -241,6 +272,9 @@ export function createDefaultProductionMcpServer(): McpServer {
     teamRepo,
     semanticRead: {
       read: (context, request) => codingRuntime.semanticRead(context, request),
+    },
+    semanticWrite: {
+      write: (context, request) => codingRuntime.semanticWrite(context, request),
     },
     approval,
   });
@@ -426,6 +460,45 @@ function registerCodingSemanticReadTools(server: McpServer, kernel: ToolKernel):
       inputSchema: codeDiagnosticsInputSchema,
     },
     async (input) => invokeKernel(kernel, 'code.diagnostics', input),
+  );
+}
+
+function registerCodingSemanticWriteTools(server: McpServer, kernel: ToolKernel): void {
+  server.registerTool(
+    'code.replace_symbol',
+    {
+      title: 'Replace code symbol',
+      description: 'Replace one existing symbol definition through the managed Coding Engine within the active Workspace.',
+      inputSchema: codeReplaceSymbolInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'code.replace_symbol', input),
+  );
+  server.registerTool(
+    'code.insert_before',
+    {
+      title: 'Insert code before symbol',
+      description: 'Insert bounded code immediately before one existing symbol through the managed Coding Engine.',
+      inputSchema: codeInsertBeforeInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'code.insert_before', input),
+  );
+  server.registerTool(
+    'code.insert_after',
+    {
+      title: 'Insert code after symbol',
+      description: 'Insert bounded code immediately after one existing symbol through the managed Coding Engine.',
+      inputSchema: codeInsertAfterInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'code.insert_after', input),
+  );
+  server.registerTool(
+    'code.rename',
+    {
+      title: 'Rename code symbol',
+      description: 'Rename one symbol through the managed Coding Engine within the active Workspace.',
+      inputSchema: codeRenameInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'code.rename', input),
   );
 }
 

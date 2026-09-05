@@ -6,6 +6,7 @@ import {
   type CodingEngineRuntimeHealth,
   type CodingEngineWorkspaceContext,
   type CodingSemanticReadRequest,
+  type CodingSemanticWriteRequest,
 } from '@sud-d/domain';
 import { createSerenaEngineProvisioner, safeManagedRuntimeEnvironment, buildManagedUvEnvironment, type SerenaEngineProvisioner } from './serena-engine-provisioner.js';
 import { SERENA_ENGINE_MANIFEST, type SerenaExpectedToolName } from './serena-engine-manifest.js';
@@ -115,11 +116,24 @@ export function createManagedSerenaRuntime(dependencies: ManagedSerenaRuntimeDep
         || !current.validatedToolNames.has(mapped.name)) {
         throw new CodingEngineRuntimeFailure('CODING_ENGINE_TOOL_CONTRACT_MISMATCH');
       }
-      try {
-        return await current.session.callTool({ name: mapped.name, arguments: mapped.arguments });
-      } catch {
-        throw new CodingEngineRuntimeFailure('CODING_ENGINE_UNAVAILABLE');
+      return callMappedTool(current.session, mapped);
+    },
+
+    async semanticWrite(context: CodingEngineWorkspaceContext, request: CodingSemanticWriteRequest): Promise<unknown> {
+      if (!active) {
+        await startInternal(context, 'start');
+      } else if (!workspaceContextMatches(active.context, context)) {
+        await runtime.stop();
+        await startInternal(context, 'start');
       }
+      const current = active;
+      if (!current) throw new CodingEngineRuntimeFailure('CODING_ENGINE_UNAVAILABLE');
+      const mapped = mapSemanticWriteRequest(request);
+      if (!SERENA_ENGINE_MANIFEST.expectedToolNames.includes(mapped.name)
+        || !current.validatedToolNames.has(mapped.name)) {
+        throw new CodingEngineRuntimeFailure('CODING_ENGINE_TOOL_CONTRACT_MISMATCH');
+      }
+      return callMappedTool(current.session, mapped);
     },
   };
 
@@ -174,6 +188,28 @@ function workspaceContextMatches(left: CodingEngineWorkspaceContext, right: Codi
   return left.workspaceId === right.workspaceId
     && left.canonicalRoot === right.canonicalRoot
     && left.projectName === right.projectName;
+}
+
+async function callMappedTool(
+  session: ManagedSerenaMcpSession,
+  request: { readonly name: SerenaExpectedToolName; readonly arguments: Record<string, unknown> },
+): Promise<unknown> {
+  try {
+    const result = await session.callTool({ name: request.name, arguments: request.arguments });
+    if (isMcpToolErrorResult(result)) {
+      throw new CodingEngineRuntimeFailure('CODING_ENGINE_UNAVAILABLE');
+    }
+    return result;
+  } catch {
+    throw new CodingEngineRuntimeFailure('CODING_ENGINE_UNAVAILABLE');
+  }
+}
+
+function isMcpToolErrorResult(value: unknown): boolean {
+  return value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && (value as { readonly isError?: unknown }).isError === true;
 }
 
 function mapSemanticReadRequest(request: CodingSemanticReadRequest): {
@@ -231,6 +267,52 @@ function mapSemanticReadRequest(request: CodingSemanticReadRequest): {
           ...(request.input.endLine !== undefined ? { end_line: request.input.endLine } : {}),
           ...(request.input.minSeverity !== undefined ? { min_severity: request.input.minSeverity } : {}),
           max_answer_chars: SEMANTIC_READ_MAX_ANSWER_CHARS,
+        },
+      };
+    default:
+      throw new CodingEngineRuntimeFailure('CODING_ENGINE_TOOL_CONTRACT_MISMATCH');
+  }
+}
+
+function mapSemanticWriteRequest(request: CodingSemanticWriteRequest): {
+  readonly name: SerenaExpectedToolName;
+  readonly arguments: Record<string, unknown>;
+} {
+  switch (request.capability) {
+    case 'code.replace_symbol':
+      return {
+        name: 'replace_symbol_body',
+        arguments: {
+          name_path: request.input.namePath,
+          relative_path: request.input.relativePath,
+          body: request.input.body,
+        },
+      };
+    case 'code.insert_before':
+      return {
+        name: 'insert_before_symbol',
+        arguments: {
+          name_path: request.input.namePath,
+          relative_path: request.input.relativePath,
+          body: request.input.body,
+        },
+      };
+    case 'code.insert_after':
+      return {
+        name: 'insert_after_symbol',
+        arguments: {
+          name_path: request.input.namePath,
+          relative_path: request.input.relativePath,
+          body: request.input.body,
+        },
+      };
+    case 'code.rename':
+      return {
+        name: 'rename_symbol',
+        arguments: {
+          name_path: request.input.namePath,
+          relative_path: request.input.relativePath,
+          new_name: request.input.newName,
         },
       };
     default:

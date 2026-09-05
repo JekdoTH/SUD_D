@@ -118,7 +118,7 @@ describe('Git Safety - status and production MCP surface', () => {
     expect(second.statusId).not.toBe(first.statusId);
   });
 
-  it('production tools/list exposes exactly six Workspace, four Git, four Team, plus five semantic-read tools', async () => {
+  it('production tools/list exposes exactly six Workspace, four Git, four Team, five semantic reads, and four semantic writes', async () => {
     const h = await makeHarness();
     const server = createProductionMcpServer({
       workspaceRepo: h.workspaceRepo,
@@ -128,6 +128,7 @@ describe('Git Safety - status and production MCP surface', () => {
       gitSafety: h.gitSafety,
       teamRepo: createTeamRepository(h.db),
       semanticRead: { read: async () => ({ content: [] }) },
+    semanticWrite: { write: async () => ({ content: [] }) },
     });
     const input = new PassThrough();
     const output = new PassThrough();
@@ -153,6 +154,7 @@ describe('Git Safety - status and production MCP surface', () => {
       gitSafety: h.gitSafety,
       teamRepo: createTeamRepository(h.db),
       semanticRead: { read: async () => ({ content: [] }) },
+    semanticWrite: { write: async () => ({ content: [] }) },
     });
     const input = new PassThrough();
     const output = new PassThrough();

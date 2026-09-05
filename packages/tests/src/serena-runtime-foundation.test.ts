@@ -290,6 +290,84 @@ describe('Serena managed foundation', () => {
     expect('callTool' in runtime).toBe(false);
   });
 
+  it('maps only the four approved semantic writes to fixed Serena tool names and snake_case arguments', async () => {
+    const root = temp();
+    const session = fakeMcpSession();
+    const runtime = createManagedSerenaRuntime({
+      dataRoot: path.join(root, 'data-semantic-write'),
+      provisioner: fakeProvisioner(),
+      createSession: () => session,
+      processSupervisor: stoppedProcessSupervisor(),
+    });
+    const context = makeWorkspace(root);
+    await runtime.start(context);
+    session.callToolRequests.length = 0;
+
+    await runtime.semanticWrite(context, { capability: 'code.replace_symbol', input: { namePath: 'add', relativePath: 'src/index.ts', body: 'export function add() { return 2; }' } });
+    await runtime.semanticWrite(context, { capability: 'code.insert_before', input: { namePath: 'Calculator', relativePath: 'src/index.ts', body: 'export const VERSION = 1;' } });
+    await runtime.semanticWrite(context, { capability: 'code.insert_after', input: { namePath: 'Calculator', relativePath: 'src/index.ts', body: 'export const createCalculator = () => new Calculator();' } });
+    await runtime.semanticWrite(context, { capability: 'code.rename', input: { namePath: 'Calculator', relativePath: 'src/index.ts', newName: 'ArithmeticCalculator' } });
+
+    expect(session.callToolRequests).toEqual([
+      { name: 'replace_symbol_body', arguments: { name_path: 'add', relative_path: 'src/index.ts', body: 'export function add() { return 2; }' } },
+      { name: 'insert_before_symbol', arguments: { name_path: 'Calculator', relative_path: 'src/index.ts', body: 'export const VERSION = 1;' } },
+      { name: 'insert_after_symbol', arguments: { name_path: 'Calculator', relative_path: 'src/index.ts', body: 'export const createCalculator = () => new Calculator();' } },
+      { name: 'rename_symbol', arguments: { name_path: 'Calculator', relative_path: 'src/index.ts', new_name: 'ArithmeticCalculator' } },
+    ]);
+    expect('callTool' in runtime).toBe(false);
+  });
+
+  it('maps non-throwing MCP semantic-write errors to stable Coding Engine unavailable', async () => {
+    const root = temp();
+    const session = fakeMcpSession();
+    const runtime = createManagedSerenaRuntime({
+      dataRoot: path.join(root, 'data-semantic-write-is-error'),
+      provisioner: fakeProvisioner(),
+      createSession: () => session,
+      processSupervisor: stoppedProcessSupervisor(),
+    });
+    const context = makeWorkspace(root);
+    await runtime.start(context);
+    session.callTool = async () => ({
+      isError: true,
+      content: [{ type: 'text', text: 'RAW_MCP_WRITE_ERROR_SENTINEL' }],
+    });
+
+    const failure = await runtime.semanticWrite(context, {
+      capability: 'code.replace_symbol',
+      input: { namePath: 'add', relativePath: 'src/index.ts', body: 'export function add() { return 2; }' },
+    }).catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({ code: 'CODING_ENGINE_UNAVAILABLE' });
+    expect(JSON.stringify(failure)).not.toContain('RAW_MCP_WRITE_ERROR_SENTINEL');
+  });
+
+  it('rejects malformed semantic writes instead of selecting memory, shell, delete, or unexpected upstream tools', async () => {
+    const root = temp();
+    const session = fakeMcpSession({
+      toolDefinitions: [
+        ...compatibleToolDefinitions(),
+        { name: 'write_memory', inputSchema: { type: 'object' } },
+      ],
+    });
+    const runtime = createManagedSerenaRuntime({
+      dataRoot: path.join(root, 'data-malformed-semantic-write'),
+      provisioner: fakeProvisioner(),
+      createSession: () => session,
+      processSupervisor: stoppedProcessSupervisor(),
+    });
+    const context = makeWorkspace(root);
+    await runtime.start(context);
+    session.callToolNames.length = 0;
+
+    for (const capability of ['write_memory', 'execute_shell_command', 'safe_delete_symbol']) {
+      await expect(runtime.semanticWrite(context, { capability, input: {} } as never)).rejects.toMatchObject({
+        code: 'CODING_ENGINE_TOOL_CONTRACT_MISMATCH',
+      });
+    }
+    expect(session.callToolNames).toEqual([]);
+  });
+
   it('rejects malformed semantic requests instead of selecting an upstream Serena tool', async () => {
     const root = temp();
     const session = fakeMcpSession({

@@ -320,6 +320,47 @@ describe('M0.7 — Activity integration', () => {
     ]);
   });
 
+  it('summarizes semantic writes truthfully while keeping authorization noise and raw content out of Activity', () => {
+    const writeAuthorized = auditEvent({
+      id: '00000000-0000-4000-8000-000000000734',
+      action: 'tool_kernel.invoke',
+      resultCode: 'EXECUTION_AUTHORIZED',
+      metadata: { capability: 'code.replace_symbol', phase: 'pre_execution', outcome: 'authorized' },
+    });
+    const writeExecuted = auditEvent({
+      id: '00000000-0000-4000-8000-000000000735',
+      action: 'tool_kernel.invoke',
+      resultCode: 'EXECUTED',
+      metadata: { capability: 'code.replace_symbol', phase: 'outcome', outcome: 'executed' },
+    });
+    const renameExecuted = auditEvent({
+      id: '00000000-0000-4000-8000-000000000736',
+      action: 'tool_kernel.invoke',
+      resultCode: 'EXECUTED',
+      metadata: { capability: 'code.rename', phase: 'outcome', outcome: 'executed' },
+    });
+    const writeFailure = auditEvent({
+      id: '00000000-0000-4000-8000-000000000737',
+      action: 'tool_kernel.invoke',
+      resultCode: 'EXECUTION_FAILED',
+      metadata: { capability: 'code.insert_before', phase: 'outcome', outcome: 'executed' },
+    });
+    const controller = createDesktopDiagnosticsController(diagnosticsDependencies({
+      listAuditEvents: () => [writeAuthorized, writeExecuted, renameExecuted, writeFailure],
+    }));
+
+    const result = controller.listActivity({ limit: 20 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.map((event) => ({ title: event.title, tone: event.tone, category: event.category, resultCode: event.resultCode }))).toEqual([
+      { title: 'Edited a file', tone: 'success', category: 'workspace', resultCode: 'EXECUTED' },
+      { title: 'Renamed a symbol', tone: 'success', category: 'workspace', resultCode: 'EXECUTED' },
+      { title: 'Code edit failed', tone: 'error', category: 'workspace', resultCode: 'EXECUTION_FAILED' },
+    ]);
+    expect(JSON.stringify(result.value)).not.toMatch(/replace_symbol|insert_before|RAW_SERENA|body|content/i);
+  });
+
   it('applies Activity noise exclusion before the audit LIMIT so real events are not starved', () => {
     const root = makeTempDir();
     const db = openDatabase(path.join(root, 'm07-activity-window.db'));
