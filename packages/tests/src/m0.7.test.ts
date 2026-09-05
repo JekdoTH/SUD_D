@@ -282,6 +282,44 @@ describe('M0.7 — Activity integration', () => {
     expect(result.value.map((event) => event.action)).toEqual(['connection.started']);
   });
 
+  it('suppresses routine semantic-read Activity while retaining semantic failures and meaningful events', () => {
+    const semanticAuthorized = auditEvent({
+      id: '00000000-0000-4000-8000-000000000730',
+      action: 'tool_kernel.invoke',
+      resultCode: 'EXECUTION_AUTHORIZED',
+      metadata: { capability: 'code.find_symbol', phase: 'pre_execution', outcome: 'authorized' },
+    });
+    const semanticExecuted = auditEvent({
+      id: '00000000-0000-4000-8000-000000000731',
+      action: 'tool_kernel.invoke',
+      resultCode: 'EXECUTED',
+      metadata: { capability: 'code.find_symbol', phase: 'outcome', outcome: 'executed' },
+    });
+    const semanticFailure = auditEvent({
+      id: '00000000-0000-4000-8000-000000000732',
+      action: 'tool_kernel.invoke',
+      resultCode: 'EXECUTION_FAILED',
+      metadata: { capability: 'code.find_symbol', phase: 'outcome', outcome: 'executed' },
+    });
+    const meaningful = auditEvent({
+      id: '00000000-0000-4000-8000-000000000733',
+      action: 'connection.started',
+      resultCode: 'OK',
+    });
+    const controller = createDesktopDiagnosticsController(diagnosticsDependencies({
+      listAuditEvents: () => [semanticAuthorized, semanticExecuted, semanticFailure, meaningful],
+    }));
+
+    const result = controller.listActivity({ limit: 20 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.map((event) => [event.action, event.resultCode])).toEqual([
+      ['tool_kernel.invoke', 'EXECUTION_FAILED'],
+      ['connection.started', 'OK'],
+    ]);
+  });
+
   it('applies Activity noise exclusion before the audit LIMIT so real events are not starved', () => {
     const root = makeTempDir();
     const db = openDatabase(path.join(root, 'm07-activity-window.db'));

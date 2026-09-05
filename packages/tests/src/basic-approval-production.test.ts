@@ -20,6 +20,11 @@ import { createApprovalCoordinator, createApprovalService } from '@sud-d/applica
 import { createProductionMcpServer, createStdioGatewayTransport } from '@sud-d/mcp-gateway';
 
 const APPROVED_TOOLS = [
+  'code.diagnostics',
+  'code.find_references',
+  'code.find_symbol',
+  'code.overview',
+  'code.search',
   'git.checkpoint',
   'git.detect',
   'git.diff',
@@ -153,6 +158,7 @@ async function makeHarness(options: { gitRepo?: boolean } = {}) {
     fileSystem: createWorkspaceTextFileSystem(),
     gitSafety: createGitSafetyAdapter(),
     teamRepo: createTeamRepository(db),
+    semanticRead: { read: async () => ({ content: [] }) },
     approval: approvalCoordinator,
   });
   const input = new PassThrough();
@@ -188,7 +194,7 @@ afterEach(async () => {
 });
 
 describe('Basic Approval - production MCP workspace flows', () => {
-  it('tools/list remains exactly 14, exposes no approval tool, and normal tools remain usable', async () => {
+  it('tools/list exposes exactly 19 approved tools, no approval tool, and normal tools remain usable', async () => {
     const h = await makeHarness({ gitRepo: true });
     expect(h.initialized.result?.serverInfo?.name).toBe('SUD-D');
     const listed = await h.listTools();

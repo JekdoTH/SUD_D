@@ -34,7 +34,8 @@ const WORKSPACE_TOOLS = [
 ] as const;
 const GIT_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint'] as const;
 const TEAM_TOOLS = ['team.start', 'team.status', 'team.submit', 'team.stop'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...WORKSPACE_TOOLS, ...GIT_TOOLS, ...TEAM_TOOLS].sort();
+const CODE_READ_TOOLS = ['code.overview', 'code.find_symbol', 'code.find_references', 'code.search', 'code.diagnostics'] as const;
+const APPROVED_PRODUCTION_TOOLS = [...WORKSPACE_TOOLS, ...GIT_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS].sort();
 
 const tempDirs: string[] = [];
 const openDbs: Db[] = [];
@@ -272,7 +273,7 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
     expect(requireOk(h.service.status({ missionId: start.missionId }))).toMatchObject({ state: 'blocked', blockedReason: 'EXECUTE_REQUIRED' });
   });
 
-  it('production MCP exposes exactly 14 tools and Team tools only transition mission state', async () => {
+  it('production MCP exposes exactly 19 tools with only the approved semantic reads', async () => {
     const h = makeHarness();
     const server = createProductionMcpServer({
       workspaceRepo: h.workspaceRepo,
@@ -280,6 +281,7 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
       internalRoots: [],
       fileSystem: createWorkspaceTextFileSystem(),
       teamRepo: h.teamRepo,
+      semanticRead: { read: async () => ({ content: [] }) },
     });
     const input = new PassThrough();
     const output = new PassThrough();
@@ -294,6 +296,7 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
     const tools = ((await reader.next()).result?.tools ?? []).map((tool) => tool.name).filter((name): name is string => typeof name === 'string').sort();
     expect(tools).toEqual(APPROVED_PRODUCTION_TOOLS);
     expect(tools.join(' ')).not.toMatch(/dev\.verify|execute|shell|network|delete|recovery|approval\./i);
+    expect(tools.join(' ')).not.toMatch(/code\.(replace|insert|rename|run)|serena|callTool/i);
 
     send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'team.start', arguments: { goal: 'Build a no-execute team plan' } } });
     expect(parsePayload(await reader.next())).toMatchObject({ ok: true, code: 'EXECUTED', policyDecision: 'allow', value: { state: 'planning', currentRole: 'planner' } });

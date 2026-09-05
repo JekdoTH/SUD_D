@@ -1,4 +1,5 @@
 import {
+  CODING_SEMANTIC_READ_CAPABILITY_NAMES,
   appError,
   err,
   ok,
@@ -175,6 +176,16 @@ const ACTIVITY_NOISE_ACTIONS = new Set([
   'credential:status',
 ]);
 
+const SEMANTIC_READ_ACTIVITY_CAPABILITIES = new Set<string>(CODING_SEMANTIC_READ_CAPABILITY_NAMES);
+
+function isRoutineSemanticReadActivity(event: AuditEvent): boolean {
+  const capability = event.metadata?.capability;
+  return event.action === 'tool_kernel.invoke'
+    && typeof capability === 'string'
+    && SEMANTIC_READ_ACTIVITY_CAPABILITIES.has(capability)
+    && (event.resultCode === 'EXECUTION_AUTHORIZED' || event.resultCode === 'EXECUTED');
+}
+
 const SAFE_OPERATIONS = new Set(['start', 'stop', 'restart']);
 const SAFE_STATES = new Set([
   'stopped',
@@ -307,6 +318,7 @@ export function createDesktopDiagnosticsController(
         return ok(
           dependencies.listAuditEvents(input.limit, [...ACTIVITY_NOISE_ACTIONS])
             .filter((event) => !ACTIVITY_NOISE_ACTIONS.has(event.action))
+            .filter((event) => !isRoutineSemanticReadActivity(event))
             .map(toActivityEvent),
         );
       } catch {

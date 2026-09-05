@@ -28,7 +28,8 @@ const PERSONAL_ALPHA_WORKSPACE_TOOLS = [
 ] as const;
 const GIT_SAFETY_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint'] as const;
 const TEAM_TOOLS = ['team.start', 'team.status', 'team.submit', 'team.stop'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS, ...TEAM_TOOLS] as const;
+const CODE_READ_TOOLS = ['code.overview', 'code.find_symbol', 'code.find_references', 'code.search', 'code.diagnostics'] as const;
+const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS] as const;
 
 interface TunnelLaunchPlan {
   readonly executablePath: string;
@@ -734,7 +735,7 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
     expect(tools).toEqual([...APPROVED_PRODUCTION_TOOLS].sort());
   });
 
-  it('preserves the fixed stdio gateway boundary while exposing only approved workspace and Git Safety tools', async () => {
+  it('preserves the fixed stdio gateway boundary while exposing only approved production tools', async () => {
     const api = await loadM05();
     const entry = api.getDefaultMcpGatewayEntryPath();
     expect(fs.existsSync(entry)).toBe(true);

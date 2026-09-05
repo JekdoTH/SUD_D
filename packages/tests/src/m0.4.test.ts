@@ -15,7 +15,8 @@ const PERSONAL_ALPHA_WORKSPACE_TOOLS = [
 ] as const;
 const GIT_SAFETY_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint'] as const;
 const TEAM_TOOLS = ['team.start', 'team.status', 'team.submit', 'team.stop'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS, ...TEAM_TOOLS] as const;
+const CODE_READ_TOOLS = ['code.overview', 'code.find_symbol', 'code.find_references', 'code.search', 'code.diagnostics'] as const;
+const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS] as const;
 const children = new Set<ChildProcessWithoutNullStreams>();
 
 interface TestJsonRpcMessage {
@@ -291,7 +292,7 @@ describe('M0.4 — inert MCP gateway', () => {
     expect(methods.join(' ')).not.toMatch(/execute|spawn|command|argv|cwd|env|shell|network/i);
   });
 
-  it('keeps production gateway composition limited to approved workspace tools without direct host-control imports', () => {
+  it('keeps production gateway composition limited to approved fixed tools without direct host-control imports', () => {
     const root = path.resolve(process.cwd(), 'packages/mcp-gateway/src');
     const source = sourceFiles(root).map((file) => fs.readFileSync(file, 'utf8')).join('\n');
 
@@ -318,7 +319,7 @@ describe('M0.4 — inert MCP gateway', () => {
     await gateway.stop();
   });
 
-  it('provides a fixed real stdio entrypoint that initializes and lists the approved Personal Alpha workspace tools', async () => {
+  it('provides a fixed real stdio entrypoint that initializes and lists the approved production tools', async () => {
     const entry = path.resolve(process.cwd(), 'packages/mcp-gateway/dist/stdio-entry.js');
     expect(fs.existsSync(entry)).toBe(true);
 

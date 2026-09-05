@@ -102,16 +102,19 @@ function fakeMcpSession(options: {
   config?: string;
   connectError?: unknown;
   findSymbolError?: unknown;
+  callToolErrors?: Readonly<Record<string, unknown>>;
   rootPid?: number;
 } = {}) {
   const session: ManagedSerenaMcpSession & {
     closeCalls: number;
     connectedArgs: readonly string[] | null;
     callToolNames: string[];
+    callToolRequests: Array<{ readonly name: string; readonly arguments?: Record<string, unknown> }>;
   } = {
     closeCalls: 0,
     connectedArgs: null,
     callToolNames: [],
+    callToolRequests: [],
     async connect(plan) {
       if (options.connectError) throw options.connectError;
       this.connectedArgs = plan.args;
@@ -122,7 +125,14 @@ function fakeMcpSession(options: {
     },
     async callTool(request) {
       this.callToolNames.push(request.name);
-      if (request.name === 'get_current_config') return { content: [{ type: 'text', text: options.config ?? configText() }] };
+      this.callToolRequests.push(request);
+      const configuredError = options.callToolErrors?.[request.name];
+      if (configuredError) throw configuredError;
+      if (request.name === 'get_current_config') {
+        const projectIndex = this.connectedArgs?.indexOf('--project') ?? -1;
+        const projectRoot = projectIndex >= 0 ? this.connectedArgs?.[projectIndex + 1] : undefined;
+        return { content: [{ type: 'text', text: options.config ?? configText(projectRoot ? path.basename(projectRoot) : 'workspace') }] };
+      }
       if (request.name === 'find_symbol') {
         if (options.findSymbolError) throw options.findSymbolError;
         return { content: [{ type: 'text', text: '[]' }] };
@@ -251,6 +261,155 @@ describe('Serena managed foundation', () => {
     ]);
   });
 
+  it('maps only the five approved semantic reads to fixed Serena tool names and snake_case arguments', async () => {
+    const root = temp();
+    const session = fakeMcpSession();
+    const runtime = createManagedSerenaRuntime({
+      dataRoot: path.join(root, 'data-semantic'),
+      provisioner: fakeProvisioner(),
+      createSession: () => session,
+      processSupervisor: stoppedProcessSupervisor(),
+    });
+    const context = makeWorkspace(root);
+    await runtime.start(context);
+    session.callToolRequests.length = 0;
+
+    await runtime.semanticRead(context, { capability: 'code.overview', input: { relativePath: 'src/index.ts', depth: 1 } });
+    await runtime.semanticRead(context, { capability: 'code.find_symbol', input: { namePathPattern: 'value', relativePath: 'src/index.ts', depth: 1, includeBody: true, substringMatching: false, maxMatches: 4 } });
+    await runtime.semanticRead(context, { capability: 'code.find_references', input: { namePath: 'value', relativePath: 'src/index.ts' } });
+    await runtime.semanticRead(context, { capability: 'code.search', input: { pattern: 'value', relativePath: 'src', codeOnly: true } });
+    await runtime.semanticRead(context, { capability: 'code.diagnostics', input: { relativePath: 'src/index.ts', startLine: 0, endLine: 20, minSeverity: 2 } });
+
+    expect(session.callToolRequests).toEqual([
+      { name: 'get_symbols_overview', arguments: { relative_path: 'src/index.ts', depth: 1, max_answer_chars: 20_000 } },
+      { name: 'find_symbol', arguments: { name_path_pattern: 'value', relative_path: 'src/index.ts', depth: 1, include_body: true, substring_matching: false, max_matches: 4, max_answer_chars: 20_000 } },
+      { name: 'find_referencing_symbols', arguments: { name_path: 'value', relative_path: 'src/index.ts', max_answer_chars: 20_000 } },
+      { name: 'search_for_pattern', arguments: { substring_pattern: 'value', relative_path: 'src', restrict_search_to_code_files: true, max_answer_chars: 20_000 } },
+      { name: 'get_diagnostics_for_file', arguments: { relative_path: 'src/index.ts', start_line: 0, end_line: 20, min_severity: 2, max_answer_chars: 20_000 } },
+    ]);
+    expect('callTool' in runtime).toBe(false);
+  });
+
+  it('rejects malformed semantic requests instead of selecting an upstream Serena tool', async () => {
+    const root = temp();
+    const session = fakeMcpSession({
+      toolDefinitions: [
+        ...compatibleToolDefinitions(),
+        { name: 'write_memory', inputSchema: { type: 'object' } },
+      ],
+    });
+    const runtime = createManagedSerenaRuntime({
+      dataRoot: path.join(root, 'data-malformed-semantic'),
+      provisioner: fakeProvisioner(),
+      createSession: () => session,
+      processSupervisor: stoppedProcessSupervisor(),
+    });
+    const context = makeWorkspace(root);
+    await runtime.start(context);
+
+    await expect(runtime.semanticRead(context, { capability: 'write_memory', input: {} } as never)).rejects.toMatchObject({
+      code: 'CODING_ENGINE_TOOL_CONTRACT_MISMATCH',
+    });
+    expect(session.callToolNames).not.toContain('write_memory');
+  });
+
+  it('maps raw semantic-call failures to stable Coding Engine unavailable without raw error text', async () => {
+    const root = temp();
+    const session = fakeMcpSession();
+    const runtime = createManagedSerenaRuntime({
+      dataRoot: path.join(root, 'data-semantic-call-failure'),
+      provisioner: fakeProvisioner(),
+      createSession: () => session,
+      processSupervisor: stoppedProcessSupervisor(),
+    });
+    const context = makeWorkspace(root);
+    await runtime.start(context);
+    session.callTool = async () => { throw new Error('RAW_SERENA_SECRET_SENTINEL'); };
+
+    const failure = await runtime.semanticRead(context, {
+      capability: 'code.overview',
+      input: { relativePath: 'src/index.ts' },
+    }).catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({ code: 'CODING_ENGINE_UNAVAILABLE' });
+    expect(JSON.stringify(failure)).not.toContain('RAW_SERENA_SECRET_SENTINEL');
+  });
+
+  it('lazily binds semantic reads and rebinds only after stopping the prior Workspace session', async () => {
+    const root = temp();
+    const first = fakeMcpSession();
+    const second = fakeMcpSession({ config: configText('workspace-two') });
+    const sessions = [first, second];
+    let index = 0;
+    const runtime = createManagedSerenaRuntime({
+      dataRoot: path.join(root, 'data-semantic-rebind'),
+      provisioner: fakeProvisioner(),
+      createSession: () => sessions[index++]!,
+      processSupervisor: stoppedProcessSupervisor(),
+    });
+    const firstContext = makeWorkspace(root);
+    const secondRoot = path.join(root, 'workspace-two');
+    fs.mkdirSync(secondRoot, { recursive: true });
+    const secondContext = {
+      workspaceId: 'workspace-2',
+      canonicalRoot: secondRoot,
+      projectName: 'workspace-two',
+    };
+
+    await runtime.semanticRead(firstContext, { capability: 'code.overview', input: { relativePath: '.' } });
+    await runtime.semanticRead(secondContext, { capability: 'code.overview', input: { relativePath: '.' } });
+
+    expect(first.closeCalls).toBe(1);
+    expect(first.connectedArgs).toContain(firstContext.canonicalRoot);
+    expect(second.connectedArgs).toContain(secondContext.canonicalRoot);
+  });
+
+  it('maps an unresponsive mapped Serena call to stable CODING_ENGINE_UNAVAILABLE', async () => {
+    const root = temp();
+    const session = fakeMcpSession({ callToolErrors: { get_symbols_overview: new Error('RAW_UPSTREAM_FAILURE') } });
+    const runtime = createManagedSerenaRuntime({
+      dataRoot: path.join(root, 'data-unresponsive-semantic'),
+      provisioner: fakeProvisioner(),
+      createSession: () => session,
+      processSupervisor: stoppedProcessSupervisor(),
+    });
+    const context = makeWorkspace(root);
+    await runtime.start(context);
+
+    await expect(runtime.semanticRead(context, { capability: 'code.overview', input: { relativePath: 'src/index.ts' } })).rejects.toMatchObject({
+      code: 'CODING_ENGINE_UNAVAILABLE',
+    });
+  });
+
+  it('fails semantic readiness when a mapped capability is missing or schema-incompatible', async () => {
+    const missingRoot = temp();
+    const missingRuntime = createManagedSerenaRuntime({
+      dataRoot: path.join(missingRoot, 'data-missing-mapped'),
+      provisioner: fakeProvisioner(),
+      createSession: () => fakeMcpSession({
+        toolDefinitions: compatibleToolDefinitions().filter((definition) => definition.name !== 'get_symbols_overview'),
+      }),
+      processSupervisor: stoppedProcessSupervisor(),
+    });
+    await expect(missingRuntime.start(makeWorkspace(missingRoot))).rejects.toMatchObject({
+      code: 'CODING_ENGINE_TOOL_CONTRACT_MISMATCH',
+    });
+
+    const schemaRoot = temp();
+    const definitions = compatibleToolDefinitions().map((definition) => definition.name === 'find_referencing_symbols'
+      ? { ...definition, inputSchema: { type: 'object', properties: { name_path: { type: 'number' } }, required: ['name_path'] } }
+      : definition);
+    const schemaRuntime = createManagedSerenaRuntime({
+      dataRoot: path.join(schemaRoot, 'data-schema-mapped'),
+      provisioner: fakeProvisioner(),
+      createSession: () => fakeMcpSession({ toolDefinitions: definitions }),
+      processSupervisor: stoppedProcessSupervisor(),
+    });
+    await expect(schemaRuntime.start(makeWorkspace(schemaRoot))).rejects.toMatchObject({
+      code: 'CODING_ENGINE_TOOL_CONTRACT_MISMATCH',
+    });
+  });
+
   it('accepts unexpected upstream drift while keeping the Product Mode surface bounded', async () => {
     const root = temp();
     const session = fakeMcpSession({
@@ -266,10 +425,12 @@ describe('Serena managed foundation', () => {
       processSupervisor: stoppedProcessSupervisor(),
     });
 
-    const health = await runtime.start(makeWorkspace(root));
+    const context = makeWorkspace(root);
+    const health = await runtime.start(context);
+    await runtime.semanticRead(context, { capability: 'code.search', input: { pattern: 'value' } });
 
     expect(health.toolCount).toBe(22);
-    expect(session.callToolNames).toEqual(['get_current_config', 'find_symbol']);
+    expect(session.callToolNames).toEqual(['get_current_config', 'find_symbol', 'search_for_pattern']);
     expect(session.callToolNames).not.toContain('write_memory');
     expect('callTool' in runtime).toBe(false);
   });

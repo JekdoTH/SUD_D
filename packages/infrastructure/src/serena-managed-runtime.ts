@@ -5,9 +5,10 @@ import {
   CodingEngineRuntimeFailure,
   type CodingEngineRuntimeHealth,
   type CodingEngineWorkspaceContext,
+  type CodingSemanticReadRequest,
 } from '@sud-d/domain';
 import { createSerenaEngineProvisioner, safeManagedRuntimeEnvironment, buildManagedUvEnvironment, type SerenaEngineProvisioner } from './serena-engine-provisioner.js';
-import { SERENA_ENGINE_MANIFEST } from './serena-engine-manifest.js';
+import { SERENA_ENGINE_MANIFEST, type SerenaExpectedToolName } from './serena-engine-manifest.js';
 import { prepareManagedSerenaConfig } from './serena-managed-config.js';
 import { createSerenaRuntimePaths, type SerenaRuntimePaths } from './serena-runtime-paths.js';
 
@@ -57,10 +58,12 @@ interface ActiveSession {
   readonly context: CodingEngineWorkspaceContext;
   readonly session: ManagedSerenaMcpSession;
   readonly rootPid: number;
+  readonly validatedToolNames: ReadonlySet<SerenaExpectedToolName>;
 }
 
 const DEFAULT_CLEANUP_TIMEOUT_MS = 5000;
 const DEFAULT_CLEANUP_POLL_INTERVAL_MS = 100;
+const SEMANTIC_READ_MAX_ANSWER_CHARS = 20_000;
 
 export function createManagedSerenaRuntime(dependencies: ManagedSerenaRuntimeDependencies) {
   const processSupervisor = dependencies.processSupervisor ?? createWindowsProcessSupervisor();
@@ -97,6 +100,27 @@ export function createManagedSerenaRuntime(dependencies: ManagedSerenaRuntimeDep
         throw new CodingEngineRuntimeFailure('CODING_ENGINE_REPAIR_FAILED');
       }
     },
+
+    async semanticRead(context: CodingEngineWorkspaceContext, request: CodingSemanticReadRequest): Promise<unknown> {
+      if (!active) {
+        await startInternal(context, 'start');
+      } else if (!workspaceContextMatches(active.context, context)) {
+        await runtime.stop();
+        await startInternal(context, 'start');
+      }
+      const current = active;
+      if (!current) throw new CodingEngineRuntimeFailure('CODING_ENGINE_UNAVAILABLE');
+      const mapped = mapSemanticReadRequest(request);
+      if (!SERENA_ENGINE_MANIFEST.expectedToolNames.includes(mapped.name)
+        || !current.validatedToolNames.has(mapped.name)) {
+        throw new CodingEngineRuntimeFailure('CODING_ENGINE_TOOL_CONTRACT_MISMATCH');
+      }
+      try {
+        return await current.session.callTool({ name: mapped.name, arguments: mapped.arguments });
+      } catch {
+        throw new CodingEngineRuntimeFailure('CODING_ENGINE_UNAVAILABLE');
+      }
+    },
   };
 
   const startInternal = async (
@@ -120,10 +144,11 @@ export function createManagedSerenaRuntime(dependencies: ManagedSerenaRuntimeDep
     if (connected.serverName !== 'Serena' || connected.serverVersion.length === 0) {
       throw new CodingEngineRuntimeFailure('CODING_ENGINE_START_FAILED');
     }
-    active = { context, session, rootPid: connected.rootPid };
+    active = { context, session, rootPid: connected.rootPid, validatedToolNames: new Set<SerenaExpectedToolName>() };
 
     try {
-      await assertToolContract(session);
+      const validatedToolNames = await assertToolContract(session);
+      active = { context, session, rootPid: connected.rootPid, validatedToolNames };
       await assertConfigHealth(session, context);
       await assertLspHealth(session);
       return {
@@ -143,6 +168,74 @@ export function createManagedSerenaRuntime(dependencies: ManagedSerenaRuntimeDep
   };
 
   return runtime;
+}
+
+function workspaceContextMatches(left: CodingEngineWorkspaceContext, right: CodingEngineWorkspaceContext): boolean {
+  return left.workspaceId === right.workspaceId
+    && left.canonicalRoot === right.canonicalRoot
+    && left.projectName === right.projectName;
+}
+
+function mapSemanticReadRequest(request: CodingSemanticReadRequest): {
+  readonly name: SerenaExpectedToolName;
+  readonly arguments: Record<string, unknown>;
+} {
+  switch (request.capability) {
+    case 'code.overview':
+      return {
+        name: 'get_symbols_overview',
+        arguments: {
+          relative_path: request.input.relativePath,
+          ...(request.input.depth !== undefined ? { depth: request.input.depth } : {}),
+          max_answer_chars: SEMANTIC_READ_MAX_ANSWER_CHARS,
+        },
+      };
+    case 'code.find_symbol':
+      return {
+        name: 'find_symbol',
+        arguments: {
+          name_path_pattern: request.input.namePathPattern,
+          relative_path: request.input.relativePath ?? '',
+          ...(request.input.depth !== undefined ? { depth: request.input.depth } : {}),
+          ...(request.input.includeBody !== undefined ? { include_body: request.input.includeBody } : {}),
+          ...(request.input.substringMatching !== undefined ? { substring_matching: request.input.substringMatching } : {}),
+          ...(request.input.maxMatches !== undefined ? { max_matches: request.input.maxMatches } : {}),
+          max_answer_chars: SEMANTIC_READ_MAX_ANSWER_CHARS,
+        },
+      };
+    case 'code.find_references':
+      return {
+        name: 'find_referencing_symbols',
+        arguments: {
+          name_path: request.input.namePath,
+          relative_path: request.input.relativePath,
+          max_answer_chars: SEMANTIC_READ_MAX_ANSWER_CHARS,
+        },
+      };
+    case 'code.search':
+      return {
+        name: 'search_for_pattern',
+        arguments: {
+          substring_pattern: request.input.pattern,
+          relative_path: request.input.relativePath ?? '',
+          ...(request.input.codeOnly !== undefined ? { restrict_search_to_code_files: request.input.codeOnly } : {}),
+          max_answer_chars: SEMANTIC_READ_MAX_ANSWER_CHARS,
+        },
+      };
+    case 'code.diagnostics':
+      return {
+        name: 'get_diagnostics_for_file',
+        arguments: {
+          relative_path: request.input.relativePath,
+          ...(request.input.startLine !== undefined ? { start_line: request.input.startLine } : {}),
+          ...(request.input.endLine !== undefined ? { end_line: request.input.endLine } : {}),
+          ...(request.input.minSeverity !== undefined ? { min_severity: request.input.minSeverity } : {}),
+          max_answer_chars: SEMANTIC_READ_MAX_ANSWER_CHARS,
+        },
+      };
+    default:
+      throw new CodingEngineRuntimeFailure('CODING_ENGINE_TOOL_CONTRACT_MISMATCH');
+  }
 }
 
 function buildManagedSerenaLaunchPlan(
@@ -198,7 +291,7 @@ function toolInputSchemaMatches(actual: unknown, expected: unknown): boolean {
   }
 }
 
-async function assertToolContract(session: ManagedSerenaMcpSession): Promise<void> {
+async function assertToolContract(session: ManagedSerenaMcpSession): Promise<ReadonlySet<SerenaExpectedToolName>> {
   const discovered = await session.listTools();
   const expectedNames = SERENA_ENGINE_MANIFEST.expectedToolNames;
   const expectedNameSet = new Set<string>(expectedNames);
@@ -211,13 +304,16 @@ async function assertToolContract(session: ManagedSerenaMcpSession): Promise<voi
     if (!definitionsByName.has(definition.name)) definitionsByName.set(definition.name, definition);
   }
 
+  const validated = new Set<SerenaExpectedToolName>();
   for (const name of expectedNames) {
     const definition = definitionsByName.get(name);
     const expectedSchema = SERENA_ENGINE_MANIFEST.expectedToolInputSchemas[name];
     if (!definition || !toolInputSchemaMatches(definition.inputSchema, expectedSchema)) {
       throw new CodingEngineRuntimeFailure('CODING_ENGINE_TOOL_CONTRACT_MISMATCH');
     }
+    validated.add(name);
   }
+  return validated;
 }
 
 async function assertConfigHealth(

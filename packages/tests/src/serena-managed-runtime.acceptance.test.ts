@@ -124,7 +124,7 @@ function isProcessAlive(pid: number): boolean {
 }
 
 describe('managed Serena runtime production acceptance', () => {
-  live('proves the pinned Product Mode runtime, central metadata, blocked drift, LSP, and cleanup', async () => {
+  live('proves the pinned Product Mode runtime, five semantic reads, central metadata, blocked drift, LSP, and cleanup', async () => {
     expect(process.platform).toBe('win32');
     const uvExecutable = resolveUvExecutable();
     expect(uvExecutable).toBeTruthy();
@@ -158,6 +158,13 @@ describe('managed Serena runtime production acceptance', () => {
       const expectedSet = new Set<string>(expectedNames);
       const missingNames = expectedNames.filter((name) => !observation.toolNames.includes(name));
       const unexpectedNames = observation.toolNames.filter((name) => !expectedSet.has(name));
+      const semanticResults = [
+        await runtime.semanticRead(context, { capability: 'code.overview', input: { relativePath: 'src/calculator.ts', depth: 1 } }),
+        await runtime.semanticRead(context, { capability: 'code.find_symbol', input: { namePathPattern: 'add', relativePath: 'src/calculator.ts', includeBody: true } }),
+        await runtime.semanticRead(context, { capability: 'code.find_references', input: { namePath: 'add', relativePath: 'src/calculator.ts' } }),
+        await runtime.semanticRead(context, { capability: 'code.search', input: { pattern: 'Calculator', relativePath: 'src', codeOnly: true } }),
+        await runtime.semanticRead(context, { capability: 'code.diagnostics', input: { relativePath: 'src/calculator.ts', startLine: 0, endLine: 20, minSeverity: 4 } }),
+      ];
 
       expect(health).toMatchObject({
         engine: 'serena',
@@ -168,10 +175,19 @@ describe('managed Serena runtime production acceptance', () => {
         lspReady: true,
       });
       expect(missingNames).toEqual([]);
-      expect(observation.callToolNames).toEqual(['get_current_config', 'find_symbol']);
+      expect(semanticResults.every((result) => JSON.stringify(result).length <= 30_000)).toBe(true);
+      expect(observation.callToolNames).toEqual([
+        'get_current_config',
+        'find_symbol',
+        'get_symbols_overview',
+        'find_symbol',
+        'find_referencing_symbols',
+        'search_for_pattern',
+        'get_diagnostics_for_file',
+      ]);
       expect(observation.callToolNames.every((name) => expectedSet.has(name))).toBe(true);
       expect(unexpectedNames.every((name) => !observation.callToolNames.includes(name))).toBe(true);
-      expect(Object.keys(runtime).sort()).toEqual(['repair', 'start', 'stop']);
+      expect(Object.keys(runtime).sort()).toEqual(['repair', 'semanticRead', 'start', 'stop']);
       expect(paths.projectSerenaDir.startsWith(dataRoot)).toBe(true);
       expect(paths.projectSerenaDir.startsWith(workspaceRoot)).toBe(false);
       expect(fs.existsSync(path.join(paths.projectSerenaDir, 'project.yml'))).toBe(true);

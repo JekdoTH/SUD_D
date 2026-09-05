@@ -36,7 +36,8 @@ const APPROVED_TOOLS = [
 ] as const;
 const GIT_SAFETY_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint'] as const;
 const TEAM_TOOLS = ['team.start', 'team.status', 'team.submit', 'team.stop'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...APPROVED_TOOLS, ...GIT_SAFETY_TOOLS, ...TEAM_TOOLS] as const;
+const CODE_READ_TOOLS = ['code.overview', 'code.find_symbol', 'code.find_references', 'code.search', 'code.diagnostics'] as const;
+const APPROVED_PRODUCTION_TOOLS = [...APPROVED_TOOLS, ...GIT_SAFETY_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS] as const;
 
 const LEGACY_PROTOCOL_VERSION = '2025-06-18';
 const tempDirs: string[] = [];
@@ -203,6 +204,7 @@ async function makeProductionWireHarness() {
     internalRoots: [],
     fileSystem: h.fileSystem,
     teamRepo: createTeamRepository(h.db),
+    semanticRead: { read: async () => ({ content: [] }) },
   });
   const input = new PassThrough();
   const output = new PassThrough();

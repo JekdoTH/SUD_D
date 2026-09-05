@@ -5,12 +5,14 @@ import { z } from 'zod';
 
 import {
   createApprovalCoordinator,
+  createCodingSemanticReadCapabilities,
   createGitSafetyCapabilities,
   createTeamCapabilities,
   createTeamService,
   createToolCapabilityRegistry,
   createToolKernel,
   createWorkspaceFileCapabilities,
+  type CodingSemanticReadPort,
   type ToolKernel,
   type ToolKernelApprovalPort,
 } from '@sud-d/application';
@@ -22,6 +24,7 @@ import {
   createApprovalRepository,
   createAuditRepository,
   createGitSafetyAdapter,
+  createManagedSerenaRuntime,
   createTeamRepository,
   createWorkspaceRepository,
   createWorkspaceTextFileSystem,
@@ -110,6 +113,34 @@ const teamSubmitInputSchema = z.discriminatedUnion('outcome', [
   z.object({ outcome: z.literal('blocked'), blockedReason: teamBlockedReasonSchema, summary: teamSummarySchema }).strict(),
 ]);
 
+const codeOverviewInputSchema = z.object({
+  relativePath: relativePathSchema,
+  depth: z.number().int().min(-1).max(8).optional(),
+}).strict();
+const codeFindSymbolInputSchema = z.object({
+  namePathPattern: z.string().min(1).max(2_048),
+  relativePath: relativePathSchema.optional(),
+  depth: z.number().int().min(0).max(8).optional(),
+  includeBody: z.boolean().optional(),
+  substringMatching: z.boolean().optional(),
+  maxMatches: z.number().int().min(1).max(100).optional(),
+}).strict();
+const codeFindReferencesInputSchema = z.object({
+  namePath: z.string().min(1).max(2_048),
+  relativePath: relativePathSchema,
+}).strict();
+const codeSearchInputSchema = z.object({
+  pattern: z.string().min(1).max(2_048),
+  relativePath: relativePathSchema.optional(),
+  codeOnly: z.boolean().optional(),
+}).strict();
+const codeDiagnosticsInputSchema = z.object({
+  relativePath: relativePathSchema,
+  startLine: z.number().int().min(0).optional(),
+  endLine: z.number().int().min(-1).optional(),
+  minSeverity: z.number().int().min(1).max(4).optional(),
+}).strict();
+
 export interface ProductionMcpServerDependencies {
   readonly workspaceRepo: WorkspaceRepository;
   readonly auditRepo: AuditRepository;
@@ -117,6 +148,7 @@ export interface ProductionMcpServerDependencies {
   readonly fileSystem: WorkspaceTextFileSystem;
   readonly gitSafety?: GitSafetyAdapter;
   readonly teamRepo: TeamRepository;
+  readonly semanticRead: CodingSemanticReadPort;
   readonly approval?: ToolKernelApprovalPort;
 }
 
@@ -157,6 +189,12 @@ export function createProductionMcpServer(
       workspaceRepo: dependencies.workspaceRepo,
       gitSafety,
     }),
+    ...createCodingSemanticReadCapabilities({
+      workspaceRepo: dependencies.workspaceRepo,
+      internalRoots: dependencies.internalRoots,
+      fileSystem: dependencies.fileSystem,
+      semanticRead: dependencies.semanticRead,
+    }),
     ...createTeamCapabilities({
       teamService,
       resolveWorkspaceSecurity: resolveTeamSecurity,
@@ -178,6 +216,7 @@ export function createProductionMcpServer(
   registerWorkspaceFileTools(server, kernel);
   registerGitSafetyTools(server, kernel);
   registerTeamTools(server, kernel);
+  registerCodingSemanticReadTools(server, kernel);
   return server;
 }
 
@@ -193,12 +232,16 @@ export function createDefaultProductionMcpServer(): McpServer {
   const approvalRepo = createApprovalRepository(db);
   const teamRepo = createTeamRepository(db);
   const approval = createApprovalCoordinator({ repository: approvalRepo });
+  const codingRuntime = createManagedSerenaRuntime({ dataRoot });
   return createProductionMcpServer({
     workspaceRepo: createWorkspaceRepository(db),
     auditRepo,
     internalRoots: [{ canonicalPath: canonicalDataRoot.value, label: 'SUD-D data root' }],
     fileSystem: createWorkspaceTextFileSystem(),
     teamRepo,
+    semanticRead: {
+      read: (context, request) => codingRuntime.semanticRead(context, request),
+    },
     approval,
   });
 }
@@ -335,6 +378,54 @@ function registerTeamTools(server: McpServer, kernel: ToolKernel): void {
       inputSchema: teamStopInputSchema,
     },
     async (input) => invokeKernel(kernel, 'team.stop', input),
+  );
+}
+
+function registerCodingSemanticReadTools(server: McpServer, kernel: ToolKernel): void {
+  server.registerTool(
+    'code.overview',
+    {
+      title: 'Overview code symbols',
+      description: 'Return a bounded semantic symbol overview for a safe path in the active Workspace.',
+      inputSchema: codeOverviewInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'code.overview', input),
+  );
+  server.registerTool(
+    'code.find_symbol',
+    {
+      title: 'Find code symbol',
+      description: 'Find a symbol through the managed Coding Engine within the active Workspace.',
+      inputSchema: codeFindSymbolInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'code.find_symbol', input),
+  );
+  server.registerTool(
+    'code.find_references',
+    {
+      title: 'Find code references',
+      description: 'Find references to a symbol through the managed Coding Engine within the active Workspace.',
+      inputSchema: codeFindReferencesInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'code.find_references', input),
+  );
+  server.registerTool(
+    'code.search',
+    {
+      title: 'Search code semantically',
+      description: 'Run a bounded semantic search through the managed Coding Engine within the active Workspace.',
+      inputSchema: codeSearchInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'code.search', input),
+  );
+  server.registerTool(
+    'code.diagnostics',
+    {
+      title: 'Read code diagnostics',
+      description: 'Return bounded language diagnostics for a safe file in the active Workspace.',
+      inputSchema: codeDiagnosticsInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'code.diagnostics', input),
   );
 }
 
