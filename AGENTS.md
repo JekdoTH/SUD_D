@@ -1,6 +1,6 @@
 # SUD_D Agent Instructions
 
-These rules apply to every coding agent working in this repository. The Git repository is the source of truth. Use [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) for stable project context, [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md) for approved long-term direction and milestone sequencing, and [SUD_D_HANDOFF.md](SUD_D_HANDOFF.md) for the current execution state.
+These rules apply to every coding agent working in this repository. The Git repository is the source of truth. Use [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) for stable project context, [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md) for approved long-term direction and milestone sequencing, and [SUD_D_HANDOFF.md](SUD_D_HANDOFF.md) for the current execution state. For owner-facing product/architecture advisory work, read [SUD_D_ADVISOR.md](SUD_D_ADVISOR.md) for the Steward/Knowledge Custodian charter and durable knowledge-capture rules.
 
 ## Instruction Priority
 
@@ -29,6 +29,8 @@ Before substantive task work:
 7. Read the active task specification and inspect recent Git history.
 8. Complete the **Mandatory Skill Router Gate** below.
 9. Only after the gate, inspect the relevant package/code boundaries as deeply as the task requires.
+
+For owner-facing product/architecture advisory work, also read [SUD_D_ADVISOR.md](SUD_D_ADVISOR.md) before material advice or durable knowledge updates.
 
 Before the Skill Router Gate, limit work to the safety/context bootstrap above and reading only enough installed-skill metadata to route. Planning, deep investigation, debugging, architecture/design work, implementation/editing, and substantive skill-governed review begin only after the gate completes.
 
@@ -117,6 +119,7 @@ Third-party skill files are copied from pinned official upstream snapshots and m
 - `SUD_D_CONTEXT.md` owns stable project context.
 - `SUD_D_ROADMAP.md` owns long-term direction and milestone sequencing.
 - `SUD_D_HANDOFF.md` owns current progress and execution state.
+- `SUD_D_ADVISOR.md` owns the owner-facing Product & Architecture Steward / Project Knowledge Custodian charter, automatic knowledge-capture rules, and lightweight decision-rationale discipline.
 - Approved third-party workflow instructions are tracked under `.agents/skills/` with their pinned provenance records in that directory.
 - The Git repository is the source of truth.
 - `.serena/` is local tooling state, not project memory, and must not be committed.

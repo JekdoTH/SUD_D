@@ -1,6 +1,6 @@
 # SUD_D Project Context
 
-This document holds stable project context, not milestone progress. For approved sequencing and future scope, read [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md). For the current milestone, completed work, verification, blockers, and next action, read [SUD_D_HANDOFF.md](SUD_D_HANDOFF.md).
+This document holds stable project context, not milestone progress. For approved sequencing and future scope, read [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md). For the current milestone, completed work, verification, blockers, and next action, read [SUD_D_HANDOFF.md](SUD_D_HANDOFF.md). For owner-facing product/architecture advisory governance and durable knowledge-capture rules, read [SUD_D_ADVISOR.md](SUD_D_ADVISOR.md).
 
 ## Product and North Star
 
@@ -105,5 +105,6 @@ Before changing production source, agents must perform the Pre-Implementation Co
 - [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) — stable product, security, architecture, connection, and UX context.
 - [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md) — long-term plan, approved milestones, sequencing, gates, and future directions.
 - [SUD_D_HANDOFF.md](SUD_D_HANDOFF.md) — current execution state, verification, open issues, latest commit, and immediate next action.
+- [SUD_D_ADVISOR.md](SUD_D_ADVISOR.md) — owner-facing Product & Architecture Steward / Project Knowledge Custodian charter and automatic knowledge-capture rules.
 
-Keep these responsibilities separate. Context and agent rules should reference the roadmap and handoff rather than duplicate their milestone detail or progress history.
+Keep these responsibilities separate. Context and agent rules should reference the roadmap, handoff, and advisor charter rather than duplicate their milestone detail, progress history, or advisory process.
