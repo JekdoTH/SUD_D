@@ -13,7 +13,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from '@sud-d/infrastructure';
 import { createWorkspaceRepository } from '@sud-d/infrastructure';
-import { createAuditRepository, createApprovalRepository, createGitSafetyAdapter, createTeamRepository } from '@sud-d/infrastructure';
+import { createAuditRepository, createApprovalRepository, createGitSafetyAdapter, createTeamRepository, createTeamTransitionUnitOfWork } from '@sud-d/infrastructure';
 import { getDataRoot, canonicalizePath } from '@sud-d/infrastructure';
 import { checkDataDirectory, checkWorkspaceRoot } from '@sud-d/infrastructure';
 import {
@@ -94,6 +94,7 @@ const teamService = createTeamService({
   teamRepo,
   workspaceRepo,
   audit: auditRepo,
+  transitionUow: createTeamTransitionUnitOfWork(db),
   freshness: {
     current(workspace) {
       const status = gitSafety.status(workspace.canonicalRoot);

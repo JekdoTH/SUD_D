@@ -10,6 +10,7 @@ import {
   createAuditRepository,
   createGitSafetyAdapter,
   createTeamRepository,
+  createTeamTransitionUnitOfWork,
   createWorkMemoryRepository,
   createWorkspaceRepository,
   createWorkspaceTextFileSystem,
@@ -71,7 +72,7 @@ describe('Work Memory production MCP bootstrap', () => {
   it('exposes 26 tools and resets bootstrap for a new server while persisted Resume Context survives', async () => {
     const root=fs.mkdtempSync(path.join(os.tmpdir(),'sud-d-work-prod-')); roots.push(root); const wsRoot=path.join(root,'workspace'); fs.mkdirSync(wsRoot);
     const db=openDatabase(path.join(root,'state.db')); dbs.push(db); const workspaceRepo=createWorkspaceRepository(db); const ws=workspaceRepo.save('A',canonical(wsRoot)); workspaceRepo.setActive(ws.id); const auditRepo=createAuditRepository(db); const workMemoryRepo=createWorkMemoryRepository(db);
-    const make=()=>createProductionMcpServer({ workspaceRepo,auditRepo,internalRoots:[],fileSystem:createWorkspaceTextFileSystem(),gitSafety,teamRepo:createTeamRepository(db),semanticRead:{read:async()=>({content:[]})},semanticWrite:{write:async()=>({content:[]})},restrictedVerify:{run:async(_c,r)=>({action:r.action,passed:true,exitCode:0,output:'',truncated:false,durationMs:1})},workMemoryRepo });
+    const make=()=>createProductionMcpServer({ workspaceRepo,auditRepo,internalRoots:[],fileSystem:createWorkspaceTextFileSystem(),gitSafety,teamRepo:createTeamRepository(db),teamTransitionUow:createTeamTransitionUnitOfWork(db),semanticRead:{read:async()=>({content:[]})},semanticWrite:{write:async()=>({content:[]})},restrictedVerify:{run:async(_c,r)=>({action:r.action,passed:true,exitCode:0,output:'',truncated:false,durationMs:1})},workMemoryRepo });
 
     const serverA=make(); const a=await connect(serverA);
     expect(a.initialized.result?.instructions).toContain('work.resume');
@@ -99,7 +100,7 @@ describe('Work Memory production MCP bootstrap', () => {
     const auditRepo=createAuditRepository(db); const workMemoryRepo=createWorkMemoryRepository(db); const approvalRepo=createApprovalRepository(db);
     const approval=createApprovalCoordinator({ repository: approvalRepo, runtimeInstanceId:'work-memory-acceptance', hmacKey:Buffer.alloc(32,61) });
     const approvalService=createApprovalService(approvalRepo,auditRepo); const verifyCalls:string[]=[];
-    const make=(gitSafetyOverride: GitSafetyAdapter=createGitSafetyAdapter())=>createProductionMcpServer({ workspaceRepo,auditRepo,internalRoots:[],fileSystem:createWorkspaceTextFileSystem(),gitSafety:gitSafetyOverride,teamRepo:createTeamRepository(db),
+    const make=(gitSafetyOverride: GitSafetyAdapter=createGitSafetyAdapter())=>createProductionMcpServer({ workspaceRepo,auditRepo,internalRoots:[],fileSystem:createWorkspaceTextFileSystem(),gitSafety:gitSafetyOverride,teamRepo:createTeamRepository(db),teamTransitionUow:createTeamTransitionUnitOfWork(db),
       semanticRead:{read:async()=>({content:[{type:'text',text:'RAW_SERENA_OUTPUT_SENTINEL'}]})}, semanticWrite:{write:async()=>({content:[]})},
       restrictedVerify:{run:async(_c,r)=>{verifyCalls.push(r.action); return {action:r.action,passed:true,exitCode:0,output:'RAW_VERIFY_OUTPUT_SENTINEL',truncated:false,durationMs:1};}}, workMemoryRepo, approval });
     const checkpoint={goal:'Ship Work Memory',task:{title:'Resume safely',status:'in_progress'},completed:['domain','repository'],decisions:['bounded local state'],blockers:['none'],nextAction:'Restart session',artifacts:['README.md'],verification:['focused passes']};

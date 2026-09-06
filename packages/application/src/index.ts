@@ -16,3 +16,6 @@ export * from './git-safety-capabilities.js';
 export * from './approval-service.js';
 export * from './team-service.js';
 export * from './team-capabilities.js';
+export * from './team-continuation.js';
+
+export * from './team-legacy-reconciler.js';

@@ -8,6 +8,7 @@ import {
   canonicalizePath,
   createAuditRepository,
   createTeamRepository,
+  createTeamTransitionUnitOfWork,
   createWorkspaceRepository,
   openDatabase,
   type Db,
@@ -57,7 +58,7 @@ function makeHarness(options: { freshness?: TeamFreshnessRef } = {}) {
       return { ok: true as const, value: freshness };
     },
   };
-  const service = createTeamService({ teamRepo, workspaceRepo, audit: auditRepo, freshness: freshnessPort });
+  const service = createTeamService({ teamRepo, workspaceRepo, audit: auditRepo, transitionUow: createTeamTransitionUnitOfWork(db), freshness: freshnessPort });
   const setFreshness = (next: TeamFreshnessRef) => { freshness = next; };
   return { root, workspaceRoot, db, workspaceRepo, workspace, auditRepo, teamRepo, service, setFreshness };
 }
@@ -101,6 +102,11 @@ describe('Team Mode - blocking and confidentiality matrix', () => {
       summary: 'Verification needs tests but Restricted Execute is deferred',
     }));
     expect(executeBlocked).toMatchObject({ state: 'blocked', blockedReason: 'EXECUTE_REQUIRED' });
+    expect(executeHarness.db.prepare('SELECT task_status, next_action FROM work_memory_checkpoints WHERE workspace_id = ? AND is_current = 1').get(executeHarness.workspace.id)).toMatchObject({
+      task_status: 'blocked',
+      next_action: expect.stringContaining('EXECUTE_REQUIRED'),
+    });
+    expect(executeHarness.auditRepo.list(100).some((event) => event.action === 'team.mission_blocked')).toBe(true);
     expect(fs.readFileSync(path.join(executeHarness.workspaceRoot, 'README.md'), 'utf8')).toBe('team\n');
 
     const networkHarness = makeHarness();
@@ -146,7 +152,8 @@ describe('Team Mode - blocking and confidentiality matrix', () => {
       summary: 'Plan summary sk-teamsummary123456789',
       workItems: [{ title: 'Read safe project metadata only', targetPathHint: 'src/index.ts' }],
     }));
-    requireOk(h.service.submit({ outcome: 'implementation_ready', summary: 'Implementation sk-teamimpl123456789' }));
+    requireOk(h.service.submit({ outcome: 'work_ready', summary: 'Implementation sk-teamimpl123456789' }));
+    requireOk(h.service.submit({ outcome: 'validation_passed', summary: 'Validation passed' }));
     requireOk(h.service.submit({
       outcome: 'changes_requested',
       summary: 'Review sk-teamreview123456789',
@@ -180,5 +187,54 @@ describe('Team Mode - blocking and confidentiality matrix', () => {
       .map((column) => column.name)
       .join(' ');
     expect(tableInfo).not.toMatch(/raw|prompt|reasoning|content|diff|stdout|stderr|command|argv|env|hmac|binding|credential|secret/i);
+  });
+  it('rolls back stale blocking when the required Team audit cannot commit', () => {
+    const h = makeHarness();
+    const planning = requireOk(h.service.start({ goal: 'Stale must be atomic' }));
+    const before = h.db.prepare('SELECT checkpoint_id, task_status, next_action FROM work_memory_checkpoints WHERE workspace_id = ? AND is_current = 1').get(h.workspace.id);
+    h.setFreshness({ kind: 'git_status', value: 'secure-b' });
+    h.db.exec(`CREATE TRIGGER fail_stale_audit BEFORE INSERT ON audit_events WHEN NEW.action = 'team.stale_state_detected' BEGIN SELECT RAISE(ABORT, 'forced stale audit failure'); END;`);
+
+    const result = h.service.submit({ outcome: 'plan_ready', summary: 'Plan', workItems: [{ title: 'Task' }] });
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
+    expect(h.teamRepo.findById(planning.missionId)).toMatchObject({ ok: true, value: { state: 'planning', currentRole: 'planner' } });
+    expect(h.db.prepare('SELECT checkpoint_id, task_status, next_action FROM work_memory_checkpoints WHERE workspace_id = ? AND is_current = 1').get(h.workspace.id)).toEqual(before);
+    expect(h.auditRepo.list(100).some((event) => event.action === 'team.stale_state_detected')).toBe(false);
+  });
+
+  it('rolls back an explicit blocked transition when its Work Memory checkpoint cannot commit', () => {
+    const h = makeHarness();
+    const active = startAndPlan(h);
+    const before = h.db.prepare('SELECT checkpoint_id, task_status, next_action FROM work_memory_checkpoints WHERE workspace_id = ? AND is_current = 1').get(h.workspace.id);
+    h.db.exec(`CREATE TRIGGER fail_blocked_checkpoint BEFORE INSERT ON work_memory_checkpoints WHEN NEW.task_status = 'blocked' BEGIN SELECT RAISE(ABORT, 'forced blocked checkpoint failure'); END;`);
+
+    const result = h.service.submit({ outcome: 'blocked', blockedReason: 'EXECUTE_REQUIRED', summary: 'Blocked atomically' });
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
+    expect(h.teamRepo.findById(active.missionId)).toMatchObject({ ok: true, value: { state: 'implementing', currentRole: 'implementer' } });
+    expect(h.db.prepare('SELECT checkpoint_id, task_status, next_action FROM work_memory_checkpoints WHERE workspace_id = ? AND is_current = 1').get(h.workspace.id)).toEqual(before);
+    expect(h.auditRepo.list(100).some((event) => event.action === 'team.mission_blocked')).toBe(false);
+  });
+
+  it('binds explicit mission ids to the active Workspace before read or stop', () => {
+    const h = makeHarness();
+    const foreignRoot = path.join(h.root, 'foreign-workspace');
+    fs.mkdirSync(foreignRoot, { recursive: true });
+    const foreignWorkspace = h.workspaceRepo.save('Foreign Workspace', canonical(foreignRoot));
+    const foreignMission = requireOk(h.teamRepo.createMission({
+      workspaceId: foreignWorkspace.id,
+      goalSummary: 'FOREIGN_GOAL_SENTINEL',
+      freshness: { kind: 'git_status', value: 'foreign-freshness' },
+      createdAt: '2026-09-05T12:00:00.000Z',
+    }));
+
+    const statusResult = h.service.status({ missionId: foreignMission.id });
+    const stopResult = h.service.stop({ missionId: foreignMission.id });
+    expect(statusResult).toMatchObject({ ok: false, error: { code: 'TEAM_MISSION_NOT_FOUND' } });
+    expect(stopResult).toMatchObject({ ok: false, error: { code: 'TEAM_MISSION_NOT_FOUND' } });
+    expect(JSON.stringify([statusResult, stopResult])).not.toContain('FOREIGN_GOAL_SENTINEL');
+    expect(h.teamRepo.findById(foreignMission.id)).toMatchObject({
+      ok: true,
+      value: { state: 'planning', workspaceId: foreignWorkspace.id },
+    });
   });
 });

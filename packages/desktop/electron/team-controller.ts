@@ -24,6 +24,9 @@ export function createDesktopTeamController(teamService: TeamService): DesktopTe
 }
 
 function toDesktopTeamMission(view: TeamMissionView): DesktopTeamMissionDto {
+  const currentTask = view.currentStepId
+    ? view.workItems.find((item) => item.id === view.currentStepId)
+    : undefined;
   return {
     missionId: view.missionId,
     workspaceId: view.workspaceId,
@@ -32,6 +35,10 @@ function toDesktopTeamMission(view: TeamMissionView): DesktopTeamMissionDto {
     ...(view.currentRole ? { currentRole: view.currentRole } : {}),
     ...(view.currentStepId ? { currentStepId: view.currentStepId } : {}),
     reviewRound: view.reviewRound,
+    nextAction: view.nextAction,
+    ...(view.finalResultSummary ? { finalResultSummary: view.finalResultSummary } : {}),
+    taskCount: view.workItems.length,
+    ...(currentTask ? { currentTaskSequence: currentTask.sequence } : {}),
     ...(view.blockedReason ? { blockedReason: view.blockedReason } : {}),
     ...(view.blockedReasonSummary ? { blockedReasonSummary: view.blockedReasonSummary } : {}),
     ...(view.freshness ? { freshnessKind: view.freshness.kind, freshnessValue: view.freshness.value } : {}),
@@ -40,6 +47,7 @@ function toDesktopTeamMission(view: TeamMissionView): DesktopTeamMissionDto {
       sequence: item.sequence,
       title: item.title,
       status: item.status,
+      reworkCount: item.reworkCount,
       ...(item.targetPathHint ? { targetPathHint: item.targetPathHint } : {}),
     })),
     handoffs: view.handoffs.map((handoff) => ({

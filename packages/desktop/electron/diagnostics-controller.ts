@@ -169,6 +169,18 @@ const ACTIVITY_PRESENTATION: Record<string, {
   'connection.failed': { title: 'Connection failed', category: 'connection', tone: 'error' },
   'tunnel.ready': { title: 'Secure Tunnel ready', category: 'tunnel', tone: 'success' },
   'tunnel.failed': { title: 'Secure Tunnel failed', category: 'tunnel', tone: 'error' },
+  'team.mission_started': { title: 'Team mission started', category: 'workspace', tone: 'success' },
+  'team.plan_accepted': { title: 'Team plan accepted; Task started', category: 'workspace', tone: 'success' },
+  'team.worker_handoff': { title: 'Worker handed off Task for validation', category: 'workspace', tone: 'success' },
+  'team.validation_passed': { title: 'Task validation passed', category: 'workspace', tone: 'success' },
+  'team.validation_failed': { title: 'Task validation failed; returned to Worker', category: 'workspace', tone: 'warning' },
+  'team.review_returned': { title: 'Review requested changes; returned to Worker', category: 'workspace', tone: 'warning' },
+  'team.task_completed': { title: 'Task completed; next Task started', category: 'workspace', tone: 'success' },
+  'team.mission_completed': { title: 'Team mission completed', category: 'workspace', tone: 'success' },
+  'team.mission_blocked': { title: 'Team mission blocked', category: 'workspace', tone: 'error' },
+  'team.mission_stopped': { title: 'Team mission stopped', category: 'workspace', tone: 'info' },
+  'team.stale_state_detected': { title: 'Team mission blocked by stale state', category: 'workspace', tone: 'warning' },
+  'team.role_transitioned': { title: 'Team role transitioned', category: 'workspace', tone: 'success' },
 };
 
 const ACTIVITY_NOISE_ACTIONS = new Set([
@@ -240,6 +252,16 @@ function isRoutineWorkMemoryActivity(event: AuditEvent): boolean {
     && (event.resultCode === 'EXECUTION_AUTHORIZED' || event.resultCode === 'EXECUTED');
 }
 
+const TEAM_ACTIVITY_CAPABILITIES = new Set(['team.start', 'team.status', 'team.submit', 'team.stop']);
+
+function isRoutineTeamKernelActivity(event: AuditEvent): boolean {
+  const capability = event.metadata?.capability;
+  return event.action === 'tool_kernel.invoke'
+    && typeof capability === 'string'
+    && TEAM_ACTIVITY_CAPABILITIES.has(capability)
+    && (event.resultCode === 'EXECUTION_AUTHORIZED' || event.resultCode === 'EXECUTED');
+}
+
 const RESTRICTED_VERIFY_ACTION_SET = new Set<string>(RESTRICTED_VERIFY_ACTIONS);
 
 function isRoutineRestrictedVerifyKernelActivity(event: AuditEvent): boolean {
@@ -277,7 +299,14 @@ const SAFE_STATES = new Set([
   'degraded',
   'stopping',
   'error',
+  'planning',
+  'implementing',
+  'validating',
+  'reviewing',
+  'completed',
+  'blocked',
 ]);
+const SAFE_TEAM_ROLES = new Set(['planner', 'implementer', 'validator', 'reviewer']);
 
 function genericActivityTitle(action: string): string {
   return action
@@ -297,7 +326,15 @@ function activityDetails(event: AuditEvent): DesktopActivityDetailDto[] {
   if (typeof state === 'string' && SAFE_STATES.has(state)) {
     details.push({ label: 'State', value: state });
   }
-  return details;
+  const role = event.metadata['role'];
+  if (typeof role === 'string' && SAFE_TEAM_ROLES.has(role)) {
+    details.push({ label: 'Role', value: role });
+  }
+  const taskSequence = event.metadata['taskSequence'];
+  if (typeof taskSequence === 'number' && Number.isInteger(taskSequence) && taskSequence >= 1 && taskSequence <= 20) {
+    details.push({ label: 'Task', value: String(taskSequence) });
+  }
+  return details.slice(0, 3);
 }
 
 function toActivityEvent(event: AuditEvent): DesktopActivityEventDto {
@@ -314,7 +351,7 @@ function toActivityEvent(event: AuditEvent): DesktopActivityEventDto {
       ?? (event.action.startsWith('workspace') ? 'workspace'
         : event.action.includes('profile') || event.action.includes('credential') ? 'configuration'
           : 'other'),
-    tone: restrictedVerify?.tone ?? semanticWrite?.tone ?? (failed ? 'error' : presentation?.tone ?? 'success'),
+    tone: restrictedVerify?.tone ?? semanticWrite?.tone ?? presentation?.tone ?? (failed ? 'error' : 'success'),
     resultCode: event.resultCode,
     details: activityDetails(event),
   };
@@ -405,6 +442,7 @@ export function createDesktopDiagnosticsController(
             .filter((event) => !isRoutineSemanticWriteAuthorization(event))
             .filter((event) => !isRoutineRestrictedVerifyKernelActivity(event))
             .filter((event) => !isRoutineWorkMemoryActivity(event))
+            .filter((event) => !isRoutineTeamKernelActivity(event))
             .map(toActivityEvent),
         );
       } catch {

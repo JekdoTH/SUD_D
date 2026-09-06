@@ -460,78 +460,66 @@ Fresh verification after the final review fix:
 
 Remaining acceptance: perform one real Work-PC ChatGPT connection through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. The local built acceptance proves the fixed product-profile/runtime path but does not claim the external ChatGPT/control-plane path is complete on Work-PC.
 
-**Team Mode MVP — No-Execute**
+**Team Mode Personal Alpha MVP — V3**
 
-**Status: COMPLETE — sequential logical Team orchestration, safe persistence, exact 14-tool production MCP surface, Desktop Team read/stop UI, restart/resume, stale-state blocking, confidentiality gates, built MCP acceptance, built Desktop Team UI smoke, and final Standards/Spec review all passed on 2026-09-02.**
+**Status: COMPLETE — final closure gates passed on 2026-09-06.**
 
-Team Mode MVP adds a deterministic orchestration layer for one connected AI session moving through the logical roles:
+Team Mode now provides deterministic multi-Task orchestration for one connected AI session through the logical roles:
 
-`Planner -> Implementer -> Reviewer`
+`Planner -> Worker (implementer) -> Validator -> Reviewer`
 
-These are logical roles only, not parallel model processes or a model-calling runtime. Team Mode owns orchestration state only and gains no direct filesystem, Git, approval, credential, process, network, Delete/Recovery, or remote-agent authority. Actual project reads/mutations still happen only through the existing Workspace and Git Safety tools, with Basic Approval unchanged for sensitive actions.
+These are logical roles only. Team Mode owns orchestration state, not ambient filesystem/process/network authority; project reads, writes, Git, Verify, and Approval continue through their existing bounded capability paths.
 
-Production MCP now exposes exactly **14 tools**:
+Production MCP remains exactly **26 tools**, including exactly four Team tools: `team.start`, `team.status`, `team.submit`, `team.stop`. Team Mode adds no `code.*` surface and no `code.run`.
 
-- Workspace File tools: `workspace.list`, `workspace.stat`, `workspace.read_text`, `workspace.search_text`, `workspace.create_text_file`, `workspace.write_text_file`
-- Git Safety tools: `git.detect`, `git.status`, `git.diff`, `git.checkpoint`
-- Team orchestration tools: `team.start`, `team.status`, `team.submit`, `team.stop`
+### Team Mode V3 contract
 
-No Execute, shell/process, Network, Delete/Recovery, remote Git, approval-decision, scheduler, model-provider runtime, or broader multi-agent tool was added.
+- Mission states: `planning`, `implementing`, `validating`, `reviewing`, `completed`, `blocked`, `stopped`.
+- Task statuses: `pending`, `in_progress`, `validating`, `reviewing`, `done`, `blocked`.
+- Submit outcomes are exactly `plan_ready`, `work_ready`, `validation_passed`, `validation_failed`, `task_approved`, `changes_requested`, `blocked`; legacy outcome aliases are rejected.
+- Reviewer approval is impossible before Validator pass. Approved Tasks advance automatically to the next pending Task; the final approved Task completes the mission.
+- Validator/Reviewer returns increment the current Task rework count; the fourth return attempt blocks terminally as `REVIEW_LOOP_LIMIT`.
+- One active Team mission per Workspace is enforced; terminal missions are not reopened.
+- Planner/Validator/Reviewer require matching trusted freshness. Worker `work_ready` adopts the trusted current baseline. `blocked`/`stop` require Workspace identity/root but not Git freshness matching.
 
-### Team Mode implementation model
+### Atomic persistence / continuation
 
-- Domain vocabulary: Team mission, role, state, blocked reason, work item, handoff, reviewer finding, freshness reference, terminal-state helpers, and hard limits.
-- State machine: `planning/planner -> implementing/implementer -> reviewing/reviewer -> completed | blocked | stopped` with `reviewing -> implementing` returns capped at three review rounds; fourth return blocks as `REVIEW_LOOP_LIMIT`.
-- Blocking model includes `EXECUTE_REQUIRED`, `NETWORK_REQUIRED`, `DELETE_REQUIRED`, `SECURITY_POLICY`, `APPROVAL_DENIED`, `APPROVAL_EXPIRED`, `WORKSPACE_STALE`, `GIT_STATE_STALE`, `SCOPE_MISMATCH`, `REVIEW_LOOP_LIMIT`, `UNSUPPORTED_OPERATION`, and `INTERNAL_FAILURE`.
-- SQLite migration 004 adds safe metadata tables only: `team_missions`, `team_work_items`, `team_role_handoffs`, and `team_reviewer_findings`.
-- Persistence stores bounded summaries, ids, states, roles, review round, safe path hints, safe findings, timestamps, and safe freshness; it does not store raw prompts, private reasoning, file contents, diff contents, full tool results, stdout/stderr, argv/env, HMAC/binding material, or credentials.
-- `TeamService` owns all transitions and audit. Callers cannot arbitrarily set the next state; malformed/illegal submissions fail closed with no state mutation.
-- One active Team mission per Workspace is enforced. Terminal missions are never silently reopened; a new mission can start after a terminal stop/completion/block.
-- Freshness is recomputed before transitions. Supported Git Workspaces bind mission freshness to Git Safety `statusId`; external Git changes block as `GIT_STATE_STALE` and require re-evaluation.
-- Restart/resume is explicit: state persists across Gateway/Desktop restart, but no action is auto-replayed, no approval is fabricated, and the connected AI must call `team.status` to resume.
-- `team.stop` is non-destructive: it stops orchestration state only and does not delete/revert/reset files, Git state, approvals, or processes.
+- Every state-changing Team path uses one `TeamTransitionUnitOfWork` SQLite transaction for Team rows + authoritative Work Memory checkpoint + required Team audit.
+- Team, Work Memory, and audit persistence share transaction-scoped internal writer factories; the UoW contains no duplicate mutation SQL for those stores.
+- Production MCP and Desktop both require and wire the same DB-backed Team UoW; no non-atomic TeamService fallback remains.
+- Work Memory maps every Team state to one bounded continuation checkpoint and exact next action; fresh MCP sessions still require explicit `work.resume` before Team work can continue.
+- Migration 006 upgrades legacy Team rows without editing migrations 004/005, maps legacy Reviewer state through Validator, resolves current Task only within the same mission, clamps legacy rework to 0..3, and reconciles Work Memory before normal continuation.
 
-### Team Mode Desktop / IPC
+### Desktop / Activity
 
-- Desktop adds a minimal Team page/card showing safe mission goal summary, state, role, work items, review round, blocked reason, timeline/handoffs, reviewer findings, freshness kind, and **Stop Team**.
-- Renderer-facing Team IPC is fixed-purpose only: `team:status` and `team:stop`.
-- Preload exposes only `window.sudD.team.status` and `window.sudD.team.stop`.
-- The Team page includes a No-Execute notice and contains no Team start/submit transition UI, no chat UI, no agent avatars/persona editor, no workflow builder, no scheduler, no parallel-agent monitor, no terminal, no generic approval controls, and no file/Git/network authority.
+- Desktop Team remains observability-first with fixed-purpose `status + stop` only; there is no renderer start/submit authority.
+- Team UI shows Validator, Worker label, Task progress, current rework count, validation/review phase, bounded next action, and bounded Final Result.
+- Activity emits one meaningful safe Team transition event per transition while routine Team status/kernel success noise is suppressed.
 
-### Team Mode verification / acceptance
+### Final verification
 
-Fresh final evidence:
+- shared transaction-writer contract: **1/1 passed**.
+- focused persistence/security slice: **115/115 passed**.
+- affected production regressions: **55 passed / 1 skipped**.
+- real Home-PC production acceptance: **1/1 passed**.
+- `pnpm lint`: **PASS**.
+- `pnpm typecheck`: **PASS**.
+- fresh full `pnpm test`: **494 passed / 5 skipped across 41 files**.
+- `pnpm build`: **PASS**.
+- `git diff --check`: **PASS**.
+- production MCP surface: **26 total / 4 Team**, no production `code.run`.
+- `.serena/`: **local-only / untracked**.
 
-- typecheck: **PASS**
-- lint: **PASS**
-- focused Team matrix: **15/15 passed** across `team-mode.test.ts`, `team-mode-security.test.ts`, and `team-mode-desktop.test.ts`
-- relevant Basic Approval regressions: **35/35 passed**
-- relevant Workspace File + Git Safety regressions: **87/87 passed**
-- relevant Policy/Audit/Connection regressions: **76/76 passed**
-- full suite: **370/370 passed across 21 files**, clean exit 0
-- production build: **PASS** for domain, contracts, infrastructure, application, MCP Gateway, and Desktop renderer/main/preload bundles
-- `git diff --check`: **PASS**
-- changed-surface secret/confidentiality scan: **PASS** — 29 changed files / 0 real-secret findings
-- SQLite/renderer/audit sentinel scan: **PASS** — Team schema and Team audit are safe metadata only; renderer/preload Team surface is status/stop only; built Team UI is present
-- isolated built production MCP acceptance: **PASS** — exact 14 tools, no forbidden tools, restart/resume PASS, stale Git state blocks as `GIT_STATE_STALE`, persistence/audit confidentiality PASS
-- built Desktop Team UI smoke: **PASS** — actual built Desktop renderer/preload/main path, Team page PASS, Stop Team click = 1, No-Execute notice PASS, confidentiality PASS, non-destructive stop PASS
+### Final review
 
-### Team Mode final review
+- **Security/Data:** PASS.
+- **Standards:** PASS.
+- **Spec:** PASS.
+- **Blocking findings:** 0.
 
-Repo-local `code-review` routing was applied against task-start baseline `21baf5c68305fc44da397a72d9e0a97e0df508a2`; Standards and Spec axes were executed separately in-session.
+Closure commit message: `feat: complete team mode personal alpha mvp`.
 
-- **Standards:** PASS, no blocking findings. The diff follows SUD-D security rules, fixed-purpose Tool Kernel/MCP/Desktop boundaries, fail-closed transition handling, safe persistence/audit, bounded schemas, and `.serena/` local-only requirements. No generic authority or privileged bypass was introduced.
-- **Spec:** PASS, no blocking findings. The implementation satisfies the approved Team Mode MVP — No-Execute design: sequential roles, deterministic blocking, one-active-mission-per-workspace, persistence/restart, stale-state protection, exact 14-tool production surface, Desktop safe read/stop, confidentiality, built acceptance, and Restricted Execute deferral.
-
-### Team Mode known limitations
-
-- Team Mode is No-Execute. Test/lint/typecheck/build needs block as `EXECUTE_REQUIRED` until Restricted Execute is separately proven and implemented.
-- There is no parallel worker/runtime, no model-provider API runtime, no scheduler/background agent, no custom workflow graph, no chat/persona editor, no cloud sync, no RBAC, and no remote Git.
-- Desktop can read/stop Team missions only; mission start/submit remains a connected-AI MCP orchestration path.
-
-### Team Mode implementation commit
-
-`be6ff3c8b0df6f53cb2716fb4828471208664ebb` — `feat: add Team Mode MVP no-execute`
+**STOP after closure push/fetch proves `HEAD == origin/master` and divergence `0 0`. Do not begin dogfooding, post-MVP hardening, or a later milestone without a new explicit instruction.**
 
 **Restricted Execute**
 

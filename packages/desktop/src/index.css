@@ -769,3 +769,20 @@ tbody tr:hover td { background: #fafcff; }
 @media (pointer: coarse) {
   .nav-item, .btn { min-height: 44px; }
 }
+
+/* ---- Team Mode ---- */
+.team-details { margin-top: 16px; display: grid; gap: 16px; }
+.team-current-task { padding: 14px; border: 1px solid var(--bg-border); border-radius: 12px; background: var(--bg-elevated); min-width: 0; }
+.team-current-task-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.team-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.team-columns > div, .team-task-copy { min-width: 0; }
+.team-task-copy, .team-path-hint, .team-handoff-summary, .team-next-action span, .team-final-result span { overflow-wrap: anywhere; }
+.team-next-action { background: var(--accent-soft); border-color: var(--bg-border); }
+.team-final-result { background: var(--green-soft); border-color: var(--bg-border); color: var(--green); }
+.team-final-result span { color: var(--green); }
+.team-stop-button { justify-self: start; }
+
+@media (max-width: 940px) {
+  .team-columns { grid-template-columns: 1fr; }
+  .team-current-task-header { align-items: flex-start; }
+}

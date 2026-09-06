@@ -13,6 +13,10 @@ import type { Db } from './database.js';
 
 export type WorkMemoryCheckpointDraft = Omit<WorkResumeContext, 'checkpointId'>;
 
+export interface WorkMemoryCheckpointWriter {
+  saveCheckpoint(input: WorkMemoryCheckpointDraft): WorkResumeContext;
+}
+
 export interface WorkMemoryRepository {
   loadCurrent(workspaceId: string): Result<WorkResumeContext | undefined, AppError>;
   saveCheckpoint(input: WorkMemoryCheckpointDraft): Result<WorkResumeContext, AppError>;
@@ -71,17 +75,11 @@ function rowToContext(row: WorkMemoryRow): WorkResumeContext {
   };
 }
 
-export function createWorkMemoryRepository(db: Db): WorkMemoryRepository {
+export function createWorkMemoryCheckpointWriter(db: Db): WorkMemoryCheckpointWriter {
   const loadCurrentStatement = db.prepare(`
     SELECT * FROM work_memory_checkpoints
     WHERE workspace_id = ? AND is_current = 1
     LIMIT 1
-  `);
-  const listRecentStatement = db.prepare(`
-    SELECT * FROM work_memory_checkpoints
-    WHERE workspace_id = ?
-    ORDER BY checkpoint_index DESC
-    LIMIT ?
   `);
   const maxIndexStatement = db.prepare(`
     SELECT COALESCE(MAX(checkpoint_index), 0) AS max_index
@@ -109,6 +107,50 @@ export function createWorkMemoryRepository(db: Db): WorkMemoryRepository {
     )
   `);
 
+  return Object.freeze({
+    saveCheckpoint(input: WorkMemoryCheckpointDraft) {
+      const maxRow = maxIndexStatement.get(input.workspaceId) as { max_index: number };
+      const checkpointIndex = maxRow.max_index + 1;
+      const checkpointId = randomUUID();
+      demoteCurrentStatement.run(input.workspaceId);
+      insertStatement.run(
+        checkpointId,
+        input.workspaceId,
+        checkpointIndex,
+        input.goal,
+        input.task.title,
+        input.task.status,
+        JSON.stringify(input.completed),
+        JSON.stringify(input.decisions),
+        JSON.stringify(input.blockers),
+        input.nextAction,
+        JSON.stringify(input.artifacts),
+        JSON.stringify(input.verification),
+        input.git?.headSha ?? null,
+        input.git?.statusId ?? null,
+        input.updatedAt,
+      );
+      trimStatement.run(input.workspaceId, input.workspaceId, WORK_MEMORY_LIMITS.maxHistory);
+      const row = loadCurrentStatement.get(input.workspaceId) as WorkMemoryRow | undefined;
+      if (!row) throw new Error('current checkpoint missing');
+      return rowToContext(row);
+    },
+  });
+}
+
+export function createWorkMemoryRepository(db: Db): WorkMemoryRepository {
+  const writer = createWorkMemoryCheckpointWriter(db);
+  const loadCurrentStatement = db.prepare(`
+    SELECT * FROM work_memory_checkpoints
+    WHERE workspace_id = ? AND is_current = 1
+    LIMIT 1
+  `);
+  const listRecentStatement = db.prepare(`
+    SELECT * FROM work_memory_checkpoints
+    WHERE workspace_id = ?
+    ORDER BY checkpoint_index DESC
+    LIMIT ?
+  `);
   const repository: WorkMemoryRepository = {
     loadCurrent(workspaceId) {
       try {
@@ -118,42 +160,10 @@ export function createWorkMemoryRepository(db: Db): WorkMemoryRepository {
         return persistenceError();
       }
     },
-
     saveCheckpoint(input) {
-      try {
-        const saved = db.transaction(() => {
-          const maxRow = maxIndexStatement.get(input.workspaceId) as { max_index: number };
-          const checkpointIndex = maxRow.max_index + 1;
-          const checkpointId = randomUUID();
-          demoteCurrentStatement.run(input.workspaceId);
-          insertStatement.run(
-            checkpointId,
-            input.workspaceId,
-            checkpointIndex,
-            input.goal,
-            input.task.title,
-            input.task.status,
-            JSON.stringify(input.completed),
-            JSON.stringify(input.decisions),
-            JSON.stringify(input.blockers),
-            input.nextAction,
-            JSON.stringify(input.artifacts),
-            JSON.stringify(input.verification),
-            input.git?.headSha ?? null,
-            input.git?.statusId ?? null,
-            input.updatedAt,
-          );
-          trimStatement.run(input.workspaceId, input.workspaceId, WORK_MEMORY_LIMITS.maxHistory);
-          const row = loadCurrentStatement.get(input.workspaceId) as WorkMemoryRow | undefined;
-          if (!row) throw new Error('current checkpoint missing');
-          return rowToContext(row);
-        })();
-        return ok(saved);
-      } catch {
-        return persistenceError();
-      }
+      try { return ok(db.transaction(() => writer.saveCheckpoint(input))()); }
+      catch { return persistenceError(); }
     },
-
     listRecent(workspaceId, requestedLimit = WORK_MEMORY_LIMITS.maxHistory) {
       try {
         const limit = Math.max(1, Math.min(requestedLimit, WORK_MEMORY_LIMITS.maxHistory));

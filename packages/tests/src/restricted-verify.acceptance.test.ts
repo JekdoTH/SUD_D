@@ -12,6 +12,7 @@ import {
   createGitSafetyAdapter,
   createRestrictedVerifyAdapter,
   createTeamRepository,
+  createTeamTransitionUnitOfWork,
   createWorkspaceRepository,
   createWorkMemoryRepository,
   createWorkspaceTextFileSystem,
@@ -170,6 +171,7 @@ describe('Restricted Verify Home-PC Windows production acceptance', () => {
       fileSystem: createWorkspaceTextFileSystem(),
       gitSafety: createGitSafetyAdapter(),
       teamRepo: createTeamRepository(db),
+    teamTransitionUow: createTeamTransitionUnitOfWork(db),
       semanticRead: { read: async () => ({ content: [] }) },
       semanticWrite: { write: async () => ({ content: [] }) },
       restrictedVerify: createRestrictedVerifyAdapter({

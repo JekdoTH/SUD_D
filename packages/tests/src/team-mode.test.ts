@@ -15,6 +15,7 @@ import {
   canonicalizePath,
   createAuditRepository,
   createTeamRepository,
+  createTeamTransitionUnitOfWork,
   createWorkspaceRepository,
   createWorkspaceTextFileSystem,
   createWorkMemoryRepository,
@@ -22,6 +23,7 @@ import {
   type Db,
 } from '@sud-d/infrastructure';
 import { createProductionMcpServer, createStdioGatewayTransport } from '@sud-d/mcp-gateway';
+import { TEAM_ROLES, TEAM_STATES, TEAM_SUBMISSION_OUTCOMES, TEAM_WORK_ITEM_STATUSES } from '@sud-d/domain';
 import type { TeamFreshnessRef, TeamMissionView, ToolKernelResult, Workspace } from '@sud-d/domain';
 
 const PROTOCOL_VERSION = '2025-06-18';
@@ -132,15 +134,16 @@ function makeHarness(options: { freshness?: TeamFreshnessRef } = {}) {
   workspaceRepo.setActive(workspace.id);
   const auditRepo = createAuditRepository(db);
   const teamRepo = createTeamRepository(db);
+  const workMemoryRepo = createWorkMemoryRepository(db);
   let freshness = options.freshness ?? { kind: 'git_status', value: 'fresh-a' } as TeamFreshnessRef;
   const freshnessPort: TeamFreshnessPort = {
     current(_workspace: Workspace) {
       return { ok: true, value: freshness };
     },
   };
-  const service = createTeamService({ teamRepo, workspaceRepo, audit: auditRepo, freshness: freshnessPort });
+  const service = createTeamService({ teamRepo, workspaceRepo, audit: auditRepo, transitionUow: createTeamTransitionUnitOfWork(db), freshness: freshnessPort });
   const setFreshness = (next: TeamFreshnessRef) => { freshness = next; };
-  return { root, workspaceRoot, db, workspaceRepo, workspace, auditRepo, teamRepo, service, setFreshness };
+  return { root, workspaceRoot, db, workspaceRepo, workspace, auditRepo, teamRepo, workMemoryRepo, service, setFreshness };
 }
 
 afterEach(() => {
@@ -151,39 +154,57 @@ afterEach(() => {
 });
 
 describe('Team Mode - state machine and persistence', () => {
-  it('runs the sequential Planner to Implementer to Reviewer mission flow and completes', () => {
+  it('pins the exact V3 Team domain vocabulary', () => {
+    expect(TEAM_ROLES).toEqual(['planner', 'implementer', 'validator', 'reviewer']);
+    expect(TEAM_STATES).toEqual(['planning', 'implementing', 'validating', 'reviewing', 'completed', 'blocked', 'stopped']);
+    expect(TEAM_SUBMISSION_OUTCOMES).toEqual(['plan_ready', 'work_ready', 'validation_passed', 'validation_failed', 'task_approved', 'changes_requested', 'blocked']);
+    expect(TEAM_WORK_ITEM_STATUSES).toEqual(['pending', 'in_progress', 'validating', 'reviewing', 'done', 'blocked']);
+  });
+  it('progresses two Tasks through Worker, Validator, Reviewer, rework, and automatic next assignment', () => {
     const h = makeHarness();
-    const started = requireOk(h.service.start({ goal: 'Implement the small safe change SENTINEL_TEAM_GOAL_SECRET' }));
-    expect(started).toMatchObject({ state: 'planning', currentRole: 'planner', reviewRound: 0 });
-    expect(started.goalSummary).not.toContain('SENTINEL_TEAM_GOAL_SECRET');
-
-    expect(h.service.start({ goal: 'second mission' })).toMatchObject({ ok: false, error: { code: 'TEAM_MISSION_CONFLICT' } });
-
+    requireOk(h.service.start({ goal: 'Complete two bounded Tasks' }));
     const planned = requireOk(h.service.submit({
       outcome: 'plan_ready',
-      summary: 'Plan ready',
-      workItems: [{ title: 'Edit docs', targetPathHint: 'docs/plan.md' }],
+      summary: 'Two Task plan',
+      workItems: [{ title: 'Task one' }, { title: 'Task two' }],
     }));
-    expect(planned).toMatchObject({ state: 'implementing', currentRole: 'implementer', reviewRound: 0 });
-    expect(planned.workItems).toHaveLength(1);
-    expect(planned.workItems[0]).toMatchObject({ sequence: 1, title: 'Edit docs', targetPathHint: 'docs/plan.md' });
-    expect(planned.handoffs.map((handoff) => handoff.outcome)).toEqual(['plan_ready']);
+    expect(planned).toMatchObject({ state: 'implementing', currentRole: 'implementer' });
+    expect(planned.workItems.map((item) => [item.title, item.status, item.reworkCount])).toEqual([
+      ['Task one', 'in_progress', 0],
+      ['Task two', 'pending', 0],
+    ]);
 
-    const implemented = requireOk(h.service.submit({ outcome: 'implementation_ready', summary: 'Implementation ready' }));
-    expect(implemented).toMatchObject({ state: 'reviewing', currentRole: 'reviewer', reviewRound: 0 });
+    const workReady = requireOk(h.service.submit({ outcome: 'work_ready', summary: 'Task one ready' }));
+    expect(workReady).toMatchObject({ state: 'validating', currentRole: 'validator' });
+    expect(workReady.workItems[0]).toMatchObject({ status: 'validating', reworkCount: 0 });
+    const failed = requireOk(h.service.submit({
+      outcome: 'validation_failed',
+      summary: 'Focused test failed',
+      verification: ['test failed'],
+      findings: [{ severity: 'medium', summary: 'Fix Task one' }],
+    }));
+    expect(failed).toMatchObject({ state: 'implementing', currentRole: 'implementer' });
+    expect(failed.workItems[0]).toMatchObject({ title: 'Task one', status: 'in_progress', reworkCount: 1 });
 
-    const completed = requireOk(h.service.submit({ outcome: 'complete', summary: 'Looks good' }));
-    expect(completed).toMatchObject({ state: 'completed', reviewRound: 0 });
-    expect(completed.currentRole).toBeUndefined();
-    expect(completed.completedAt).toBeTruthy();
-    expect(h.service.submit({ outcome: 'blocked', blockedReason: 'UNSUPPORTED_OPERATION', summary: 'late' })).toMatchObject({ ok: false, error: { code: 'TEAM_MISSION_NOT_FOUND' } });
+    requireOk(h.service.submit({ outcome: 'work_ready', summary: 'Task one fixed' }));
+    requireOk(h.service.submit({ outcome: 'validation_passed', summary: 'Validation passed', verification: ['test passed'] }));
+    const reviewing = requireOk(h.service.status());
+    expect(reviewing).toMatchObject({ state: 'reviewing', currentRole: 'reviewer' });
+    expect(reviewing?.workItems[0]).toMatchObject({ status: 'reviewing', reworkCount: 1 });
 
-    const rows = JSON.stringify(h.db.prepare('SELECT * FROM team_missions').all());
-    const audit = JSON.stringify(h.auditRepo.list(100));
-    expect(rows).not.toContain('SENTINEL_TEAM_GOAL_SECRET');
-    expect(audit).not.toContain('SENTINEL_TEAM_GOAL_SECRET');
+    const taskTwo = requireOk(h.service.submit({ outcome: 'task_approved', summary: 'Task one approved' }));
+    expect(taskTwo).toMatchObject({ state: 'implementing', currentRole: 'implementer' });
+    expect(taskTwo.workItems.map((item) => [item.title, item.status, item.reworkCount])).toEqual([
+      ['Task one', 'done', 1],
+      ['Task two', 'in_progress', 0],
+    ]);
+
+    requireOk(h.service.submit({ outcome: 'work_ready', summary: 'Task two ready' }));
+    requireOk(h.service.submit({ outcome: 'validation_passed', summary: 'Task two validated' }));
+    const completed = requireOk(h.service.submit({ outcome: 'task_approved', summary: 'Task two approved' }));
+    expect(completed).toMatchObject({ state: 'completed' });
+    expect(completed.workItems.map((item) => item.status)).toEqual(['done', 'done']);
   });
-
   it('persists active mission state across service recreation and stops non-destructively', () => {
     const h = makeHarness();
     const started = requireOk(h.service.start({ goal: 'Resume this mission' }));
@@ -193,6 +214,7 @@ describe('Team Mode - state machine and persistence', () => {
       teamRepo: createTeamRepository(h.db),
       workspaceRepo: h.workspaceRepo,
       audit: h.auditRepo,
+      transitionUow: createTeamTransitionUnitOfWork(h.db),
       freshness: { current: () => ({ ok: true, value: { kind: 'git_status', value: 'fresh-a' } }) },
     });
     expect(requireOk(resumedService.status())).toMatchObject({ missionId: started.missionId, state: 'implementing', currentRole: 'implementer' });
@@ -203,31 +225,101 @@ describe('Team Mode - state machine and persistence', () => {
     expect(requireOk(resumedService.status({ missionId: started.missionId }))).toMatchObject({ state: 'stopped' });
   });
 
-  it('fails illegal transitions closed and caps reviewer return loops at three', () => {
+  it('fails illegal transitions closed and caps return-to-Worker cycles at three per Task', () => {
     const h = makeHarness();
     requireOk(h.service.start({ goal: 'Review loop mission' }));
-    expect(h.service.submit({ outcome: 'complete', summary: 'too early' })).toMatchObject({ ok: false, error: { code: 'TEAM_TRANSITION_INVALID' } });
-    expect(requireOk(h.service.status())).toMatchObject({ state: 'planning', currentRole: 'planner', reviewRound: 0 });
-
+    expect(h.service.submit({ outcome: 'task_approved', summary: 'too early' })).toMatchObject({ ok: false, error: { code: 'TEAM_TRANSITION_INVALID' } });
     requireOk(h.service.submit({ outcome: 'plan_ready', summary: 'Plan', workItems: [{ title: 'Task' }] }));
+
     for (let round = 1; round <= 3; round += 1) {
-      requireOk(h.service.submit({ outcome: 'implementation_ready', summary: `Ready ${round}` }));
+      requireOk(h.service.submit({ outcome: 'work_ready', summary: `Ready ${round}` }));
+      requireOk(h.service.submit({ outcome: 'validation_passed', summary: `Validated ${round}` }));
       const returned = requireOk(h.service.submit({
         outcome: 'changes_requested',
         summary: `Changes ${round}`,
         findings: [{ severity: 'medium', summary: `Fix ${round}`, targetPathHint: 'src/file.ts' }],
       }));
-      expect(returned).toMatchObject({ state: 'implementing', currentRole: 'implementer', reviewRound: round });
+      expect(returned).toMatchObject({ state: 'implementing', currentRole: 'implementer' });
+      expect(returned.workItems[0]).toMatchObject({ status: 'in_progress', reworkCount: round });
     }
-    requireOk(h.service.submit({ outcome: 'implementation_ready', summary: 'Ready 4' }));
+
+    requireOk(h.service.submit({ outcome: 'work_ready', summary: 'Ready 4' }));
+    requireOk(h.service.submit({ outcome: 'validation_passed', summary: 'Validated 4' }));
     const limited = requireOk(h.service.submit({
       outcome: 'changes_requested',
       summary: 'One too many',
       findings: [{ severity: 'high', summary: 'Still wrong' }],
     }));
-    expect(limited).toMatchObject({ state: 'blocked', blockedReason: 'REVIEW_LOOP_LIMIT', reviewRound: 3 });
+    expect(limited).toMatchObject({ state: 'blocked', blockedReason: 'REVIEW_LOOP_LIMIT' });
+    expect(limited.workItems[0]).toMatchObject({ reworkCount: 3 });
   });
+  it('atomically derives exact Work Memory continuation across Team states without a ClientSession', () => {
+    const h = makeHarness();
+    requireOk(h.service.start({ goal: 'Checkpoint Team continuation' }));
+    expect(h.workMemoryRepo.loadCurrent(h.workspace.id)).toMatchObject({
+      ok: true,
+      value: {
+        task: { title: 'Plan Team mission', status: 'in_progress' },
+        nextAction: 'Plan the Team mission and submit plan_ready.',
+      },
+    });
 
+    requireOk(h.service.submit({ outcome: 'plan_ready', summary: 'Plan', workItems: [{ title: 'Task one' }] }));
+    expect(h.workMemoryRepo.loadCurrent(h.workspace.id)).toMatchObject({
+      ok: true,
+      value: { task: { title: 'Task one', status: 'in_progress' }, nextAction: 'Work on Task 1/1: Task one; then submit work_ready.' },
+    });
+    requireOk(h.service.submit({ outcome: 'work_ready', summary: 'Ready' }));
+    expect(h.workMemoryRepo.loadCurrent(h.workspace.id)).toMatchObject({
+      ok: true,
+      value: { nextAction: 'Validate Task 1/1: Task one; then submit validation_passed or validation_failed.' },
+    });
+    requireOk(h.service.submit({ outcome: 'validation_passed', summary: 'Passed', verification: ['test passed'] }));
+    expect(h.workMemoryRepo.loadCurrent(h.workspace.id)).toMatchObject({
+      ok: true,
+      value: { verification: ['test passed'], nextAction: 'Review Task 1/1: Task one; then submit task_approved or changes_requested.' },
+    });
+    requireOk(h.service.submit({ outcome: 'task_approved', summary: 'Approved' }));
+    expect(h.workMemoryRepo.loadCurrent(h.workspace.id)).toMatchObject({
+      ok: true,
+      value: { task: { status: 'completed' }, nextAction: 'Team mission completed; review the Final Result.' },
+    });
+
+    const stopped = makeHarness();
+    requireOk(stopped.service.start({ goal: 'Stop continuation' }));
+    requireOk(stopped.service.stop());
+    expect(stopped.workMemoryRepo.loadCurrent(stopped.workspace.id)).toMatchObject({
+      ok: true,
+      value: { task: { status: 'blocked' }, nextAction: 'Team mission stopped; start a new Team mission to continue this Goal.' },
+    });
+  });
+  it('applies role-specific freshness: Worker adopts; Validator and Reviewer must match; blocked ignores Git drift', () => {
+    const worker = makeHarness({ freshness: { kind: 'git_status', value: 'worker-a' } });
+    requireOk(worker.service.start({ goal: 'Worker adoption' }));
+    requireOk(worker.service.submit({ outcome: 'plan_ready', summary: 'Plan', workItems: [{ title: 'Task' }] }));
+    worker.setFreshness({ kind: 'git_status', value: 'worker-b' });
+    const adopted = requireOk(worker.service.submit({ outcome: 'work_ready', summary: 'Intentional project edit' }));
+    expect(adopted).toMatchObject({ state: 'validating', currentRole: 'validator', freshness: { kind: 'git_status', value: 'worker-b' } });
+
+    worker.setFreshness({ kind: 'git_status', value: 'validator-drift' });
+    const validatorStale = requireOk(worker.service.submit({ outcome: 'validation_passed', summary: 'Should re-evaluate' }));
+    expect(validatorStale).toMatchObject({ state: 'blocked', blockedReason: 'GIT_STATE_STALE' });
+
+    const reviewer = makeHarness({ freshness: { kind: 'git_status', value: 'review-a' } });
+    requireOk(reviewer.service.start({ goal: 'Reviewer match' }));
+    requireOk(reviewer.service.submit({ outcome: 'plan_ready', summary: 'Plan', workItems: [{ title: 'Task' }] }));
+    requireOk(reviewer.service.submit({ outcome: 'work_ready', summary: 'Ready' }));
+    requireOk(reviewer.service.submit({ outcome: 'validation_passed', summary: 'Passed' }));
+    reviewer.setFreshness({ kind: 'git_status', value: 'review-drift' });
+    const reviewerStale = requireOk(reviewer.service.submit({ outcome: 'task_approved', summary: 'Should not approve' }));
+    expect(reviewerStale).toMatchObject({ state: 'blocked', blockedReason: 'GIT_STATE_STALE' });
+
+    const blocked = makeHarness({ freshness: { kind: 'git_status', value: 'blocked-a' } });
+    requireOk(blocked.service.start({ goal: 'Safe blocker' }));
+    blocked.setFreshness({ kind: 'git_status', value: 'blocked-b' });
+    const terminal = requireOk(blocked.service.submit({ outcome: 'blocked', blockedReason: 'EXECUTE_REQUIRED', summary: 'Need an unavailable action' }));
+    expect(terminal).toMatchObject({ state: 'blocked', blockedReason: 'EXECUTE_REQUIRED' });
+  });
   it('detects stale workspace freshness before role transition and preserves prior plan state until blocking is recorded', () => {
     const h = makeHarness({ freshness: { kind: 'git_status', value: 'status-a' } });
     requireOk(h.service.start({ goal: 'Needs freshness' }));
@@ -238,6 +330,27 @@ describe('Team Mode - state machine and persistence', () => {
     expect(stale.workItems).toHaveLength(0);
     const audit = h.auditRepo.list(20);
     expect(audit.map((event) => event.action)).toContain('team.stale_state_detected');
+  });
+  it('emits one safe Team transition audit per state-changing transition and no status audit noise', () => {
+    const h = makeHarness();
+    requireOk(h.service.start({ goal: 'Audit Team SENTINEL_TEAM_AUDIT_SECRET' }));
+    requireOk(h.service.status());
+    requireOk(h.service.submit({ outcome: 'plan_ready', summary: 'Plan', workItems: [{ title: 'Task one' }] }));
+    requireOk(h.service.status());
+    requireOk(h.service.submit({ outcome: 'work_ready', summary: 'Worker ready' }));
+    requireOk(h.service.submit({ outcome: 'validation_passed', summary: 'Validation passed', verification: ['test passed'] }));
+    requireOk(h.service.submit({ outcome: 'task_approved', summary: 'Approved' }));
+
+    const teamAudit = h.auditRepo.list(100).filter((event) => event.action.startsWith('team.'));
+    expect(teamAudit.map((event) => event.action).sort()).toEqual([
+      'team.mission_completed',
+      'team.mission_started',
+      'team.plan_accepted',
+      'team.validation_passed',
+      'team.worker_handoff',
+    ].sort());
+    expect(teamAudit).toHaveLength(5);
+    expect(JSON.stringify(teamAudit)).not.toMatch(/SENTINEL_TEAM_AUDIT_SECRET|rawPrompt|reasoning|fileContent|diffContent|stdout|stderr|Serena/i);
   });
 });
 
@@ -285,6 +398,7 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
       internalRoots: [],
       fileSystem: createWorkspaceTextFileSystem(),
       teamRepo: h.teamRepo,
+      teamTransitionUow: createTeamTransitionUnitOfWork(h.db),
       semanticRead: { read: async () => ({ content: [] }) },
       semanticWrite: { write: async () => ({ content: [] }) },
       restrictedVerify: { run: async (_context, request) => ({ action: request.action, passed: true, exitCode: 0, output: '', truncated: false, durationMs: 1 }) },
@@ -310,9 +424,21 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
 
     send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'team.start', arguments: { goal: 'Build a no-execute team plan' } } });
     expect(parsePayload(await reader.next())).toMatchObject({ ok: true, code: 'EXECUTED', policyDecision: 'allow', value: { state: 'planning', currentRole: 'planner' } });
+    expect(h.workMemoryRepo.loadCurrent(h.workspace.id)).toMatchObject({ ok: true, value: { task: { title: 'Plan Team mission', status: 'in_progress' }, nextAction: 'Plan the Team mission and submit plan_ready.' } });
 
     send({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'team.submit', arguments: { outcome: 'plan_ready', summary: 'Plan ready', workItems: [{ title: 'Use existing workspace tools', targetPathHint: 'README.md' }] } } });
     expect(parsePayload(await reader.next())).toMatchObject({ ok: true, code: 'EXECUTED', value: { state: 'implementing', currentRole: 'implementer' } });
+
+    for (const [id, argumentsValue] of [
+      [41, { outcome: 'implementation_ready', summary: 'legacy alias' }],
+      [42, { outcome: 'complete', summary: 'legacy alias' }],
+      [43, { outcome: 'work_ready', summary: 'forbidden selector', state: 'reviewing' }],
+    ] as const) {
+      send({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'team.submit', arguments: argumentsValue } });
+      const rejected = await reader.next();
+      expect(rejected.error ?? rejected.result?.isError).toBeTruthy();
+    }
+    expect(requireOk(h.service.status())).toMatchObject({ state: 'implementing', currentRole: 'implementer' });
 
     send({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'team.submit', arguments: { outcome: 'blocked', blockedReason: 'NETWORK_REQUIRED', summary: 'Remote API needed' } } });
     expect(parsePayload(await reader.next())).toMatchObject({ ok: true, code: 'EXECUTED', value: { state: 'blocked', blockedReason: 'NETWORK_REQUIRED' } });

@@ -163,6 +163,194 @@ const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_work_memory_workspace_history
     ON work_memory_checkpoints(workspace_id, checkpoint_index DESC);
   `,
+  // Migration 006 โ€” Team Mode Personal Alpha V3 schema + fail-closed legacy reconciliation
+  `
+  ALTER TABLE team_reviewer_findings RENAME TO team_reviewer_findings_legacy;
+  ALTER TABLE team_role_handoffs RENAME TO team_role_handoffs_legacy;
+  ALTER TABLE team_work_items RENAME TO team_work_items_legacy;
+  ALTER TABLE team_missions RENAME TO team_missions_legacy;
+  DROP INDEX IF EXISTS idx_team_one_active_workspace;
+  DROP INDEX IF EXISTS idx_team_workspace_state;
+  DROP INDEX IF EXISTS idx_team_work_items_mission;
+  DROP INDEX IF EXISTS idx_team_handoffs_mission;
+  DROP INDEX IF EXISTS idx_team_findings_mission;
+
+  CREATE TABLE team_missions (
+    mission_id             TEXT PRIMARY KEY,
+    workspace_id           TEXT NOT NULL,
+    goal_summary           TEXT NOT NULL,
+    state                  TEXT NOT NULL CHECK(state IN ('planning','implementing','validating','reviewing','completed','blocked','stopped')),
+    current_role           TEXT CHECK(current_role IN ('planner','implementer','validator','reviewer')),
+    current_step_id        TEXT,
+    review_round           INTEGER NOT NULL DEFAULT 0,
+    blocked_reason_code    TEXT,
+    blocked_reason_summary TEXT,
+    freshness_kind         TEXT NOT NULL CHECK(freshness_kind IN ('git_status','workspace_time','none')),
+    freshness_value        TEXT NOT NULL,
+    final_result_summary   TEXT,
+    reconciliation_required INTEGER NOT NULL DEFAULT 0 CHECK(reconciliation_required IN (0,1)),
+    created_at             TEXT NOT NULL,
+    updated_at             TEXT NOT NULL,
+    completed_at           TEXT,
+    stopped_at             TEXT
+  );
+
+  CREATE TABLE team_work_items (
+    work_item_id     TEXT PRIMARY KEY,
+    mission_id       TEXT NOT NULL REFERENCES team_missions(mission_id) ON DELETE CASCADE,
+    sequence         INTEGER NOT NULL,
+    title            TEXT NOT NULL,
+    status           TEXT NOT NULL CHECK(status IN ('pending','in_progress','validating','reviewing','done','blocked')),
+    rework_count     INTEGER NOT NULL DEFAULT 0 CHECK(rework_count BETWEEN 0 AND 3),
+    target_path_hint TEXT,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
+  );
+
+  CREATE TABLE team_role_handoffs (
+    handoff_id   TEXT PRIMARY KEY,
+    mission_id   TEXT NOT NULL REFERENCES team_missions(mission_id) ON DELETE CASCADE,
+    from_role    TEXT NOT NULL CHECK(from_role IN ('planner','implementer','validator','reviewer')),
+    outcome_code TEXT NOT NULL,
+    summary      TEXT NOT NULL,
+    created_at   TEXT NOT NULL
+  );
+
+  CREATE TABLE team_reviewer_findings (
+    finding_id          TEXT PRIMARY KEY,
+    mission_id          TEXT NOT NULL REFERENCES team_missions(mission_id) ON DELETE CASCADE,
+    source_role         TEXT NOT NULL DEFAULT 'reviewer' CHECK(source_role IN ('validator','reviewer')),
+    severity            TEXT NOT NULL CHECK(severity IN ('low','medium','high')),
+    summary             TEXT NOT NULL,
+    target_path_hint    TEXT,
+    expected_correction TEXT,
+    created_at          TEXT NOT NULL
+  );
+
+  INSERT INTO team_missions(
+    mission_id, workspace_id, goal_summary, state, current_role, current_step_id,
+    review_round, blocked_reason_code, blocked_reason_summary, freshness_kind, freshness_value,
+    final_result_summary, reconciliation_required, created_at, updated_at, completed_at, stopped_at
+  )
+  SELECT
+    m.mission_id, m.workspace_id, m.goal_summary,
+    CASE
+      WHEN m.state = 'reviewing' AND COALESCE(
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id AND w.status IN ('pending','in_progress') LIMIT 1),
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='in_progress' ORDER BY w.sequence ASC LIMIT 1),
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='pending' ORDER BY w.sequence ASC LIMIT 1)
+      ) IS NOT NULL THEN 'validating'
+      WHEN m.state = 'implementing' AND COALESCE(
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id AND w.status IN ('pending','in_progress') LIMIT 1),
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='in_progress' ORDER BY w.sequence ASC LIMIT 1),
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='pending' ORDER BY w.sequence ASC LIMIT 1)
+      ) IS NULL THEN 'blocked'
+      WHEN m.state = 'reviewing' THEN 'blocked'
+      ELSE m.state
+    END,
+    CASE
+      WHEN m.state='reviewing' AND COALESCE(
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id AND w.status IN ('pending','in_progress') LIMIT 1),
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='in_progress' ORDER BY w.sequence ASC LIMIT 1),
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='pending' ORDER BY w.sequence ASC LIMIT 1)
+      ) IS NOT NULL THEN 'validator'
+      WHEN m.state='implementing' AND COALESCE(
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id AND w.status IN ('pending','in_progress') LIMIT 1),
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='in_progress' ORDER BY w.sequence ASC LIMIT 1),
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='pending' ORDER BY w.sequence ASC LIMIT 1)
+      ) IS NULL THEN NULL
+      WHEN m.state='reviewing' THEN NULL
+      ELSE m.current_role
+    END,
+    CASE
+      WHEN m.state IN ('implementing','reviewing') THEN COALESCE(
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id AND w.status IN ('pending','in_progress') LIMIT 1),
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='in_progress' ORDER BY w.sequence ASC LIMIT 1),
+        (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='pending' ORDER BY w.sequence ASC LIMIT 1)
+      )
+      ELSE m.current_step_id
+    END,
+    m.review_round,
+    CASE WHEN m.state IN ('implementing','reviewing') AND COALESCE(
+      (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id AND w.status IN ('pending','in_progress') LIMIT 1),
+      (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='in_progress' ORDER BY w.sequence ASC LIMIT 1),
+      (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='pending' ORDER BY w.sequence ASC LIMIT 1)
+    ) IS NULL THEN 'UNSUPPORTED_OPERATION' ELSE m.blocked_reason_code END,
+    CASE WHEN m.state IN ('implementing','reviewing') AND COALESCE(
+      (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id AND w.status IN ('pending','in_progress') LIMIT 1),
+      (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='in_progress' ORDER BY w.sequence ASC LIMIT 1),
+      (SELECT w.work_item_id FROM team_work_items_legacy w WHERE w.mission_id=m.mission_id AND w.status='pending' ORDER BY w.sequence ASC LIMIT 1)
+    ) IS NULL THEN 'Legacy Team mission cannot resolve a current Task' ELSE m.blocked_reason_summary END,
+    m.freshness_kind, m.freshness_value, NULL,
+    CASE WHEN m.state IN ('planning','implementing','reviewing') THEN 1 ELSE 0 END,
+    m.created_at, m.updated_at, m.completed_at, m.stopped_at
+  FROM team_missions_legacy m;
+
+  INSERT INTO team_work_items(work_item_id, mission_id, sequence, title, status, rework_count, target_path_hint, created_at, updated_at)
+  SELECT w.work_item_id, w.mission_id, w.sequence, w.title,
+    CASE
+      WHEN m.reconciliation_required=1 AND w.work_item_id=m.current_step_id AND m.state='implementing' THEN 'in_progress'
+      WHEN m.reconciliation_required=1 AND w.work_item_id=m.current_step_id AND m.state='validating' THEN 'validating'
+      WHEN w.status IN ('done','blocked') THEN w.status
+      ELSE 'pending'
+    END,
+    CASE WHEN m.reconciliation_required=1 AND w.work_item_id=m.current_step_id
+      THEN MIN(3, MAX(0, m.review_round)) ELSE 0 END,
+    w.target_path_hint, w.created_at, w.updated_at
+  FROM team_work_items_legacy w JOIN team_missions m ON m.mission_id=w.mission_id;
+
+  INSERT INTO team_role_handoffs SELECT * FROM team_role_handoffs_legacy;
+  INSERT INTO team_reviewer_findings(finding_id, mission_id, source_role, severity, summary, target_path_hint, expected_correction, created_at)
+    SELECT finding_id, mission_id, 'reviewer', severity, summary, target_path_hint, expected_correction, created_at FROM team_reviewer_findings_legacy;
+
+  CREATE UNIQUE INDEX idx_team_one_active_workspace ON team_missions(workspace_id)
+    WHERE state IN ('planning','implementing','validating','reviewing');
+  CREATE INDEX idx_team_workspace_state ON team_missions(workspace_id, state, updated_at DESC);
+  CREATE INDEX idx_team_work_items_mission ON team_work_items(mission_id, sequence);
+  CREATE INDEX idx_team_handoffs_mission ON team_role_handoffs(mission_id, created_at);
+  CREATE INDEX idx_team_findings_mission ON team_reviewer_findings(mission_id, created_at);
+
+  UPDATE work_memory_checkpoints SET is_current=0
+    WHERE workspace_id IN (SELECT workspace_id FROM team_missions WHERE reconciliation_required=1);
+
+  INSERT INTO work_memory_checkpoints(
+    checkpoint_id, workspace_id, checkpoint_index, is_current, goal, task_title, task_status,
+    completed_json, decisions_json, blockers_json, next_action, artifacts_json, verification_json,
+    git_head_sha, git_status_id, updated_at
+  )
+  SELECT lower(hex(randomblob(16))), m.workspace_id,
+    COALESCE((SELECT MAX(c.checkpoint_index) FROM work_memory_checkpoints c WHERE c.workspace_id=m.workspace_id),0)+1,
+    1, m.goal_summary,
+    CASE
+      WHEN m.state='planning' THEN 'Plan Team mission'
+      WHEN m.current_step_id IS NOT NULL THEN COALESCE((SELECT w.title FROM team_work_items w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id),'Team mission blocked')
+      ELSE 'Team mission blocked'
+    END,
+    CASE WHEN m.state='blocked' THEN 'blocked' ELSE 'in_progress' END,
+    '[]','[]',
+    CASE WHEN m.state='blocked' THEN '["Legacy Team mission cannot resolve a current Task"]' ELSE '[]' END,
+    CASE
+      WHEN m.state='planning' THEN 'Plan the Team mission and submit plan_ready.'
+      WHEN m.state='implementing' THEN printf('Work on Task %d/%d: %s; then submit work_ready.',
+        (SELECT w.sequence FROM team_work_items w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id),
+        (SELECT COUNT(*) FROM team_work_items w WHERE w.mission_id=m.mission_id),
+        (SELECT w.title FROM team_work_items w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id))
+      WHEN m.state='validating' THEN printf('Validate Task %d/%d: %s; then submit validation_passed or validation_failed.',
+        (SELECT w.sequence FROM team_work_items w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id),
+        (SELECT COUNT(*) FROM team_work_items w WHERE w.mission_id=m.mission_id),
+        (SELECT w.title FROM team_work_items w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id))
+      ELSE 'Resolve the Team blocker UNSUPPORTED_OPERATION; start a new Team mission if more work is required.'
+    END,
+    '[]','[]',NULL,NULL,m.updated_at
+  FROM team_missions m WHERE m.reconciliation_required=1;
+
+  UPDATE team_missions SET reconciliation_required=0 WHERE reconciliation_required=1;
+
+  DROP TABLE team_reviewer_findings_legacy;
+  DROP TABLE team_role_handoffs_legacy;
+  DROP TABLE team_work_items_legacy;
+  DROP TABLE team_missions_legacy;
+  `
 ];
 
 export function openDatabase(dbPath: string): Db {

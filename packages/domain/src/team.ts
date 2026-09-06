@@ -1,9 +1,9 @@
 import type { PolicyContext } from './policy.js';
 
-export const TEAM_ROLES = ['planner', 'implementer', 'reviewer'] as const;
+export const TEAM_ROLES = ['planner', 'implementer', 'validator', 'reviewer'] as const;
 export type TeamRole = (typeof TEAM_ROLES)[number];
 
-export const TEAM_STATES = ['planning', 'implementing', 'reviewing', 'completed', 'blocked', 'stopped'] as const;
+export const TEAM_STATES = ['planning', 'implementing', 'validating', 'reviewing', 'completed', 'blocked', 'stopped'] as const;
 export type TeamState = (typeof TEAM_STATES)[number];
 
 export const TEAM_TERMINAL_STATES: readonly TeamState[] = ['completed', 'blocked', 'stopped'];
@@ -26,14 +26,16 @@ export type TeamBlockedReason = (typeof TEAM_BLOCKED_REASONS)[number];
 
 export const TEAM_SUBMISSION_OUTCOMES = [
   'plan_ready',
-  'implementation_ready',
-  'complete',
+  'work_ready',
+  'validation_passed',
+  'validation_failed',
+  'task_approved',
   'changes_requested',
   'blocked',
 ] as const;
 export type TeamSubmissionOutcome = (typeof TEAM_SUBMISSION_OUTCOMES)[number];
 
-export const TEAM_WORK_ITEM_STATUSES = ['pending', 'in_progress', 'done', 'blocked'] as const;
+export const TEAM_WORK_ITEM_STATUSES = ['pending', 'in_progress', 'validating', 'reviewing', 'done', 'blocked'] as const;
 export type TeamWorkItemStatus = (typeof TEAM_WORK_ITEM_STATUSES)[number];
 
 export const TEAM_FINDING_SEVERITIES = ['low', 'medium', 'high'] as const;
@@ -81,6 +83,7 @@ export interface TeamWorkItemRecord {
   readonly sequence: number;
   readonly title: string;
   readonly status: TeamWorkItemStatus;
+  readonly reworkCount: number;
   readonly targetPathHint?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -113,6 +116,8 @@ export interface TeamMissionView {
   readonly currentRole?: TeamRole;
   readonly currentStepId?: string;
   readonly reviewRound: number;
+  readonly nextAction: string;
+  readonly finalResultSummary?: string;
   readonly blockedReason?: TeamBlockedReason;
   readonly blockedReasonSummary?: string;
   readonly freshness?: TeamFreshnessRef;

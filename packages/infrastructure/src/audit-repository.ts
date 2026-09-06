@@ -74,21 +74,26 @@ export function sanitizeMetadata(
   return out;
 }
 
+export interface AuditEventWriter {
+  append(event: Omit<AuditEvent, 'id'>): AuditEvent;
+}
+
 export interface AuditRepository {
   append(event: Omit<AuditEvent, 'id'>): AuditEvent;
   list(limit?: number, excludeActions?: readonly string[]): AuditEvent[];
 }
 
-export function createAuditRepository(db: Db): AuditRepository {
-  return {
-    append(event: Omit<AuditEvent, 'id'>): AuditEvent {
+export function createAuditEventWriter(db: Db): AuditEventWriter {
+  const insertStatement = db.prepare(
+    `INSERT INTO audit_events(id, timestamp, session_id, session_type, action, workspace_id,
+      resource_path, policy_decision, result_code, duration_ms, metadata)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  return Object.freeze({
+    append(event: Omit<AuditEvent, 'id'>) {
       const id = uuidv4();
       const sanitized = sanitizeMetadata(event.metadata as Record<string, unknown>);
-      db.prepare(
-        `INSERT INTO audit_events(id, timestamp, session_id, session_type, action, workspace_id,
-          resource_path, policy_decision, result_code, duration_ms, metadata)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
+      insertStatement.run(
         id,
         event.timestamp.toISOString(),
         event.sessionId,
@@ -103,7 +108,15 @@ export function createAuditRepository(db: Db): AuditRepository {
       );
       return { ...event, id, metadata: sanitized };
     },
+  });
+}
 
+export function createAuditRepository(db: Db): AuditRepository {
+  const writer = createAuditEventWriter(db);
+  return {
+    append(event: Omit<AuditEvent, 'id'>): AuditEvent {
+      return writer.append(event);
+    },
     list(limit = 50, excludeActions: readonly string[] = []): AuditEvent[] {
       const rows = excludeActions.length === 0
         ? db

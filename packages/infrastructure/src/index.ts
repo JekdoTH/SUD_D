@@ -20,3 +20,4 @@ export * from './serena-managed-runtime.js';
 export * from './restricted-verify-adapter.js';
 
 export * from './work-memory-repository.js';
+export * from './team-transition-unit-of-work.js';

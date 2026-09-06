@@ -5,6 +5,7 @@ import { PassThrough } from 'node:stream';
 
 import {
   createTeamRepository,
+  createTeamTransitionUnitOfWork,
   createWorkspaceTextFileSystem,
   createWorkMemoryRepository,
   type GitDetectResult,
@@ -128,6 +129,7 @@ describe('Git Safety - status and production MCP surface', () => {
       fileSystem: createWorkspaceTextFileSystem(),
       gitSafety: h.gitSafety,
       teamRepo: createTeamRepository(h.db),
+      teamTransitionUow: createTeamTransitionUnitOfWork(h.db),
       semanticRead: { read: async () => ({ content: [] }) },
     semanticWrite: { write: async () => ({ content: [] }) },
       restrictedVerify: { run: async (_context, request) => ({ action: request.action, passed: true, exitCode: 0, output: '', truncated: false, durationMs: 1 }) },
@@ -156,6 +158,7 @@ describe('Git Safety - status and production MCP surface', () => {
       fileSystem: createWorkspaceTextFileSystem(),
       gitSafety: h.gitSafety,
       teamRepo: createTeamRepository(h.db),
+      teamTransitionUow: createTeamTransitionUnitOfWork(h.db),
       semanticRead: { read: async () => ({ content: [] }) },
     semanticWrite: { write: async () => ({ content: [] }) },
       restrictedVerify: { run: async (_context, request) => ({ action: request.action, passed: true, exitCode: 0, output: '', truncated: false, durationMs: 1 }) },

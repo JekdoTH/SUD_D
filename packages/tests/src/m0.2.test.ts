@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+﻿import { afterEach, describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -59,7 +59,7 @@ afterEach(() => {
   }
 });
 
-describe('M0.2 — connection profile persistence', () => {
+describe('M0.2 โ€” connection profile persistence', () => {
   it('persists, reads, and updates non-secret connection profile configuration', () => {
     const { profileRepo, service } = makeM02Services();
 
@@ -142,7 +142,7 @@ describe('M0.2 — connection profile persistence', () => {
   });
 });
 
-describe('M0.2 — credential boundary', () => {
+describe('M0.2 โ€” credential boundary', () => {
   it('exposes only configured/missing credential status and never the secret in renderer DTOs', () => {
     const { service } = makeM02Services();
     const secret = 'credential-value-that-must-not-serialize';
@@ -232,7 +232,7 @@ describe('M0.2 — credential boundary', () => {
   });
 });
 
-describe('M0.2 — strict contracts', () => {
+describe('M0.2 โ€” strict contracts', () => {
   const validProfileInput = {
     displayName: 'Work Secure Tunnel',
     provider: 'openai_secure_mcp_tunnel',
@@ -288,7 +288,7 @@ describe('M0.2 — strict contracts', () => {
   );
 });
 
-describe('M0.2 — database migration', () => {
+describe('M0.2 โ€” database migration', () => {
   it('upgrades a v1 database transactionally and remains idempotent on reopen', () => {
     const dataDir = makeTempDir();
     const dbPath = path.join(dataDir, 'upgrade.db');
@@ -330,7 +330,7 @@ describe('M0.2 — database migration', () => {
     expect(
       (upgraded.prepare('SELECT version FROM schema_migrations ORDER BY version').all() as { version: number }[])
         .map((row) => row.version),
-    ).toEqual([1, 2, 3, 4, 5]);
+    ).toEqual([1, 2, 3, 4, 5, 6]);
     expect(
       upgraded.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'connection_profiles'").get(),
     ).toBeTruthy();
@@ -353,7 +353,7 @@ describe('M0.2 — database migration', () => {
     expect(
       (reopened.prepare('SELECT version FROM schema_migrations ORDER BY version').all() as { version: number }[])
         .map((row) => row.version),
-    ).toEqual([1, 2, 3, 4, 5]);
+    ).toEqual([1, 2, 3, 4, 5, 6]);
     expect(
       reopened.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = 2").get(),
     ).toEqual({ count: 1 });

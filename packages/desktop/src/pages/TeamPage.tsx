@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DesktopTeamMissionDto } from '@sud-d/contracts';
 
 function stateBadge(state: DesktopTeamMissionDto['state']): string {
@@ -8,8 +8,30 @@ function stateBadge(state: DesktopTeamMissionDto['state']): string {
     case 'stopped': return 'badge-gray';
     case 'planning':
     case 'implementing':
+    case 'validating':
     case 'reviewing':
       return 'badge-yellow';
+  }
+}
+
+function roleLabel(role: DesktopTeamMissionDto['currentRole']): string {
+  switch (role) {
+    case 'planner': return 'Planner';
+    case 'implementer': return 'Worker';
+    case 'validator': return 'Validator';
+    case 'reviewer': return 'Reviewer';
+    default: return 'None';
+  }
+}
+
+function phaseLabel(state: DesktopTeamMissionDto['state']): string {
+  switch (state) {
+    case 'planning': return 'Planning';    case 'implementing': return 'Worker';
+    case 'validating': return 'Validation';
+    case 'reviewing': return 'Review';
+    case 'completed': return 'Completed';
+    case 'blocked': return 'Blocked';
+    case 'stopped': return 'Stopped';
   }
 }
 
@@ -33,8 +55,7 @@ export function TeamPage(): React.ReactElement {
   }, []);
 
   useEffect(() => {
-    void refresh();
-    const timer = window.setInterval(() => { void refresh(false); }, 3000);
+    void refresh();    const timer = window.setInterval(() => { void refresh(false); }, 3000);
     return () => window.clearInterval(timer);
   }, [refresh]);
 
@@ -53,15 +74,33 @@ export function TeamPage(): React.ReactElement {
     setMessage('Team mission stopped. No files, Git state, approvals, or processes were changed.');
   }, [refresh]);
 
+  const currentTask = useMemo(() => {
+    if (!mission) return undefined;
+    const selected = mission.currentStepId
+      ? mission.workItems.find((item) => item.id === mission.currentStepId)
+      : undefined;
+    if (selected) return selected;
+    if (mission.state === 'completed') {
+      return [...mission.workItems].reverse().find((item) => item.status === 'done');
+    }
+    return undefined;
+  }, [mission]);
+  const progressCurrent = mission
+    ? mission.currentTaskSequence
+      ?? (mission.state === 'completed'
+        ? mission.taskCount
+        : mission.workItems.filter((item) => item.status === 'done').length)
+    : 0;
+
   return (
     <>
       <div className="page-header page-header-row">
         <div>
           <h1 className="page-title">Team Mode</h1>
-          <p className="page-subtitle">Sequential Planner → Implementer → Reviewer orchestration. No Execute capability is available.</p>
+          <p className="page-subtitle">Sequential Planner → Worker → Validator → Reviewer orchestration. No Execute capability is available.</p>
         </div>
         <button id="btn-refresh-team" className="btn btn-ghost" onClick={() => void refresh()} disabled={loading}>
-          {loading ? 'Refreshing…' : '↻ Refresh'}
+          {loading ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
 
@@ -72,18 +111,17 @@ export function TeamPage(): React.ReactElement {
         </div>
       )}
       {message && (
-        <div className="callout callout-info" role="status">
+        <div className="callout callout-neutral" role="status">
           <span>{message}</span>
         </div>
       )}
-
       <section className="card team-card">
         <div className="card-header-row">
           <div>
             <div className="card-kicker">Current mission</div>
             <div className="card-heading">{mission?.goalSummary ?? 'No active Team mission'}</div>
           </div>
-          {mission && <span className={`badge ${stateBadge(mission.state)}`}>{mission.state}</span>}
+          {mission && <span className={`badge ${stateBadge(mission.state)}`}>{phaseLabel(mission.state)}</span>}
         </div>
 
         {loading && !mission ? (
@@ -95,28 +133,54 @@ export function TeamPage(): React.ReactElement {
           </div>
         ) : (
           <div className="team-details">
-            <div className="activity-details">
-              <span>Role: {mission.currentRole ?? 'none'}</span>
-              <span>Review round: {mission.reviewRound}/3</span>
-              <span>Workspace: {mission.workspaceId}</span>
-              {mission.freshnessKind && <span>Freshness: {mission.freshnessKind}</span>}
+            <div className="activity-details" aria-label="Team mission summary">
+              <span>Role: {roleLabel(mission.currentRole)}</span>
+              <span>Phase: {phaseLabel(mission.state)}</span>
+              <span>Progress: {progressCurrent} / {mission.taskCount}</span>
+              {currentTask && <span>Rework: {currentTask.reworkCount} / 3</span>}
             </div>
+
+            {currentTask && (
+              <section className="team-current-task" aria-label="Current Team Task">
+                <div className="team-current-task-header">
+                  <div>
+                    <div className="card-kicker">Current Task</div>                    <strong>{currentTask.sequence}. {currentTask.title}</strong>
+                  </div>
+                  <span className="badge badge-gray">{currentTask.status}</span>
+                </div>
+                {currentTask.targetPathHint && <div className="muted small team-path-hint">{currentTask.targetPathHint}</div>}
+              </section>
+            )}
+
+            <div className="callout callout-neutral team-next-action" role="status">
+              <strong>Next action</strong>
+              <span>{mission.nextAction}</span>
+            </div>
+
             {mission.blockedReason && (
               <div className="callout callout-error" role="status">
                 <strong>Blocked: {mission.blockedReason}</strong>
                 <span>{mission.blockedReasonSummary ?? 'The mission needs a safe re-evaluation.'}</span>
               </div>
             )}
+
+            {mission.state === 'completed' && mission.finalResultSummary && (
+              <div className="callout team-final-result" role="status">
+                <strong>Final Result</strong>
+                <span>{mission.finalResultSummary}</span>
+              </div>
+            )}
+
             <div className="team-columns">
               <div>
-                <h2 className="section-title">Work items</h2>
-                {mission.workItems.length === 0 ? <div className="empty-compact">No work items yet.</div> : (
-                  <div className="activity-list">
-                    {mission.workItems.map((item) => (
+                <h2 className="section-title">Tasks</h2>
+                {mission.workItems.length === 0 ? <div className="empty-compact">No Tasks yet.</div> : (
+                  <div className="activity-list">                    {mission.workItems.map((item) => (
                       <div className="activity-row" key={item.id}>
-                        <div>
+                        <div className="team-task-copy">
                           <strong>{item.sequence}. {item.title}</strong>
-                          {item.targetPathHint && <div className="muted small">{item.targetPathHint}</div>}
+                          {item.targetPathHint && <div className="muted small team-path-hint">{item.targetPathHint}</div>}
+                          {item.reworkCount > 0 && <div className="muted small">Rework {item.reworkCount} / 3</div>}
                         </div>
                         <span className="badge badge-gray">{item.status}</span>
                       </div>
@@ -130,9 +194,9 @@ export function TeamPage(): React.ReactElement {
                   <div className="activity-list">
                     {mission.handoffs.map((handoff) => (
                       <div className="activity-row" key={handoff.id}>
-                        <div>
-                          <strong>{handoff.fromRole} · {handoff.outcome}</strong>
-                          <div className="muted small">{handoff.summary}</div>
+                        <div className="team-task-copy">
+                          <strong>{roleLabel(handoff.fromRole)} · {handoff.outcome}</strong>
+                          <div className="muted small team-handoff-summary">{handoff.summary}</div>
                         </div>
                       </div>
                     ))}
@@ -142,27 +206,32 @@ export function TeamPage(): React.ReactElement {
             </div>
             {mission.findings.length > 0 && (
               <div>
-                <h2 className="section-title">Reviewer findings</h2>
+                <h2 className="section-title">Validation / review findings</h2>
                 <div className="activity-list">
                   {mission.findings.map((finding) => (
                     <div className="activity-row" key={finding.id}>
-                      <div>
+                      <div className="team-task-copy">
                         <strong>{finding.severity}: {finding.summary}</strong>
-                        {finding.targetPathHint && <div className="muted small">{finding.targetPathHint}</div>}
+                        {finding.targetPathHint && <div className="muted small team-path-hint">{finding.targetPathHint}</div>}
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
             {!['completed', 'blocked', 'stopped'].includes(mission.state) && (
-              <button id="btn-stop-team" className="btn btn-danger" disabled={busy} onClick={() => void stopMission()}>
+              <button
+                id="btn-stop-team"
+                className="btn btn-danger team-stop-button"
+                disabled={busy}
+                onClick={() => void stopMission()}
+              >
                 {busy ? 'Stopping…' : 'Stop Team'}
               </button>
             )}
           </div>
         )}
-      </section>
-    </>
+      </section>    </>
   );
 }

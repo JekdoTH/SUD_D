@@ -5,6 +5,7 @@ import {
   TEAM_BLOCKED_REASONS,
   TEAM_FINDING_SEVERITIES,
   TEAM_LIMITS,
+  WORK_MEMORY_LIMITS,
   type AppError,
   type TeamBlockedReason,
   type TeamFindingSeverity,
@@ -84,7 +85,7 @@ function validateStopInput(input: unknown): Result<TeamStopInput, AppError> {
 }
 
 function validateSubmitInput(input: unknown): Result<TeamSubmitInput, AppError> {
-  if (!isStrictObject(input, ['outcome', 'summary', 'workItems', 'findings', 'blockedReason'])) return invalidInput();
+  if (!isStrictObject(input, ['outcome', 'summary', 'workItems', 'findings', 'blockedReason', 'verification'])) return invalidInput();
   const outcome = input.outcome;
   if (typeof outcome !== 'string') return invalidInput();
   try {
@@ -94,10 +95,26 @@ function validateSubmitInput(input: unknown): Result<TeamSubmitInput, AppError> 
         if (!Array.isArray(input.workItems) || input.workItems.length < 1 || input.workItems.length > TEAM_LIMITS.maxWorkItems) return invalidInput();
         return ok({ outcome, summary: input.summary, workItems: input.workItems.map(parseWorkItem) });
       }
-      case 'implementation_ready':
-      case 'complete': {
+      case 'work_ready':
+      case 'task_approved': {
         if (typeof input.summary !== 'string' || !isBoundedSummary(input.summary)) return invalidInput();
         return ok({ outcome, summary: input.summary } as TeamSubmitInput);
+      }
+      case 'validation_passed': {
+        if (typeof input.summary !== 'string' || !isBoundedSummary(input.summary)) return invalidInput();
+        const verification = parseVerification(input.verification);
+        return ok({ outcome, summary: input.summary, ...(verification ? { verification } : {}) });
+      }
+      case 'validation_failed': {
+        if (typeof input.summary !== 'string' || !isBoundedSummary(input.summary)) return invalidInput();
+        if (!Array.isArray(input.findings) || input.findings.length < 1 || input.findings.length > TEAM_LIMITS.maxFindings) return invalidInput();
+        const verification = parseVerification(input.verification);
+        return ok({
+          outcome,
+          summary: input.summary,
+          findings: input.findings.map(parseFinding),
+          ...(verification ? { verification } : {}),
+        });
       }
       case 'changes_requested': {
         if (typeof input.summary !== 'string' || !isBoundedSummary(input.summary)) return invalidInput();
@@ -115,6 +132,17 @@ function validateSubmitInput(input: unknown): Result<TeamSubmitInput, AppError> 
   } catch {
     return invalidInput();
   }
+}
+
+function parseVerification(value: unknown): readonly string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > WORK_MEMORY_LIMITS.maxVerificationItems) throw new Error('invalid verification');
+  return value.map((item) => {
+    if (typeof item !== 'string' || item.trim().length < 1 || item.length > WORK_MEMORY_LIMITS.maxItemChars || item.includes('\0')) {
+      throw new Error('invalid verification');
+    }
+    return item;
+  });
 }
 
 function parseWorkItem(value: unknown): TeamPlanWorkItemInput {

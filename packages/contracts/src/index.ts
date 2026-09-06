@@ -210,10 +210,10 @@ export type DesktopApprovalResponseDto = z.infer<typeof DesktopApprovalResponseD
 // Team Mode DTOs — safe renderer-facing orchestration metadata only
 // ---------------------------------------------------------------------------
 
-export const TeamRoleSchema = z.enum(['planner', 'implementer', 'reviewer']);
+export const TeamRoleSchema = z.enum(['planner', 'implementer', 'validator', 'reviewer']);
 export type TeamRoleDto = z.infer<typeof TeamRoleSchema>;
 
-export const TeamStateSchema = z.enum(['planning', 'implementing', 'reviewing', 'completed', 'blocked', 'stopped']);
+export const TeamStateSchema = z.enum(['planning', 'implementing', 'validating', 'reviewing', 'completed', 'blocked', 'stopped']);
 export type TeamStateDto = z.infer<typeof TeamStateSchema>;
 
 export const TeamBlockedReasonSchema = z.enum([
@@ -236,7 +236,8 @@ export const TeamWorkItemDtoSchema = z.object({
   id: z.string().uuid(),
   sequence: z.number().int().min(1),
   title: z.string().min(1).max(160),
-  status: z.enum(['pending', 'in_progress', 'done', 'blocked']),
+  status: z.enum(['pending', 'in_progress', 'validating', 'reviewing', 'done', 'blocked']),
+  reworkCount: z.number().int().min(0).max(3),
   targetPathHint: z.string().min(1).max(1024).optional(),
 }).strict();
 export type TeamWorkItemDto = z.infer<typeof TeamWorkItemDtoSchema>;
@@ -244,7 +245,7 @@ export type TeamWorkItemDto = z.infer<typeof TeamWorkItemDtoSchema>;
 export const TeamHandoffDtoSchema = z.object({
   id: z.string().uuid(),
   fromRole: TeamRoleSchema,
-  outcome: z.enum(['plan_ready', 'implementation_ready', 'complete', 'changes_requested', 'blocked']),
+  outcome: z.enum(['plan_ready', 'work_ready', 'validation_passed', 'validation_failed', 'task_approved', 'changes_requested', 'blocked']),
   summary: z.string().min(1).max(1000),
   createdAt: z.string().datetime(),
 }).strict();
@@ -268,6 +269,10 @@ export const DesktopTeamMissionDtoSchema = z.object({
   currentRole: TeamRoleSchema.optional(),
   currentStepId: z.string().uuid().optional(),
   reviewRound: z.number().int().min(0).max(3),
+  nextAction: z.string().min(1).max(1000),
+  finalResultSummary: z.string().min(1).max(1000).optional(),
+  taskCount: z.number().int().min(0).max(20),
+  currentTaskSequence: z.number().int().min(1).max(20).optional(),
   blockedReason: TeamBlockedReasonSchema.optional(),
   blockedReasonSummary: z.string().min(1).max(240).optional(),
   freshnessKind: z.enum(['git_status', 'workspace_time', 'none']).optional(),

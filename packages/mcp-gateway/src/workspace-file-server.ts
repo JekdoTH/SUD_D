@@ -13,6 +13,7 @@ import {
   createWorkMemoryService,
   createWorkResumeGuardedToolKernel,
   createTeamCapabilities,
+  createTeamLegacyReconciler,
   createTeamService,
   createToolCapabilityRegistry,
   createToolKernel,
@@ -40,6 +41,7 @@ import {
   createManagedSerenaRuntime,
   createRestrictedVerifyAdapter,
   createTeamRepository,
+  createTeamTransitionUnitOfWork,
   createWorkspaceRepository,
   createWorkMemoryRepository,
   createWorkspaceTextFileSystem,
@@ -48,6 +50,7 @@ import {
   type AuditRepository,
   type GitSafetyAdapter,
   type TeamRepository,
+  type TeamTransitionUnitOfWork,
   type WorkspaceRepository,
   type WorkspaceTextFileSystem,
   type WorkMemoryRepository,
@@ -119,10 +122,15 @@ const teamFindingSchema = z.object({
   targetPathHint: teamRelativeHintSchema,
   expectedCorrection: z.string().min(1).max(240).optional(),
 }).strict();
+const teamVerificationSchema = z.array(
+  z.string().min(1).max(WORK_MEMORY_LIMITS.maxItemChars).refine((value) => !value.includes('\0')),
+).max(WORK_MEMORY_LIMITS.maxVerificationItems).optional();
 const teamSubmitInputSchema = z.discriminatedUnion('outcome', [
   z.object({ outcome: z.literal('plan_ready'), summary: teamSummarySchema, workItems: z.array(teamWorkItemSchema).min(1).max(20) }).strict(),
-  z.object({ outcome: z.literal('implementation_ready'), summary: teamSummarySchema }).strict(),
-  z.object({ outcome: z.literal('complete'), summary: teamSummarySchema }).strict(),
+  z.object({ outcome: z.literal('work_ready'), summary: teamSummarySchema }).strict(),
+  z.object({ outcome: z.literal('validation_passed'), summary: teamSummarySchema, verification: teamVerificationSchema }).strict(),
+  z.object({ outcome: z.literal('validation_failed'), summary: teamSummarySchema, verification: teamVerificationSchema, findings: z.array(teamFindingSchema).min(1).max(20) }).strict(),
+  z.object({ outcome: z.literal('task_approved'), summary: teamSummarySchema }).strict(),
   z.object({ outcome: z.literal('changes_requested'), summary: teamSummarySchema, findings: z.array(teamFindingSchema).min(1).max(20) }).strict(),
   z.object({ outcome: z.literal('blocked'), blockedReason: teamBlockedReasonSchema, summary: teamSummarySchema }).strict(),
 ]);
@@ -207,6 +215,7 @@ export interface ProductionMcpServerDependencies {
   readonly fileSystem: WorkspaceTextFileSystem;
   readonly gitSafety?: GitSafetyAdapter;
   readonly teamRepo: TeamRepository;
+  readonly teamTransitionUow: TeamTransitionUnitOfWork;
   readonly semanticRead: CodingSemanticReadPort;
   readonly semanticWrite: CodingSemanticWritePort;
   readonly restrictedVerify: RestrictedVerifyPort;
@@ -218,11 +227,14 @@ export function createProductionMcpServer(
   dependencies: ProductionMcpServerDependencies,
 ): McpServer {
   const gitSafety = dependencies.gitSafety ?? createGitSafetyAdapter();
+  const legacy = createTeamLegacyReconciler({ teamRepo: dependencies.teamRepo }).reconcile();
+  if (!legacy.ok) throw new Error('SUD-D Team legacy reconciliation failed');
   const workMemory = createWorkMemoryService({ repository: dependencies.workMemoryRepo, gitSafety });
   const teamService = createTeamService({
     teamRepo: dependencies.teamRepo,
     workspaceRepo: dependencies.workspaceRepo,
     audit: dependencies.auditRepo,
+    transitionUow: dependencies.teamTransitionUow,
     freshness: {
       current(workspace) {
         const status = gitSafety.status(workspace.canonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
@@ -303,7 +315,7 @@ export function createProductionMcpServer(
   }));
   const server = new McpServer(MCP_GATEWAY_INFO, {
     capabilities: { tools: { listChanged: false } },
-    instructions: 'Call work.resume before substantive project work. Resume Context is Workspace-scoped and does not grant additional tool authority.',
+    instructions: 'Call work.resume before substantive project work. If a Team mission exists, call team.status and continue the current bounded Planner/Worker/Validator/Reviewer assignment. Routine legal Team assignments advance automatically; stop for Approval, a true user decision, a blocker, or tool/session limits. Resume Context is Workspace-scoped and grants no additional authority.',
   });
 
   registerWorkspaceFileTools(server, kernel);
@@ -336,6 +348,7 @@ export function createDefaultProductionMcpServer(): McpServer {
     internalRoots: [{ canonicalPath: canonicalDataRoot.value, label: 'SUD-D data root' }],
     fileSystem: createWorkspaceTextFileSystem(),
     teamRepo,
+    teamTransitionUow: createTeamTransitionUnitOfWork(db),
     semanticRead: {
       read: (context, request) => codingRuntime.semanticRead(context, request),
     },
