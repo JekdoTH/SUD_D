@@ -38,11 +38,13 @@ Observed: after the SUD-D MCP path had already responded to a workspace tool, at
 
 Expected runtime contract: the closed Team Mode Personal Alpha MVP exposes four Team tools (`team.start`, `team.status`, `team.submit`, `team.stop`) within the 26-tool production MCP surface.
 
-Current impact: BLOCKER for Team Mode dogfood in that ChatGPT session. Basic MCP reachability and Team Mode tool availability are currently different outcomes.
+Current impact at discovery: BLOCKER for Team Mode dogfood in that ChatGPT session. Basic MCP reachability and Team Mode tool availability were different outcomes.
 
-Root cause: UNCONFIRMED. Candidate areas for later diagnosis include host-side tool/action exposure state, stale tool catalog/session state, or SUD-D runtime exposure/activation. Do not treat any candidate as established until reproduced with a tight SUD-D-only loop.
+Resolution evidence: after refreshing the SUD-D HOME actions in ChatGPT and starting a fresh ChatGPT session, `work.resume` succeeded and `team.status` succeeded with no active Team mission (`value: null`). No SUD-D code change was required.
 
-Status: OPEN / blocking current Team Mode dogfood.
+Root-cause status: operationally isolated to a stale/incomplete ChatGPT host-visible action catalog or snapshot. The exact internal host caching mechanism is outside SUD-D and was not further diagnosed.
+
+Status: RESOLVED OPERATIONALLY / action refresh + fresh ChatGPT session.
 
 ### DGF-004 — Fresh ChatGPT session does not expose `work.resume`
 
@@ -50,11 +52,13 @@ Observed: after reconnecting and using a fresh ChatGPT session for the SUD-D-onl
 
 Expected runtime contract: the closed Work Memory / Automatic Resume MVP exposes `work.resume` and requires it before substantive project-scoped work in a fresh MCP session. The current production MCP contract is 26 tools, including Work Memory and the four Team tools.
 
-Current impact: BLOCKER for normal fresh-session bootstrap and therefore for Team Mode dogfood. This is stronger evidence than a single disabled Team action because the required Work Memory entrypoint itself is absent from the host-visible contract.
+Current impact at discovery: BLOCKER for normal fresh-session bootstrap and therefore for Team Mode dogfood.
 
-Root cause: UNCONFIRMED. The evidence is consistent with an incomplete/stale host-visible tool catalog or an exposure mismatch, but does not yet prove whether the fault is in ChatGPT host/action refresh, Secure Tunnel/session discovery, or the SUD-D runtime surface.
+Resolution evidence: refreshing SUD-D HOME actions in ChatGPT updated the host-visible contract. In a new ChatGPT session, `work.resume` succeeded, followed by successful `team.status` returning no active mission.
 
-Status: OPEN / blocking current Personal Alpha dogfood.
+Root-cause status: operationally isolated to a stale/incomplete ChatGPT host-visible action catalog or snapshot rather than missing SUD-D registration.
+
+Status: RESOLVED OPERATIONALLY / action refresh + fresh ChatGPT session.
 
 ## Diagnostic evidence
 
@@ -64,14 +68,20 @@ A read-only/diagnostic inspection on the Home PC confirmed the built production 
 
 The existing gated Home-PC Team Mode production acceptance was then run with `SUD_D_TEAM_MODE_ACCEPTANCE=1` against the current local repo. Result: **1/1 PASS**. That acceptance performs MCP `tools/list`, requires the exact approved 26-tool list, verifies exactly four `team.*` tools, verifies pre-resume Team calls fail with `WORK_RESUME_REQUIRED`, then successfully calls `work.resume` and continues the production Team flow.
 
-This evidence materially narrows DGF-003/DGF-004: the current local production composition and Team/Work Memory contract are intact. The remaining failure is between the running integration/session and the ChatGPT host-visible catalog, or a stale already-running gateway process/catalog, rather than missing registration in current SUD-D source/build.
+The running tunnel was also observed healthy/ready against the current SUD-D gateway, with successful control-plane polling. Together with the successful ChatGPT action refresh recovery, this closes the Team/Work Memory availability blocker without a SUD-D implementation change.
 
-## Next diagnostic step
+## Current dogfood state
 
-1. Disconnect SUD-D cleanly.
-2. Fully close SUD-D so the current tunnel/gateway process is not reused.
-3. Reopen SUD-D and Connect again, forcing a fresh gateway process from the current build.
-4. Open a new ChatGPT session and check for `work.resume` before attempting the dogfood workload.
-5. If `work.resume` is still absent or a Team tool is disabled, treat the result as host/integration catalog evidence and stop; do not retry the workload or substitute Remote Commander.
+- DGF-001: OPEN — visible terminal on Connect.
+- DGF-002: OPEN — stale `Waiting for ChatGPT` UI state after real MCP use.
+- DGF-003: RESOLVED OPERATIONALLY — refresh ChatGPT actions, then use a fresh chat.
+- DGF-004: RESOLVED OPERATIONALLY — refresh ChatGPT actions, then use a fresh chat.
+- Team/Work Memory entrypoints are callable again through SUD-D HOME.
 
-Do not bypass the blocker through Remote Commander or unrelated tools.
+## Next dogfood step
+
+1. Close/disable Remote Desktop Commander before resuming the workload so evidence remains SUD-D-only.
+2. Keep SUD-D HOME connected.
+3. Continue in the fresh ChatGPT session that successfully completed `work.resume` and `team.status`.
+4. Start the real Team Mode dogfood workload through SUD-D only.
+5. If any SUD-D capability is missing or disabled again, stop and record the blocker rather than falling back to an external host-control tool.
