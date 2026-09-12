@@ -44,14 +44,26 @@ Root cause: UNCONFIRMED. Candidate areas for later diagnosis include host-side t
 
 Status: OPEN / blocking current Team Mode dogfood.
 
+### DGF-004 — Fresh ChatGPT session does not expose `work.resume`
+
+Observed: after reconnecting and using a fresh ChatGPT session for the SUD-D-only diagnostic, the host-visible SUD-D Home contract did not contain `work.resume`. The testing chat stopped before calling `team.status` or `team.start`, as instructed, and did not use Remote Commander or another external tool.
+
+Expected runtime contract: the closed Work Memory / Automatic Resume MVP exposes `work.resume` and requires it before substantive project-scoped work in a fresh MCP session. The current production MCP contract is 26 tools, including Work Memory and the four Team tools.
+
+Current impact: BLOCKER for normal fresh-session bootstrap and therefore for Team Mode dogfood. This is stronger evidence than a single disabled Team action because the required Work Memory entrypoint itself is absent from the host-visible contract.
+
+Root cause: UNCONFIRMED. The evidence is consistent with an incomplete/stale host-visible tool catalog or an exposure mismatch, but does not yet prove whether the fault is in ChatGPT host/action refresh, Secure Tunnel/session discovery, or the SUD-D runtime surface.
+
+Status: OPEN / blocking current Personal Alpha dogfood.
+
 ## Next diagnostic step
 
-Reproduce DGF-003 without external host-control fallback:
+DGF-003/DGF-004 now require a tool-catalog diagnosis rather than another workload retry.
 
-1. reconnect/refresh the SUD-D ChatGPT integration using normal product controls;
-2. start a fresh ChatGPT session if needed so tool discovery is fresh;
-3. call `work.resume` when required by the Workspace contract;
-4. retry one Team read/start path through SUD-D only;
-5. record whether the Team tools are listed/callable and the exact safe error code/message if they are not.
+1. Establish the exact current SUD-D runtime `tools/list` through a SUD-D-owned/local acceptance seam and confirm whether all 26 production tools are actually advertised.
+2. Compare that runtime catalog with the ChatGPT host-visible SUD-D Home action/tool catalog in a fresh session.
+3. If runtime has 26 but ChatGPT is missing `work.resume`/Team tools, investigate host/action refresh or stale catalog state.
+4. If runtime itself is missing those tools, diagnose SUD-D production composition/exposure before touching ChatGPT host behavior.
+5. Keep the dogfood workload stopped until the required Work Memory and Team tools are callable through SUD-D itself.
 
-Stop if Team tools remain disabled; do not bypass through Remote Commander or unrelated tools.
+Do not bypass the blocker through Remote Commander or unrelated tools.
