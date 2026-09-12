@@ -56,14 +56,22 @@ Root cause: UNCONFIRMED. The evidence is consistent with an incomplete/stale hos
 
 Status: OPEN / blocking current Personal Alpha dogfood.
 
+## Diagnostic evidence
+
+### Local production composition / acceptance — PASS
+
+A read-only/diagnostic inspection on the Home PC confirmed the built production gateway registers exactly 26 tools. The compiled list includes `work.resume`, `work.checkpoint`, and exactly four Team tools: `team.start`, `team.status`, `team.stop`, `team.submit`.
+
+The existing gated Home-PC Team Mode production acceptance was then run with `SUD_D_TEAM_MODE_ACCEPTANCE=1` against the current local repo. Result: **1/1 PASS**. That acceptance performs MCP `tools/list`, requires the exact approved 26-tool list, verifies exactly four `team.*` tools, verifies pre-resume Team calls fail with `WORK_RESUME_REQUIRED`, then successfully calls `work.resume` and continues the production Team flow.
+
+This evidence materially narrows DGF-003/DGF-004: the current local production composition and Team/Work Memory contract are intact. The remaining failure is between the running integration/session and the ChatGPT host-visible catalog, or a stale already-running gateway process/catalog, rather than missing registration in current SUD-D source/build.
+
 ## Next diagnostic step
 
-DGF-003/DGF-004 now require a tool-catalog diagnosis rather than another workload retry.
-
-1. Establish the exact current SUD-D runtime `tools/list` through a SUD-D-owned/local acceptance seam and confirm whether all 26 production tools are actually advertised.
-2. Compare that runtime catalog with the ChatGPT host-visible SUD-D Home action/tool catalog in a fresh session.
-3. If runtime has 26 but ChatGPT is missing `work.resume`/Team tools, investigate host/action refresh or stale catalog state.
-4. If runtime itself is missing those tools, diagnose SUD-D production composition/exposure before touching ChatGPT host behavior.
-5. Keep the dogfood workload stopped until the required Work Memory and Team tools are callable through SUD-D itself.
+1. Disconnect SUD-D cleanly.
+2. Fully close SUD-D so the current tunnel/gateway process is not reused.
+3. Reopen SUD-D and Connect again, forcing a fresh gateway process from the current build.
+4. Open a new ChatGPT session and check for `work.resume` before attempting the dogfood workload.
+5. If `work.resume` is still absent or a Team tool is disabled, treat the result as host/integration catalog evidence and stop; do not retry the workload or substitute Remote Commander.
 
 Do not bypass the blocker through Remote Commander or unrelated tools.
