@@ -2,13 +2,14 @@
 
 ## Post-Stabilization UI Closure — Complete on feature branch (2026-09-13)
 
-**Status: IMPLEMENTED AND VERIFIED — branch closure is ready for the dedicated `fix/post-stabilization-ui-closure` commit/push; `master` remains untouched.**
+**Status: IMPLEMENTED, VERIFIED, AND PUSHED on `fix/post-stabilization-ui-closure`; `master` remains untouched.**
 
 Branch and preservation state:
 
 - branch: `fix/post-stabilization-ui-closure`
 - fixed-point/base: `a77f72dc3d6f5bae3f135d90beea12d93f7e28da`
-- local `master` and `origin/master` were still at that same base before branch finalization
+- implementation commit pushed: `4d26d051043e2c7a016b689ded9fa2777f2c1ca9` — `fix: close post-stabilization UI workflow`
+- local `master` and `origin/master` remain at the fixed-point/base; neither was merged or pushed
 - original Home-PC handoff edit remains preserved as `stash@{0}: On master: pre-bootstrap Home 2026-09-13 preserve local handoff`
 - `.serena/` remains local-only/untracked and must not be committed
 
@@ -45,7 +46,7 @@ Environment note:
 
 - no live external-tunnel acceptance was used for this UI-closure proof. At continuation bootstrap, one `work.resume` connector probe returned `tunnel_client_not_seen` / HTTP 404; it was not retried again and caused no repository or product-state change.
 
-The next action for this task is branch-only finalization: stage only the in-scope product/handoff paths, run the staged scope/secret/diff checks, commit, push `fix/post-stabilization-ui-closure`, verify local branch SHA equals `origin/fix/post-stabilization-ui-closure`, and stop. Do not merge or push `master`, start native repair-loop runtime work, Playwright implementation, cloud work, per-workspace Approval Mode overrides, or another milestone.
+Branch-only finalization is complete. The implementation commit above is on `origin/fix/post-stabilization-ui-closure`; this docs-only handoff follow-up records the final closure state. Stop here. Do not merge or push `master`, start native repair-loop runtime work, Playwright implementation, cloud work, per-workspace Approval Mode overrides, or another milestone.
 
 Long-term plan: see `SUD_D_ROADMAP.md`.
 
