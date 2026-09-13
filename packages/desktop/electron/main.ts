@@ -84,7 +84,7 @@ const approvalModeRepo = createApprovalModeRepository(db);
 const teamRepo = createTeamRepository(db);
 const gitSafety = createGitSafetyAdapter();
 const approvalService = createApprovalService(approvalRepo, auditRepo);
-const approvalModeService = createApprovalModeService(approvalModeRepo, auditRepo);
+const approvalModeService = createApprovalModeService(approvalModeRepo);
 const approvalController = createDesktopApprovalController(approvalService, approvalModeService);
 
 // SUD-D data root is an InternalRoot — agents must not access it as a workspace

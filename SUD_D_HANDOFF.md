@@ -2,45 +2,72 @@
 
 Long-term plan: see `SUD_D_ROADMAP.md`.
 
-## Personal Alpha Stabilization — Unverified WIP Checkpoint (2026-09-13)
+## Personal Alpha Stabilization — Closure at STOP Condition (2026-09-13)
 
-**Status: UNVERIFIED WIP CHECKPOINT — implementation is intentionally incomplete and must not be treated as milestone completion.**
+**Status: STABILIZATION IMPLEMENTATION VERIFIED TO THE APPROVED STOP CONDITION — no SUD-D repo commit/push has been made.**
 
 Active specification: `docs/superpowers/specs/2026-09-13-personal-alpha-stabilization.md`.
 
-Cross-device checkpoint:
+Current branch/state:
 
 - branch: `wip/personal-alpha-stabilization`
-- base: `16e9deb8e0e670fa6b4c03b4d7bb09225f953617` (`master` / `origin/master` at checkpoint creation)
-- purpose: preserve the current dirty Personal Alpha stabilization implementation so work can resume on Home PC without pushing incomplete work to `master`
-- `.serena/`: local-only and excluded from the checkpoint commit
-- recovery report on Work PC: `.serena/reports/personal-alpha-stabilization-recovery.md` (local-only; not available through Git on Home PC)
+- HEAD: `ea15337fe97babdc84ed618b35b3a090b4cc04da`
+- original checkpoint base: `16e9deb8e0e670fa6b4c03b4d7bb09225f953617`
+- `master` was not merged, rebased, pulled, or edited during Home-PC continuation
+- pre-existing Home-PC handoff edit remains preserved as `stash@{0}: pre-bootstrap Home 2026-09-13 preserve local handoff`
+- `.serena/` remains local-only/untracked and is not part of the product diff
+- no tracked file is staged; no SUD-D repo commit/push has been performed after the checkpoint
 
-WIP implementation state at checkpoint:
+Delivered stabilization behavior:
 
-- DGF-008 approval retry: reconnect binding fix is present; materially identical approved retries no longer depend on ephemeral MCP session identity. Earlier focused approval evidence reached 19/19 PASS.
-- Approval Modes: Standard / Approve for me / Full Access domain behavior, local SQLite setting, enum-only Desktop IPC/preload surface, Activity UI, and safe `approval.mode.changed` audit are present. Focused Desktop coverage reached 11/11 PASS; audit RED→GREEN reached 1/1 PASS.
-- DGF-001 hidden Connect runtime: fixed-purpose profile now uses the trusted native runtime executable directly instead of a `node.cmd` shim; M0.5 focused regression reached 26/26 PASS in Electron Node mode.
-- DGF-007 DevTools: automatic DevTools opening is removed from normal launch; explicit `SUD_D_OPEN_DEVTOOLS=1` opt-in remains. Focused regression reached 1/1 PASS.
-- DGF-002 truthful connection state: backend now uses trusted persisted `mcp-stdio` audit activity after the current connection-session start to promote stale `waiting_for_client` state to `connected`; focused RED→GREEN reached 1/1 PASS.
-- production Approve-for-me seam: focused MCP test covered `diff_check` → `secret_scan` → bounded `git.commit` without manual approval and passed with a bounded 15s test allowance. A prior 5s timeout was diagnosed as cold test runtime variance; temporary debug instrumentation was removed.
+- DGF-008 approval retry/binding remains reconnect-safe for materially identical retries without relying on ephemeral MCP session identity.
+- Approval Modes `Standard`, `Approve for me`, and `Full Access` are wired through local SQLite, strict enum-only Desktop IPC/preload/UI, Tool Kernel Policy/Approval, and audit. Full Access still cannot override Policy DENY or workspace/process hard boundaries.
+- Approval Mode persistence and its durable `approval.mode.changed` audit are atomic in one SQLite transaction; an audit-write failure leaves the prior mode unchanged and fails closed.
+- Full Access hard-boundary proof covers `internal_root`, `outside_workspace`, and `network` Policy DENY plus rejection of caller-controlled `executable`, `argv`, `cwd`, `env`, `shell`, and `workspaceRoot` process selectors.
+- DGF-001 hidden Connect runtime uses the trusted native runtime executable directly with `windowsHide`; no `node.cmd` shim is produced.
+- DGF-007 normal development launch no longer opens DevTools automatically; `SUD_D_OPEN_DEVTOOLS=1` remains the explicit local opt-in.
+- DGF-002 stale `Waiting for ChatGPT` state reconciles to `Connected` only from trusted persisted `mcp-stdio` activity after the current connection session began.
+- Continuous Repair Loop is now documented in `AGENTS.md` and this stabilization spec: diagnose → minimal fix → focused verify → resume only invalidated/inconclusive gates, with a maximum of 3 repair cycles per root cause and a fresh budget for a materially new root cause.
 
-Still unverified / incomplete:
+Repair-loop closure highlights:
 
-- Full Access hard-boundary negative coverage expansion was not finished; outside-workspace/network/process-shaped cases still need the planned focused proof.
-- integrated stabilization regression set has not been rerun after the latest edits.
-- final Security/Data Critical gates are outstanding: lint, typecheck, build, one full suite on stable source, final `git diff --check`, Standards + Spec `code-review`, Impeccable detector/UI smoke, and real SUD-D-only linked-worktree acceptance.
-- live `work.resume` was unavailable earlier because the Work-PC tunnel client had not been seen for >300 seconds; this is an environment/runtime availability fact, not a product-failure verdict.
+- stale Home-PC build artifacts were refreshed without treating generated `dist` drift as a source defect; the actual TypeScript binding-narrowing compile defect was fixed minimally.
+- legacy Team migration fixture was corrected to represent the schema version it claimed, resolving the migration-007 regression.
+- historical M0.4 gateway guard was narrowed to permit exactly the trusted `resolveApprovalRuntimeIdentity(process.env)` use while continuing to reject child-process/network authority in the gateway.
+- M0.2 migration expectation was updated from versions 1–6 to 1–7 after migration 007.
+- Standards/Security review found one blocking atomicity issue in Approval Mode persistence/audit; a RED test reproduced it, the implementation was moved behind one SQLite transaction, and focused proof turned GREEN in repair cycle 1/3.
+- a derived unused-variable lint failure was repaired in its own root-cause budget and focused lint turned GREEN.
+- UI-smoke harness issues (`work.resume` ordering and Windows runner exit propagation) were diagnosed as local harness defects; no product source change was required.
 
-Home-PC resume action:
+Final verification evidence on the stable tracked source:
 
-1. Fetch `origin` and check out `wip/personal-alpha-stabilization`; preserve any unrelated Home-PC changes.
-2. Run the fresh AGENTS.md bootstrap + Mandatory Skill Router Gate.
-3. Resume at Full Access hard-boundary focused coverage, then run the bounded integrated regressions.
-4. Only after source is stable, run the final-once Security/Data Critical verification/review/UI/runtime acceptance required by the stabilization spec.
-5. Keep the milestone marked WIP until every required final gate is fresh and green; do not merge/push to `master` from this checkpoint task.
+- focused Approval Desktop after atomicity repair: **12/12 PASS**
+- focused Approval production/security/desktop regressions: **40/40 PASS**
+- focused M0.2 migration: **15/15 PASS**
+- focused Team migration: **4/4 PASS**
+- focused M0.4 gateway: **16/16 PASS**
+- earlier integrated stabilization regression set: **120/120 PASS** before final gates; later full-suite evidence supersedes it for closure
+- lint: **PASS**
+- typecheck: **PASS**
+- full suite: **519 PASS / 5 skipped / 0 failed** across 42 files
+- production build: **PASS**
+- `git diff --check`: **PASS** after the final source repair
+- Standards code review: **PASS — 0 blocking findings after atomicity fix**
+- Spec code review: **PASS — 0 implementation findings after atomicity fix**
+- Impeccable production Electron/UI smoke: **PASS** at 1365×768 and 960×720; real renderer → preload → IPC mode changes `Approve for me → Full Access → Standard`, no horizontal overflow, and existing Approve/Deny/navigation smoke all passed
+- Impeccable detector: **invoked once as required; Serena truncated the JSON above its capture ceiling, so do not claim the detector returned `[]`**
+- local production SUD-D-only acceptance on a real linked-worktree fixture: **PASS** — exactly 27 production tools; `work.resume → git.status → Team → diff_check → secret_scan → git.commit → work.checkpoint`; Planner → Implementer → Validator → Reviewer → completed; Approve-for-me, Standard identical retry, Full Access hard-boundary negative, bounded fixture commit, and checkpoint all passed; Serena/Remote Commander were not invoked
+- acceptance commit `00cf07a2f69aa068dc14dc83cfa393802c6356f6` belongs only to the disposable linked-worktree fixture, not to the SUD-D repository
+- final repository scope inspection: **PASS** — 13 tracked unstaged files, 0 staged files, no untracked paths outside `.serena/`, no unrelated tracked paths, and no high-signal secret patterns in added tracked lines
 
-**Checkpoint STOP:** this branch is for transfer only. No milestone-complete claim, no `master` push, and no work outside the stabilization spec.
+Environment blocker / residual risk:
+
+- the one authorized final live `SUD_D_HOME work.resume` retry returned HTTP 404 with `tunnel_client_not_seen`: tunnel-client had not been seen for >300 seconds. Per instruction and Continuous Repair Loop, this was recorded as an external environment/runtime availability blocker and was **not retried again**. This does not overturn the passing local production acceptance, but live external-tunnel proof remains unavailable in this closure session.
+- Impeccable context reported pre-existing local design-metadata drift (an orphaned HomePage surface brief) and a newer Impeccable version; both are outside this stabilization scope and were not changed.
+
+### STOP CONDITION REACHED
+
+Stop here before commit/push. Do not start Git network sync, Playwright runtime implementation, cloud work, or another milestone. A later explicit task may review/commit/push this stabilization diff; until then preserve the working tree and the Home-PC stash exactly.
 
 ## Agent Skill System Upgrade
 

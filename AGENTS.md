@@ -168,6 +168,22 @@ Use the lowest-friction path permitted by the actual product policy for routine 
 - Do not add enterprise-scale, load, multi-user, cross-platform matrix, or speculative compatibility testing unless the approved milestone or explicit user instruction requires it.
 - Verification economy never weakens a security invariant, hides a real failure, or skips a mandatory final gate.
 
+### Continuous Repair Loop
+
+When a required verification gate fails during an authorized task, treat the failure as a repair signal rather than a task stop unless one of the blocker conditions below is met.
+
+For each diagnosed root cause:
+
+1. Diagnose to a tight, reproducible cause using the applicable debugging/TDD workflow.
+2. Apply the smallest in-scope fix that preserves all security invariants and approved product behavior.
+3. Run focused verification that directly proves the diagnosed cause is fixed.
+4. Resume only the verification gate(s) invalidated or left inconclusive by that repair; keep earlier fresh evidence whose covered boundary did not change.
+5. If the same root cause still fails, repeat the loop for at most **3 repair cycles** for that root cause.
+
+A materially new, independently diagnosed root cause starts a fresh three-cycle budget. A repair cycle is consumed when an in-scope fix has been applied and its focused verification has been attempted. Ordinary verification failures do not end the task by themselves.
+
+Stop the repair loop before the task's normal STOP CONDITION only when: preserving security would require weakening an invariant; the required fix would exceed approved scope; a genuine product decision is unresolved; an environment/credential/runtime dependency prevents the required proof from running safely; or the same root cause is still failing after three repair cycles. Report that blocker with the last focused evidence. The task's existing STOP CONDITION remains authoritative once verification/review reaches its approved boundary.
+
 ### A. Security / Data Critical
 
 Use this tier for workspace boundaries, path containment, credentials or secrets, privileged MCP Gateway exposure, Tool Kernel, Policy, Approval, Delete, Recovery, process execution, network permissions, privileged-action IPC, audit redaction, and anything that could cause data loss, workspace escape, destructive behavior, secret leakage, or privilege escalation.

@@ -5,7 +5,6 @@ import {
   ok,
   type AppError,
   type ApprovalMode,
-  type AuditEvent,
   type Result,
 } from '@sud-d/domain';
 import type { ApprovalModeRepository } from '@sud-d/infrastructure';
@@ -15,15 +14,10 @@ export interface ApprovalModeService {
   set(mode: ApprovalMode): Result<ApprovalMode, AppError>;
 }
 
-export interface ApprovalModeAuditPort {
-  append(event: Omit<AuditEvent, 'id'>): unknown;
-}
-
 const APPROVAL_MODE_DESKTOP_SESSION = Object.freeze({ id: 'desktop', type: 'desktop' as const });
 
 export function createApprovalModeService(
   repository: ApprovalModeRepository,
-  audit: ApprovalModeAuditPort,
   now: () => Date = () => new Date(),
 ): ApprovalModeService {
   return Object.freeze({
@@ -40,15 +34,15 @@ export function createApprovalModeService(
         return err(appError('VALIDATION_FAILED', 'Approval Mode is invalid'));
       }
       try {
-        const persisted = repository.set(mode);
-        audit.append({
-          timestamp: now(),
+        const changedAt = now();
+        const persisted = repository.setAudited(mode, {
+          timestamp: changedAt,
           sessionId: APPROVAL_MODE_DESKTOP_SESSION.id,
           sessionType: APPROVAL_MODE_DESKTOP_SESSION.type,
           action: 'approval.mode.changed',
           resultCode: 'OK',
           durationMs: 0,
-          metadata: { mode: persisted },
+          metadata: { mode },
         });
         return ok(persisted);
       } catch {

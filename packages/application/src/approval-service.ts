@@ -82,7 +82,8 @@ function isAutoApprovalEligible(mode: ApprovalMode, request: ApprovalAuthorizati
   if (request.capability === 'git.commit') return true;
   if (request.capability !== 'verify.run') return false;
   if (typeof request.binding !== 'object' || request.binding === null || Array.isArray(request.binding)) return false;
-  const action = request.binding['action'];
+  const binding = request.binding as { readonly [key: string]: ApprovalBindingValue };
+  const action = binding['action'];
   return typeof action === 'string' && APPROVE_FOR_ME_VERIFY_ACTIONS.has(action);
 }
 

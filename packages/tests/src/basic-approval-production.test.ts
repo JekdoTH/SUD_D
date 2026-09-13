@@ -298,6 +298,33 @@ describe('Basic Approval - production MCP workspace flows', () => {
     expect(h.verifyCalls).toEqual(['test']);
     await h.server.close();
   });
+  it('Full Access keeps process authority fixed-purpose and rejects caller-controlled process selectors', async () => {
+    const h = await makeHarness({ approvalMode: 'full_access' });
+
+    const allowed = parsePayload(await h.call('verify.run', { action: 'test' }));
+    expect(allowed).toMatchObject({
+      ok: true,
+      code: 'EXECUTED',
+      policyDecision: 'ask',
+      approvalDecision: 'approved',
+      value: { action: 'test', passed: true },
+    });
+    expect(h.verifyCalls).toEqual(['test']);
+
+    for (const input of [
+      { action: 'test', executable: 'cmd.exe' },
+      { action: 'test', argv: ['/c', 'whoami'] },
+      { action: 'test', cwd: 'C:\\' },
+      { action: 'test', env: { PATH: 'attacker' } },
+      { action: 'test', shell: true },
+      { action: 'test', workspaceRoot: 'C:\\outside' },
+    ]) {
+      const response = await h.call('verify.run', input);
+      expect(response.result?.isError).toBe(true);
+    }
+    expect(h.verifyCalls).toEqual(['test']);
+    await h.server.close();
+  });
   it('Approve for me completes fixed verify actions without manual approval and keeps bounded git.commit on the normal policy path', async () => {
     const h = await makeHarness({ gitRepo: true, approvalMode: 'approve_for_me' });
 

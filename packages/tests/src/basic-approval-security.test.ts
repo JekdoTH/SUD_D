@@ -57,7 +57,7 @@ function descriptor(label = '.env'): ApprovalDescriptor {
 function makeCapability(options: {
   effect?: 'read' | 'create' | 'modify' | 'execute' | 'delete';
   sensitivity?: 'normal' | 'credential';
-  context?: 'workspace' | 'internal_root';
+  context?: 'workspace' | 'internal_root' | 'outside_workspace' | 'network';
   workspaceId?: string;
   approval?: boolean;
   execute?: () => Result<unknown, AppError>;
@@ -187,13 +187,28 @@ describe('Basic Approval - policy, expiry, queue, and one-time consumption', () 
       hmacKey: Buffer.alloc(32, 34),
       mode: () => 'full_access',
     });
-    let executions = 0;
-    const denied = makeKernel({
-      approval: coordinator,
-      capability: makeCapability({ context: 'internal_root', sensitivity: 'normal', effect: 'execute', execute: () => { executions += 1; return ok(null); } }),
-    });
-    expect(await denied.invoke(request())).toMatchObject({ ok: false, code: 'POLICY_DENIED', policyDecision: 'deny' });
-    expect(executions).toBe(0);
+
+    for (const context of ['internal_root', 'outside_workspace', 'network'] as const) {
+      let executions = 0;
+      const denied = makeKernel({
+        approval: coordinator,
+        capability: makeCapability({
+          context,
+          sensitivity: 'normal',
+          effect: 'execute',
+          execute: () => {
+            executions += 1;
+            return ok(null);
+          },
+        }),
+      });
+      expect(await denied.invoke(request())).toMatchObject({
+        ok: false,
+        code: 'POLICY_DENIED',
+        policyDecision: 'deny',
+      });
+      expect(executions).toBe(0);
+    }
   });
 
   it('queue full fails closed without evicting a valid pending request', async () => {

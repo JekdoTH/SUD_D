@@ -309,7 +309,9 @@ describe('M0.4 — inert MCP gateway', () => {
     expect((source.match(/registerTool\s*\(/g) ?? [])).toHaveLength(APPROVED_PRODUCTION_TOOLS.length);
     expect(source).not.toMatch(/workspace\.(?:delete|rename|move)|git\.(?:push|pull|fetch|clone|run)/i);
     expect(source).not.toMatch(/registerTool\s*\(\s*['"][^'"]*(?:execute|shell|network|delete|recovery)[^'"]*['"]/i);
-    expect(source).not.toMatch(/child_process|node:(?:net|http|https)|execFile|spawn\s*\(|process\.env/i);
+    expect(source).not.toMatch(/child_process|node:(?:net|http|https)|execFile|spawn\s*\(/i);
+    expect((source.match(/process\.env/g) ?? [])).toHaveLength(1);
+    expect(source).toContain('resolveApprovalRuntimeIdentity(process.env)');
   });
 
   it('writes only JSON-RPC messages to the in-memory stdio stdout channel', async () => {

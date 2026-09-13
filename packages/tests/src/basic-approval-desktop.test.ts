@@ -96,7 +96,7 @@ describe('Basic Approval - Desktop contracts and controller confidentiality', ()
     const auditRepository = createAuditRepository(db);
     const controller = createDesktopApprovalController(
       createApprovalService(repository, auditRepository),
-      createApprovalModeService(modeRepository, auditRepository),
+      createApprovalModeService(modeRepository),
     );
 
     expect(IPC_CHANNELS.APPROVAL_MODE_GET).toBe('approval:mode:get');
@@ -125,12 +125,26 @@ describe('Basic Approval - Desktop contracts and controller confidentiality', ()
     });
   });
 
+  it('fails closed without changing Approval Mode when its durable audit write fails', () => {
+    const db = makeDb();
+    const modeRepository = createApprovalModeRepository(db);
+    const service = createApprovalModeService(modeRepository);
+
+    db.exec('DROP TABLE audit_events');
+
+    expect(service.set('full_access')).toMatchObject({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Approval Mode is unavailable' },
+    });
+    expect(modeRepository.get()).toBe('standard');
+  });
+
   it('renderer-facing list contains only safe bounded DTO fields and no secret/binding/session/runtime data', async () => {
     const db = makeDb();
     const { repository, secret } = await makeSensitivePending(db);
     const controller = createDesktopApprovalController(
       createApprovalService(repository, createAuditRepository(db)),
-      createApprovalModeService(createApprovalModeRepository(db), createAuditRepository(db)),
+      createApprovalModeService(createApprovalModeRepository(db)),
     );
     const result = controller.list({ limit: 50 });
     expect(result.ok).toBe(true);
@@ -155,7 +169,7 @@ describe('Basic Approval - Desktop contracts and controller confidentiality', ()
     const { repository, requestId } = await makeSensitivePending(db);
     const controller = createDesktopApprovalController(
       createApprovalService(repository, createAuditRepository(db)),
-      createApprovalModeService(createApprovalModeRepository(db), createAuditRepository(db)),
+      createApprovalModeService(createApprovalModeRepository(db)),
     );
     const response = controller.respond({ approvalRequestId: requestId, decision: 'approve' });
     expect(response.ok).toBe(true);
@@ -174,7 +188,7 @@ describe('Basic Approval - Desktop contracts and controller confidentiality', ()
     const { repository, requestId } = await makeSensitivePending(db);
     const controller = createDesktopApprovalController(
       createApprovalService(repository, createAuditRepository(db)),
-      createApprovalModeService(createApprovalModeRepository(db), createAuditRepository(db)),
+      createApprovalModeService(createApprovalModeRepository(db)),
     );
     expect(controller.respond({ approvalRequestId: requestId, decision: 'deny' })).toMatchObject({
       ok: true,

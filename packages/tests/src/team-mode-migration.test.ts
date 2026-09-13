@@ -22,6 +22,13 @@ function legacyFixture(kind: 'planning' | 'implementing' | 'reviewing' | 'cross-
     INSERT INTO schema_migrations(version, applied_at) VALUES
       (1,'2026-09-05T00:00:00.000Z'),(2,'2026-09-05T00:00:00.000Z'),(3,'2026-09-05T00:00:00.000Z'),(4,'2026-09-05T00:00:00.000Z'),(5,'2026-09-05T00:00:00.000Z');
     CREATE TABLE workspaces(id TEXT PRIMARY KEY, display_name TEXT NOT NULL, canonical_root TEXT NOT NULL UNIQUE, is_active INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE approval_requests(
+      id TEXT PRIMARY KEY, runtime_instance_id TEXT NOT NULL, binding_digest TEXT NOT NULL,
+      session_id TEXT NOT NULL, session_type TEXT NOT NULL, capability TEXT NOT NULL,
+      effect TEXT NOT NULL, sensitivity TEXT NOT NULL, policy_context TEXT NOT NULL,
+      workspace_id TEXT, safe_title TEXT NOT NULL, safe_resource_label TEXT,
+      status TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+      decided_at TEXT, consumed_at TEXT);
     CREATE TABLE team_missions(
       mission_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, goal_summary TEXT NOT NULL,
       state TEXT NOT NULL CHECK(state IN ('planning','implementing','reviewing','completed','blocked','stopped')),

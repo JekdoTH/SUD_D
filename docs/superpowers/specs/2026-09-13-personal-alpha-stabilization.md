@@ -126,6 +126,8 @@ Suggested order:
 
 Do not rerun broad gates after every slice. Use focused tests during implementation and final-once verification per `AGENTS.md`.
 
+For this stabilization milestone, the `AGENTS.md` **Continuous Repair Loop** is mandatory for verification failures: diagnose the root cause → apply the minimal in-scope fix → run focused proof → resume only the invalidated/inconclusive gate. Allow at most **3 repair cycles per root cause**; a materially new root cause resets the budget. Do not stop on an ordinary failed gate. Stop early only for a security-invariant blocker, scope expansion, unresolved product decision, required environment/credential/runtime blocker, or the same root cause still failing after three repair cycles. This repair loop does not change the milestone STOP CONDITION below.
+
 ## Verification requirements
 
 This milestone crosses Policy/Approval/process execution/runtime boundaries and renderer-visible UX. Classify at the highest applicable risk tier and follow `AGENTS.md` exactly.
