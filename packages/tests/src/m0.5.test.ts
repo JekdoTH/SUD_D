@@ -218,7 +218,7 @@ function profileCommand(profileText: string): string {
 }
 
 function parseProductProfileCommand(command: string): { readonly executable: string; readonly args: readonly string[] } {
-  const match = /^(node(?:\.cmd)?)\s+"([^"]+)"$/.exec(command);
+  const match = /^([^\s"]+\.exe)\s+"([^"]+)"$/i.exec(command);
   if (!match) throw new Error(`unexpected product profile command: ${command}`);
   return { executable: match[1], args: [match[2].replaceAll('/', '\\')] };
 }
@@ -607,7 +607,8 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
     expect(plan.workingDirectory).toContain('SUD-D');
     const command = profileCommand(fs.readFileSync(plan.profilePath, 'utf8'));
     expect(nodeExecutablePath.toLowerCase()).toMatch(/node\.exe$/);
-    expect(command).toBe(`node.cmd "${gatewayEntryPath.replaceAll('\\', '/')}"`);
+    expect(command).toBe(`node.exe "${gatewayEntryPath.replaceAll('\\', '/')}"`);
+    expect(fs.existsSync(path.join(plan.workingDirectory, 'node.cmd'))).toBe(false);
   });
 
   it('uses a deterministic credential environment reference without serializing plaintext into profile or argv', async () => {
@@ -729,12 +730,16 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
 
     const plan = processLauncher.plans[0];
     const command = profileCommand(fs.readFileSync(plan.profilePath, 'utf8'));
-    const tools = await toolsListViaProductProfileCommand(command, plan.workingDirectory, {
-      ...process.env,
-      LOCALAPPDATA: path.join(plan.workingDirectory, 'localappdata'),
-      APPDATA: path.join(plan.workingDirectory, 'appdata'),
-      SUD_D_GATEWAY_RUNTIME_EXE: plan.gatewayRuntimeExecutablePath,
-    });
+    const tools = await toolsListViaProductProfileCommand(
+      command,
+      plan.workingDirectory,
+      withRuntimeRootFirstOnPath({
+        ...process.env,
+        LOCALAPPDATA: path.join(plan.workingDirectory, 'localappdata'),
+        APPDATA: path.join(plan.workingDirectory, 'appdata'),
+        ELECTRON_RUN_AS_NODE: '1',
+      }, path.dirname(plan.gatewayRuntimeExecutablePath)),
+    );
     expect(tools).toEqual([...APPROVED_PRODUCTION_TOOLS].sort());
   });
 

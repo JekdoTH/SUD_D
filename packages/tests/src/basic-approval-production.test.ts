@@ -19,6 +19,7 @@ import {
   type Db,
 } from '@sud-d/infrastructure';
 import { createApprovalCoordinator, createApprovalService } from '@sud-d/application';
+import type { ApprovalMode } from '@sud-d/domain';
 import { createProductionMcpServer, createStdioGatewayTransport } from '@sud-d/mcp-gateway';
 
 const APPROVED_TOOLS = [
@@ -143,7 +144,7 @@ function approvalId(payload: Record<string, unknown>): string {
   return value;
 }
 
-async function makeHarness(options: { gitRepo?: boolean } = {}) {
+async function makeHarness(options: { gitRepo?: boolean; approvalMode?: ApprovalMode } = {}) {
   const base = tempRoot();
   const workspaceRoot = path.join(base, 'workspace');
   fs.mkdirSync(workspaceRoot, { recursive: true });
@@ -159,6 +160,7 @@ async function makeHarness(options: { gitRepo?: boolean } = {}) {
     repository: approvalRepo,
     runtimeInstanceId: 'runtime-production-test',
     hmacKey: Buffer.alloc(32, 31),
+    mode: () => options.approvalMode ?? 'standard',
   });
   const approvalService = createApprovalService(approvalRepo, auditRepo);
   const verifyCalls: string[] = [];
@@ -296,6 +298,41 @@ describe('Basic Approval - production MCP workspace flows', () => {
     expect(h.verifyCalls).toEqual(['test']);
     await h.server.close();
   });
+  it('Approve for me completes fixed verify actions without manual approval and keeps bounded git.commit on the normal policy path', async () => {
+    const h = await makeHarness({ gitRepo: true, approvalMode: 'approve_for_me' });
+
+    for (const action of ['diff_check', 'secret_scan'] as const) {
+      const result = parsePayload(await h.call('verify.run', { action }));
+      expect(result).toMatchObject({
+        ok: true,
+        code: 'EXECUTED',
+        policyDecision: 'ask',
+        approvalDecision: 'approved',
+        value: { action, passed: true },
+      });
+      expect(result['approvalRequestId']).toEqual(expect.any(String));
+    }
+    expect(h.verifyCalls).toEqual(['diff_check', 'secret_scan']);
+    expect(h.approvalRepo.listPending(50)).toMatchObject({ ok: true, value: [] });
+
+    fs.writeFileSync(path.join(h.workspaceRoot, 'tracked.txt'), 'base\nmode-change\n', 'utf8');
+    const status = parsePayload(await h.call('git.status', {}));
+    const statusValue = status['value'] as { statusId?: string } | undefined;
+    if (!statusValue?.statusId) throw new Error('missing statusId');
+    const committed = parsePayload(await h.call('git.commit', {
+      expectedStatusId: statusValue.statusId,
+      message: 'test: approve-for-me bounded commit',
+    }));
+    expect(committed).toMatchObject({
+      ok: true,
+      code: 'EXECUTED',
+      policyDecision: 'allow',
+      value: { branch: expect.any(String), commitSha: expect.any(String) },
+    });
+    expect(h.approvalRepo.listPending(50)).toMatchObject({ ok: true, value: [] });
+    await h.server.close();
+  }, 15_000);
+
   it('credential read requires approval, exact retry reveals once, later identical action requires fresh approval', async () => {
     const h = await makeHarness();
     const secret = 'SENTINEL_APPROVAL_READ_SECRET_001';

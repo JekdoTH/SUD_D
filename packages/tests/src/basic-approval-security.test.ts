@@ -124,6 +124,78 @@ describe('Basic Approval - policy, expiry, queue, and one-time consumption', () 
     expect(executions).toBe(0);
   });
 
+  it('Standard keeps ASK actions manual while Approve for me auto-approves only bounded normal Workspace verify actions', async () => {
+    const { db } = makeDb();
+    const repository = createApprovalRepository(db);
+    const base = {
+      session: { id: 's-mode', type: 'mcp-stdio' as const },
+      capability: 'verify.run',
+      effect: 'execute' as const,
+      security: { sensitivity: 'normal' as const, context: 'workspace' as const, workspaceId: 'ws-1' },
+      descriptor: { title: 'Run project diff_check', resourceLabel: 'Active Workspace' },
+      binding: { action: 'diff_check' },
+    };
+
+    const standard = createApprovalCoordinator({
+      repository,
+      runtimeInstanceId: 'runtime-standard',
+      hmacKey: Buffer.alloc(32, 31),
+      mode: () => 'standard',
+    });
+    expect(standard.authorize(base)).toMatchObject({ ok: true, state: 'pending' });
+
+    const automatic = createApprovalCoordinator({
+      repository,
+      runtimeInstanceId: 'runtime-auto',
+      hmacKey: Buffer.alloc(32, 32),
+      mode: () => 'approve_for_me',
+    });
+    expect(automatic.authorize(base)).toMatchObject({ ok: true, state: 'approved' });
+    expect(automatic.authorize({ ...base, binding: { action: 'unknown' } })).toMatchObject({ ok: true, state: 'pending' });
+    expect(automatic.authorize({ ...base, security: { ...base.security, sensitivity: 'credential' } })).toMatchObject({ ok: true, state: 'pending' });
+  });
+
+  it('Full Access auto-approves normal Workspace ASK actions but never broadens credential or destructive requests', async () => {
+    const { db } = makeDb();
+    const repository = createApprovalRepository(db);
+    const coordinator = createApprovalCoordinator({
+      repository,
+      runtimeInstanceId: 'runtime-full',
+      hmacKey: Buffer.alloc(32, 33),
+      mode: () => 'full_access',
+    });
+    const base = {
+      session: { id: 's-full', type: 'mcp-stdio' as const },
+      capability: 'verify.run',
+      effect: 'execute' as const,
+      security: { sensitivity: 'normal' as const, context: 'workspace' as const, workspaceId: 'ws-1' },
+      descriptor: { title: 'Run fixed verification', resourceLabel: 'Active Workspace' },
+      binding: { action: 'test' },
+    };
+
+    expect(coordinator.authorize(base)).toMatchObject({ ok: true, state: 'approved' });
+    expect(coordinator.authorize({ ...base, security: { ...base.security, sensitivity: 'credential' } })).toMatchObject({ ok: true, state: 'pending' });
+    expect(coordinator.authorize({ ...base, effect: 'delete' })).toMatchObject({ ok: true, state: 'pending' });
+  });
+
+  it('approval automation cannot bypass Policy hard DENY contexts', async () => {
+    const { db } = makeDb();
+    const repository = createApprovalRepository(db);
+    const coordinator = createApprovalCoordinator({
+      repository,
+      runtimeInstanceId: 'runtime-deny',
+      hmacKey: Buffer.alloc(32, 34),
+      mode: () => 'full_access',
+    });
+    let executions = 0;
+    const denied = makeKernel({
+      approval: coordinator,
+      capability: makeCapability({ context: 'internal_root', sensitivity: 'normal', effect: 'execute', execute: () => { executions += 1; return ok(null); } }),
+    });
+    expect(await denied.invoke(request())).toMatchObject({ ok: false, code: 'POLICY_DENIED', policyDecision: 'deny' });
+    expect(executions).toBe(0);
+  });
+
   it('queue full fails closed without evicting a valid pending request', async () => {
     const { db } = makeDb();
     const repository = createApprovalRepository(db);
@@ -171,19 +243,32 @@ describe('Basic Approval - policy, expiry, queue, and one-time consumption', () 
     expect(executions).toBe(0);
   });
 
-  it('old runtime-instance approval is unusable after a new Gateway runtime starts', async () => {
+  it('approved identical action survives a Gateway runtime and MCP session reconnect until one-time consumption', async () => {
     const { db } = makeDb();
     const repository = createApprovalRepository(db);
     const key = Buffer.alloc(32, 4);
-    const oldCoordinator = createApprovalCoordinator({ repository, runtimeInstanceId: 'runtime-old', hmacKey: key });
+    const oldCoordinator = createApprovalCoordinator({ repository, runtimeInstanceId: 'tunnel-runtime-1', hmacKey: key });
+    const oldKernel = makeKernel({ approval: oldCoordinator });
+    const pending = await oldKernel.invoke(request({ path: '.env' }, 'i-1', 'session-old'));
+    const pendingRequestId = pendingId(pending);
+    expect(repository.respond(pendingRequestId, 'approve').ok).toBe(true);
+
     let executions = 0;
-    const oldKernel = makeKernel({ approval: oldCoordinator, capability: makeCapability({ execute: () => { executions += 1; return ok(null); } }) });
-    const pending = await oldKernel.invoke(request());
-    expect(repository.respond(pendingId(pending), 'approve').ok).toBe(true);
-    createApprovalCoordinator({ repository, runtimeInstanceId: 'runtime-new', hmacKey: Buffer.alloc(32, 5) });
-    const retry = await oldKernel.invoke(request({ path: '.env' }, 'i-2'));
-    expect(retry).toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
-    expect(executions).toBe(0);
+    const reconnectedCoordinator = createApprovalCoordinator({ repository, runtimeInstanceId: 'tunnel-runtime-1', hmacKey: key });
+    const reconnectedKernel = makeKernel({
+      approval: reconnectedCoordinator,
+      capability: makeCapability({ execute: () => { executions += 1; return ok(null); } }),
+    });
+    const retry = await reconnectedKernel.invoke(request({ path: '.env' }, 'i-2', 'session-new'));
+
+    expect(retry).toMatchObject({
+      ok: true,
+      code: 'EXECUTED',
+      policyDecision: 'ask',
+      approvalDecision: 'approved',
+      approvalRequestId: pendingRequestId,
+    });
+    expect(executions).toBe(1);
   });
 
   it('canonical binding is deterministic but capability/effect/workspace/context changes do not match', async () => {

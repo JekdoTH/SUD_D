@@ -434,10 +434,28 @@ export function createConnectionService(
     }
   };
 
+  const reconcileTrustedMcpActivity = (): void => {
+    if (state !== 'waiting_for_client' || !session) return;
+    let hasActivity = false;
+    try {
+      hasActivity = auditRepo.hasSessionActivitySince('mcp-stdio', session.startedAt);
+    } catch {
+      return;
+    }
+    if (!hasActivity) return;
+    const moved = transitionTo('connected');
+    if (!moved.ok) {
+      lastError = moved.error;
+      return;
+    }
+    lastError = null;
+  };
+
   runtime.subscribe(handleRuntimeEvent);
 
   return {
     getStatus(): ConnectionServiceStatus {
+      reconcileTrustedMcpActivity();
       return status();
     },
 

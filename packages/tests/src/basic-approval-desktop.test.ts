@@ -5,15 +5,24 @@ import path from 'node:path';
 
 import {
   ApprovalListInputSchema,
+  ApprovalModeSetInputSchema,
   ApprovalRespondInputSchema,
+  DesktopApprovalModeDtoSchema,
   DesktopApprovalRequestDtoSchema,
   DesktopApprovalResponseDtoSchema,
   IPC_CHANNELS,
 } from '@sud-d/contracts';
 import { ok } from '@sud-d/domain';
-import { createApprovalRepository, createAuditRepository, openDatabase, type Db } from '@sud-d/infrastructure';
+import {
+  createApprovalModeRepository,
+  createApprovalRepository,
+  createAuditRepository,
+  openDatabase,
+  type Db,
+} from '@sud-d/infrastructure';
 import {
   createApprovalCoordinator,
+  createApprovalModeService,
   createApprovalService,
   createToolCapabilityRegistry,
   createToolKernel,
@@ -80,10 +89,49 @@ describe('Basic Approval - Desktop contracts and controller confidentiality', ()
     expect(ApprovalRespondInputSchema.safeParse({ approvalRequestId: id, decision: 'allow-always' }).success).toBe(false);
   });
 
+  it('persists a strict local Approval Mode setting with Standard as the default', () => {
+    const db = makeDb();
+    const repository = createApprovalRepository(db);
+    const modeRepository = createApprovalModeRepository(db);
+    const auditRepository = createAuditRepository(db);
+    const controller = createDesktopApprovalController(
+      createApprovalService(repository, auditRepository),
+      createApprovalModeService(modeRepository, auditRepository),
+    );
+
+    expect(IPC_CHANNELS.APPROVAL_MODE_GET).toBe('approval:mode:get');
+    expect(IPC_CHANNELS.APPROVAL_MODE_SET).toBe('approval:mode:set');
+    expect(ApprovalModeSetInputSchema.safeParse({ mode: 'standard' }).success).toBe(true);
+    expect(ApprovalModeSetInputSchema.safeParse({ mode: 'approve_for_me' }).success).toBe(true);
+    expect(ApprovalModeSetInputSchema.safeParse({ mode: 'full_access' }).success).toBe(true);
+    expect(ApprovalModeSetInputSchema.safeParse({ mode: 'unrestricted' }).success).toBe(false);
+    expect(ApprovalModeSetInputSchema.safeParse({ mode: 'full_access', executable: 'cmd.exe' }).success).toBe(false);
+
+    const initial = controller.getMode();
+    expect(initial).toMatchObject({ ok: true, value: { mode: 'standard' } });
+    if (!initial.ok) return;
+    expect(DesktopApprovalModeDtoSchema.parse(initial.value)).toEqual(initial.value);
+
+    expect(controller.setMode({ mode: 'approve_for_me' })).toMatchObject({
+      ok: true,
+      value: { mode: 'approve_for_me' },
+    });
+    expect(createApprovalModeRepository(db).get()).toBe('approve_for_me');
+    expect(auditRepository.list(10)[0]).toMatchObject({
+      sessionType: 'desktop',
+      action: 'approval.mode.changed',
+      resultCode: 'OK',
+      metadata: { mode: 'approve_for_me' },
+    });
+  });
+
   it('renderer-facing list contains only safe bounded DTO fields and no secret/binding/session/runtime data', async () => {
     const db = makeDb();
     const { repository, secret } = await makeSensitivePending(db);
-    const controller = createDesktopApprovalController(createApprovalService(repository, createAuditRepository(db)));
+    const controller = createDesktopApprovalController(
+      createApprovalService(repository, createAuditRepository(db)),
+      createApprovalModeService(createApprovalModeRepository(db), createAuditRepository(db)),
+    );
     const result = controller.list({ limit: 50 });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -105,7 +153,10 @@ describe('Basic Approval - Desktop contracts and controller confidentiality', ()
   it('respond returns safe retry guidance and terminal request disappears from actionable list', async () => {
     const db = makeDb();
     const { repository, requestId } = await makeSensitivePending(db);
-    const controller = createDesktopApprovalController(createApprovalService(repository, createAuditRepository(db)));
+    const controller = createDesktopApprovalController(
+      createApprovalService(repository, createAuditRepository(db)),
+      createApprovalModeService(createApprovalModeRepository(db), createAuditRepository(db)),
+    );
     const response = controller.respond({ approvalRequestId: requestId, decision: 'approve' });
     expect(response.ok).toBe(true);
     if (!response.ok) return;
@@ -121,7 +172,10 @@ describe('Basic Approval - Desktop contracts and controller confidentiality', ()
   it('deny returns terminal guidance and cannot later approve', async () => {
     const db = makeDb();
     const { repository, requestId } = await makeSensitivePending(db);
-    const controller = createDesktopApprovalController(createApprovalService(repository, createAuditRepository(db)));
+    const controller = createDesktopApprovalController(
+      createApprovalService(repository, createAuditRepository(db)),
+      createApprovalModeService(createApprovalModeRepository(db), createAuditRepository(db)),
+    );
     expect(controller.respond({ approvalRequestId: requestId, decision: 'deny' })).toMatchObject({
       ok: true,
       value: { status: 'denied', message: 'Denied. The action will not run.' },
@@ -144,7 +198,12 @@ describe('Basic Approval - fixed-purpose Desktop IPC and UI surface', () => {
     } }));
     registerDesktopApprovalIpcHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { list, respond },
+      {
+        list,
+        respond,
+        getMode: vi.fn(() => ({ ok: true as const, value: { mode: 'standard' as const } })),
+        setMode: vi.fn(() => ({ ok: true as const, value: { mode: 'standard' as const } })),
+      },
       () => true,
     );
 
@@ -166,33 +225,98 @@ describe('Basic Approval - fixed-purpose Desktop IPC and UI surface', () => {
     expect(respond).not.toHaveBeenCalled();
   });
 
-  it('invalid sender cannot list or decide approvals', async () => {
+  it('Approval Mode IPC is enum-only and rejects generic privilege/process-shaped input', async () => {
+    const handlers = new Map<string, (event: { sender: unknown }, raw?: unknown) => unknown>();
+    const getMode = vi.fn(() => ({ ok: true as const, value: { mode: 'standard' as const } }));
+    const setMode = vi.fn((input: { mode: 'standard' | 'approve_for_me' | 'full_access' }) => ({
+      ok: true as const,
+      value: { mode: input.mode },
+    }));
+    registerDesktopApprovalIpcHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      {
+        list: vi.fn(() => ({ ok: true as const, value: [] })),
+        respond: vi.fn(() => ({ ok: false as const, error: { code: 'APPROVAL_STATE_INVALID' as const, message: 'not used' } })),
+        getMode,
+        setMode,
+      },
+      () => true,
+    );
+
+    expect(await handlers.get(IPC_CHANNELS.APPROVAL_MODE_GET)?.({ sender: { id: 1 } })).toEqual({
+      ok: true,
+      value: { mode: 'standard' },
+    });
+    expect(await handlers.get(IPC_CHANNELS.APPROVAL_MODE_SET)?.({ sender: { id: 1 } }, { mode: 'approve_for_me' })).toEqual({
+      ok: true,
+      value: { mode: 'approve_for_me' },
+    });
+    expect(setMode).toHaveBeenCalledWith({ mode: 'approve_for_me' });
+
+    for (const invalid of [
+      { mode: 'unrestricted' },
+      { mode: 'full_access', executable: 'cmd.exe' },
+      { mode: 'approve_for_me', argv: ['--unsafe'] },
+      { mode: 'standard', cwd: 'C:\\' },
+      { mode: 'standard', env: { PATH: 'attacker' } },
+      { mode: 'standard', policy: 'allow-all' },
+    ]) {
+      expect(await handlers.get(IPC_CHANNELS.APPROVAL_MODE_SET)?.({ sender: { id: 1 } }, invalid)).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION_FAILED' },
+      });
+    }
+    expect(setMode).toHaveBeenCalledTimes(1);
+  });
+
+  it('invalid sender cannot list, decide approvals, or change Approval Mode', async () => {
     const handlers = new Map<string, (event: { sender: unknown }, raw?: unknown) => unknown>();
     const list = vi.fn(() => ({ ok: true as const, value: [] }));
     const respond = vi.fn(() => ({ ok: true as const, value: { id: '', status: 'denied' as const, message: '' } }));
+    const getMode = vi.fn(() => ({ ok: true as const, value: { mode: 'standard' as const } }));
+    const setMode = vi.fn(() => ({ ok: true as const, value: { mode: 'standard' as const } }));
     registerDesktopApprovalIpcHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { list, respond },
+      { list, respond, getMode, setMode },
       () => false,
     );
     expect(await handlers.get(IPC_CHANNELS.APPROVAL_LIST)?.({ sender: {} }, {})).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
     expect(await handlers.get(IPC_CHANNELS.APPROVAL_RESPOND)?.({ sender: {} }, { approvalRequestId: '00000000-0000-4000-8000-000000000001', decision: 'deny' })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
+    expect(await handlers.get(IPC_CHANNELS.APPROVAL_MODE_GET)?.({ sender: {} })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
+    expect(await handlers.get(IPC_CHANNELS.APPROVAL_MODE_SET)?.({ sender: {} }, { mode: 'standard' })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
     expect(list).not.toHaveBeenCalled();
     expect(respond).not.toHaveBeenCalled();
+    expect(getMode).not.toHaveBeenCalled();
+    expect(setMode).not.toHaveBeenCalled();
   });
 
-  it('preload exposes list/respond only and no approval creation or generic IPC authority', () => {
+  it('preload exposes only fixed approval actions and the enum-only Approval Mode surface', () => {
     const preload = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/electron/preload.ts'), 'utf8');
     const start = preload.indexOf('  approval: {');
     const end = preload.indexOf('  team: {', start);
     const approvalSurface = start >= 0 && end > start ? preload.slice(start, end) : '';
     expect(approvalSurface).toContain('list:');
     expect(approvalSurface).toContain('respond:');
-    expect(approvalSurface).not.toMatch(/create|always|bulk|capability|effect|sensitivity|workspace|binding|expiry|expiresAt|status:/i);
+    expect(approvalSurface).toContain('getMode:');
+    expect(approvalSurface).toContain('setMode:');
+    expect(approvalSurface).not.toMatch(/create|bulk|capability|effect|sensitivity|workspace|binding|expiry|expiresAt|status:|executable|argv|cwd|env|policy/i);
     expect(preload).not.toContain('ipcRenderer.send');
   });
 
-  it('Activity page shows Pending approvals with only Approve/Deny and retry guidance', () => {
+  it('Activity page exposes exactly the three understandable Approval Modes without generic policy controls', () => {
+    const source = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/ActivityPage.tsx'), 'utf8');
+    expect(source).toContain('Approval Mode');
+    expect(source).toContain("label: 'Standard'");
+    expect(source).toContain("label: 'Approve for me'");
+    expect(source).toContain("label: 'Full Access'");
+    expect(source).toContain('role="radiogroup"');
+    expect(source).toContain('aria-checked={approvalMode === option.mode}');
+    expect(source).toContain('window.sudD.approval.setMode({ mode })');
+    expect(source).toContain('Policy hard boundaries always stay enforced.');
+    expect(source).not.toMatch(/executable|argv|cwd|env\s*=|allow-all|policy editor|custom policy|arbitrary/i);
+  });
+
+  it('Activity page keeps exact pending Approve/Deny decisions and retry guidance', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/ActivityPage.tsx'), 'utf8');
     expect(source).toContain('Pending approvals');
     expect(source).toContain('Approve');

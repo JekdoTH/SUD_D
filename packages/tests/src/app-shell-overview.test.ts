@@ -215,6 +215,14 @@ describe('App Shell + Overview', () => {
     expect(home).toMatch(/disabled=\{busy\s*\|\|\s*connection\s*===\s*null/u);
   });
 
+  it('opens DevTools only behind an explicit development opt-in', () => {
+    const main = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/electron/main.ts'), 'utf8');
+
+    expect(main).toContain("process.env['SUD_D_OPEN_DEVTOOLS'] === '1'");
+    expect(main).toMatch(/if \(devUrl[\s\S]*SUD_D_OPEN_DEVTOOLS[\s\S]*openDevTools/u);
+    expect(main).not.toMatch(/if \(devUrl\) \{\s*void win\.loadURL\(devUrl\);\s*win\.webContents\.openDevTools\(\);/u);
+  });
+
   it('exposes a zero-argument renderer bridge without arbitrary URL authority', () => {
     const preload = fs.readFileSync(
       path.join(process.cwd(), 'packages/desktop/electron/preload.ts'),

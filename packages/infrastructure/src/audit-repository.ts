@@ -81,6 +81,7 @@ export interface AuditEventWriter {
 export interface AuditRepository {
   append(event: Omit<AuditEvent, 'id'>): AuditEvent;
   list(limit?: number, excludeActions?: readonly string[]): AuditEvent[];
+  hasSessionActivitySince(sessionType: ClientSessionType, since: Date): boolean;
 }
 
 export function createAuditEventWriter(db: Db): AuditEventWriter {
@@ -113,6 +114,9 @@ export function createAuditEventWriter(db: Db): AuditEventWriter {
 
 export function createAuditRepository(db: Db): AuditRepository {
   const writer = createAuditEventWriter(db);
+  const hasSessionActivitySince = db.prepare(
+    'SELECT 1 FROM audit_events WHERE session_type = ? AND timestamp > ? LIMIT 1',
+  );
   return {
     append(event: Omit<AuditEvent, 'id'>): AuditEvent {
       return writer.append(event);
@@ -130,6 +134,9 @@ export function createAuditRepository(db: Db): AuditRepository {
             )
             .all(...excludeActions, limit) as AuditRow[];
       return rows.map(rowToEvent);
+    },
+    hasSessionActivitySince(sessionType: ClientSessionType, since: Date): boolean {
+      return hasSessionActivitySince.get(sessionType, since.toISOString()) !== undefined;
     },
   };
 }

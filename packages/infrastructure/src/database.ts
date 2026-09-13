@@ -350,6 +350,18 @@ const MIGRATIONS: string[] = [
   DROP TABLE team_role_handoffs_legacy;
   DROP TABLE team_work_items_legacy;
   DROP TABLE team_missions_legacy;
+  `,
+  // Migration 007 — local-device Approval Mode + auditable decision source
+  `
+  ALTER TABLE approval_requests ADD COLUMN decision_source TEXT CHECK(decision_source IN ('user','mode'));
+
+  CREATE TABLE approval_mode_settings (
+    singleton_id INTEGER PRIMARY KEY CHECK(singleton_id = 1),
+    mode TEXT NOT NULL CHECK(mode IN ('standard','approve_for_me','full_access')),
+    updated_at TEXT NOT NULL
+  );
+  INSERT INTO approval_mode_settings(singleton_id, mode, updated_at)
+    VALUES(1, 'standard', CURRENT_TIMESTAMP);
   `
 ];
 

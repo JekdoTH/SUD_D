@@ -1,7 +1,9 @@
 import {
   ApprovalListInputSchema,
+  ApprovalModeSetInputSchema,
   ApprovalRespondInputSchema,
   IPC_CHANNELS,
+  type DesktopApprovalModeDto,
   type DesktopApprovalRequestDto,
   type DesktopApprovalResponseDto,
   type IpcResult,
@@ -49,5 +51,17 @@ export function registerDesktopApprovalIpcHandlers(
     const parsed = ApprovalRespondInputSchema.safeParse(raw);
     if (!parsed.success) return validationError('Invalid approval decision request');
     return ipcResult<DesktopApprovalResponseDto>(controller.respond(parsed.data));
+  });
+
+  ipcMain.handle(IPC_CHANNELS.APPROVAL_MODE_GET, (event) => {
+    if (!isSenderValid(event.sender)) return validationError('Invalid sender');
+    return ipcResult<DesktopApprovalModeDto>(controller.getMode());
+  });
+
+  ipcMain.handle(IPC_CHANNELS.APPROVAL_MODE_SET, (event, raw) => {
+    if (!isSenderValid(event.sender)) return validationError('Invalid sender');
+    const parsed = ApprovalModeSetInputSchema.safeParse(raw);
+    if (!parsed.success) return validationError('Invalid Approval Mode request');
+    return ipcResult<DesktopApprovalModeDto>(controller.setMode(parsed.data));
   });
 }

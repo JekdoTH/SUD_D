@@ -14,6 +14,7 @@ export * from './tool-kernel.js';
 export * from './workspace-file-capabilities.js';
 export * from './git-safety-capabilities.js';
 export * from './approval-service.js';
+export * from './approval-mode-service.js';
 export * from './team-service.js';
 export * from './team-capabilities.js';
 export * from './team-continuation.js';

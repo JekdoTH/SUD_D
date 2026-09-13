@@ -2,6 +2,46 @@
 
 Long-term plan: see `SUD_D_ROADMAP.md`.
 
+## Personal Alpha Stabilization — Unverified WIP Checkpoint (2026-09-13)
+
+**Status: UNVERIFIED WIP CHECKPOINT — implementation is intentionally incomplete and must not be treated as milestone completion.**
+
+Active specification: `docs/superpowers/specs/2026-09-13-personal-alpha-stabilization.md`.
+
+Cross-device checkpoint:
+
+- branch: `wip/personal-alpha-stabilization`
+- base: `16e9deb8e0e670fa6b4c03b4d7bb09225f953617` (`master` / `origin/master` at checkpoint creation)
+- purpose: preserve the current dirty Personal Alpha stabilization implementation so work can resume on Home PC without pushing incomplete work to `master`
+- `.serena/`: local-only and excluded from the checkpoint commit
+- recovery report on Work PC: `.serena/reports/personal-alpha-stabilization-recovery.md` (local-only; not available through Git on Home PC)
+
+WIP implementation state at checkpoint:
+
+- DGF-008 approval retry: reconnect binding fix is present; materially identical approved retries no longer depend on ephemeral MCP session identity. Earlier focused approval evidence reached 19/19 PASS.
+- Approval Modes: Standard / Approve for me / Full Access domain behavior, local SQLite setting, enum-only Desktop IPC/preload surface, Activity UI, and safe `approval.mode.changed` audit are present. Focused Desktop coverage reached 11/11 PASS; audit RED→GREEN reached 1/1 PASS.
+- DGF-001 hidden Connect runtime: fixed-purpose profile now uses the trusted native runtime executable directly instead of a `node.cmd` shim; M0.5 focused regression reached 26/26 PASS in Electron Node mode.
+- DGF-007 DevTools: automatic DevTools opening is removed from normal launch; explicit `SUD_D_OPEN_DEVTOOLS=1` opt-in remains. Focused regression reached 1/1 PASS.
+- DGF-002 truthful connection state: backend now uses trusted persisted `mcp-stdio` audit activity after the current connection-session start to promote stale `waiting_for_client` state to `connected`; focused RED→GREEN reached 1/1 PASS.
+- production Approve-for-me seam: focused MCP test covered `diff_check` → `secret_scan` → bounded `git.commit` without manual approval and passed with a bounded 15s test allowance. A prior 5s timeout was diagnosed as cold test runtime variance; temporary debug instrumentation was removed.
+
+Still unverified / incomplete:
+
+- Full Access hard-boundary negative coverage expansion was not finished; outside-workspace/network/process-shaped cases still need the planned focused proof.
+- integrated stabilization regression set has not been rerun after the latest edits.
+- final Security/Data Critical gates are outstanding: lint, typecheck, build, one full suite on stable source, final `git diff --check`, Standards + Spec `code-review`, Impeccable detector/UI smoke, and real SUD-D-only linked-worktree acceptance.
+- live `work.resume` was unavailable earlier because the Work-PC tunnel client had not been seen for >300 seconds; this is an environment/runtime availability fact, not a product-failure verdict.
+
+Home-PC resume action:
+
+1. Fetch `origin` and check out `wip/personal-alpha-stabilization`; preserve any unrelated Home-PC changes.
+2. Run the fresh AGENTS.md bootstrap + Mandatory Skill Router Gate.
+3. Resume at Full Access hard-boundary focused coverage, then run the bounded integrated regressions.
+4. Only after source is stable, run the final-once Security/Data Critical verification/review/UI/runtime acceptance required by the stabilization spec.
+5. Keep the milestone marked WIP until every required final gate is fresh and green; do not merge/push to `master` from this checkpoint task.
+
+**Checkpoint STOP:** this branch is for transfer only. No milestone-complete claim, no `master` push, and no work outside the stabilization spec.
+
 ## Agent Skill System Upgrade
 
 **Status: COMPLETE — autonomous repo-local skill routing and pinned third-party workflow snapshot adopted 2026-09-01.**

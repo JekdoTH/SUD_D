@@ -33,6 +33,7 @@ export interface ApprovalRepository {
   findById(id: string): Result<ApprovalRequestRecord | undefined, AppError>;
   findLatest(runtimeInstanceId: string, bindingDigest: string): Result<ApprovalRequestRecord | undefined, AppError>;
   createPending(request: NewApprovalRequest): Result<ApprovalRequestRecord, AppError>;
+  recordModeApproval(request: NewApprovalRequest, nowIso: string): Result<ApprovalRequestRecord, AppError>;
   countActive(runtimeInstanceId: string, nowIso: string): Result<number, AppError>;
   listPending(limit?: number, nowIso?: string): Result<readonly ApprovalRequestRecord[], AppError>;
   respond(id: string, decision: ApprovalUserDecision, nowIso?: string): Result<ApprovalRequestRecord, AppError>;
@@ -60,6 +61,7 @@ interface ApprovalRow {
   expires_at: string;
   decided_at: string | null;
   consumed_at: string | null;
+  decision_source: 'user' | 'mode' | null;
 }
 
 export function createApprovalRepository(db: Db): ApprovalRepository {
@@ -77,6 +79,19 @@ export function createApprovalRepository(db: Db): ApprovalRepository {
       safe_title, safe_resource_label, status, created_at, expires_at
     ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
   `);
+  const insertModeApproval = db.prepare(`
+    INSERT INTO approval_requests(
+      id, runtime_instance_id, binding_digest, session_id, session_type,
+      capability, effect, sensitivity, policy_context, workspace_id,
+      safe_title, safe_resource_label, status, created_at, expires_at,
+      decided_at, consumed_at, decision_source
+    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'consumed', ?, ?, ?, ?, 'mode')
+  `);
+  const consumePendingForMode = db.prepare(`
+    UPDATE approval_requests
+    SET status = 'consumed', decided_at = ?, consumed_at = ?, decision_source = 'mode'
+    WHERE id = ? AND status = 'pending' AND expires_at > ?
+  `);
   const countActive = db.prepare(`
     SELECT COUNT(*) AS count FROM approval_requests
     WHERE runtime_instance_id = ? AND status IN ('pending','approved') AND expires_at > ?
@@ -93,7 +108,7 @@ export function createApprovalRepository(db: Db): ApprovalRepository {
   `);
   const respond = db.prepare(`
     UPDATE approval_requests
-    SET status = ?, decided_at = ?
+    SET status = ?, decided_at = ?, decision_source = 'user'
     WHERE id = ? AND status = 'pending' AND expires_at > ?
   `);
   const consume = db.prepare(`
@@ -167,6 +182,43 @@ export function createApprovalRepository(db: Db): ApprovalRepository {
         return err(appError('APPROVAL_STATE_INVALID', 'Approval request changed concurrently'));
       } catch {
         return err(appError('INTERNAL_ERROR', 'Failed to create approval request'));
+      }
+    },
+
+    recordModeApproval(request, nowIso) {
+      try {
+        const latest = findLatest.get(request.runtimeInstanceId, request.bindingDigest) as ApprovalRow | undefined;
+        if (latest?.status === 'pending' && latest.expires_at > nowIso) {
+          const changed = consumePendingForMode.run(nowIso, nowIso, latest.id, nowIso);
+          if (changed.changes !== 1) {
+            return err(appError('APPROVAL_STATE_INVALID', 'Approval request changed concurrently'));
+          }
+          const record = byId(latest.id);
+          return record ? ok(record) : err(appError('INTERNAL_ERROR', 'Failed to record Approval Mode decision'));
+        }
+        const id = randomUUID();
+        insertModeApproval.run(
+          id,
+          request.runtimeInstanceId,
+          request.bindingDigest,
+          request.sessionId,
+          request.sessionType,
+          request.capability,
+          request.effect,
+          request.sensitivity,
+          request.policyContext,
+          request.workspaceId ?? null,
+          request.title,
+          request.resourceLabel ?? null,
+          request.createdAt,
+          request.expiresAt,
+          nowIso,
+          nowIso,
+        );
+        const record = byId(id);
+        return record ? ok(record) : err(appError('INTERNAL_ERROR', 'Failed to record Approval Mode decision'));
+      } catch {
+        return err(appError('INTERNAL_ERROR', 'Failed to record Approval Mode decision'));
       }
     },
 
@@ -263,5 +315,6 @@ function rowToRecord(row: ApprovalRow): ApprovalRequestRecord {
     expiresAt: row.expires_at,
     ...(row.decided_at ? { decidedAt: row.decided_at } : {}),
     ...(row.consumed_at ? { consumedAt: row.consumed_at } : {}),
+    ...(row.decision_source ? { decisionSource: row.decision_source } : {}),
   };
 }

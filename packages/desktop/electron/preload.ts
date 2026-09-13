@@ -12,7 +12,9 @@ import {
   type ActivityListInput,
   type DesktopActivityEventDto,
   type ApprovalListInput,
+  type ApprovalModeSetInput,
   type ApprovalRespondInput,
+  type DesktopApprovalModeDto,
   type DesktopApprovalRequestDto,
   type DesktopApprovalResponseDto,
   type DesktopTeamMissionDto,
@@ -72,6 +74,10 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_LIST, input) as Promise<IpcResult<DesktopApprovalRequestDto[]>>,
     respond: (input: ApprovalRespondInput): Promise<IpcResult<DesktopApprovalResponseDto>> =>
       ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_RESPOND, input) as Promise<IpcResult<DesktopApprovalResponseDto>>,
+    getMode: (): Promise<IpcResult<DesktopApprovalModeDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_MODE_GET) as Promise<IpcResult<DesktopApprovalModeDto>>,
+    setMode: (input: ApprovalModeSetInput): Promise<IpcResult<DesktopApprovalModeDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_MODE_SET, input) as Promise<IpcResult<DesktopApprovalModeDto>>,
   },
   team: {
     status: (input?: TeamStatusInput): Promise<IpcResult<DesktopTeamMissionDto | null>> =>

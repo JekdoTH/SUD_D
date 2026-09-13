@@ -1,8 +1,10 @@
 import { appError, err, ok, type AppError, type ApprovalRequestRecord, type Result } from '@sud-d/domain';
-import type { ApprovalService } from '@sud-d/application';
+import type { ApprovalModeService, ApprovalService } from '@sud-d/application';
 import type {
   ApprovalListInput,
+  ApprovalModeSetInput,
   ApprovalRespondInput,
+  DesktopApprovalModeDto,
   DesktopApprovalRequestDto,
   DesktopApprovalResponseDto,
 } from '@sud-d/contracts';
@@ -10,10 +12,13 @@ import type {
 export interface DesktopApprovalController {
   list(input: ApprovalListInput): Result<DesktopApprovalRequestDto[], AppError>;
   respond(input: ApprovalRespondInput): Result<DesktopApprovalResponseDto, AppError>;
+  getMode(): Result<DesktopApprovalModeDto, AppError>;
+  setMode(input: ApprovalModeSetInput): Result<DesktopApprovalModeDto, AppError>;
 }
 
 export function createDesktopApprovalController(
   approvalService: ApprovalService,
+  approvalModeService: ApprovalModeService,
 ): DesktopApprovalController {
   return Object.freeze({
     list(input: ApprovalListInput) {
@@ -34,6 +39,14 @@ export function createDesktopApprovalController(
           ? 'Approved. Retry the action from the connected AI.'
           : 'Denied. The action will not run.',
       });
+    },
+    getMode() {
+      const result = approvalModeService.get();
+      return result.ok ? ok({ mode: result.value }) : result;
+    },
+    setMode(input: ApprovalModeSetInput) {
+      const result = approvalModeService.set(input.mode);
+      return result.ok ? ok({ mode: result.value }) : result;
     },
   });
 }

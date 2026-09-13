@@ -104,7 +104,7 @@ describe('Basic Approval - first ASK and one-time grant', () => {
     expect(executions).toBe(0);
   });
 
-  it('changed exact input and changed session do not reuse approval', async () => {
+  it('changed exact input requires fresh approval while an MCP session reconnect can consume the identical grant', async () => {
     const { db } = makeDb();
     const repo = createApprovalRepository(db);
     const coordinator = createApprovalCoordinator({ repository: repo, runtimeInstanceId: 'runtime-a', hmacKey: Buffer.alloc(32, 10) });
@@ -120,8 +120,15 @@ describe('Basic Approval - first ASK and one-time grant', () => {
     const base = { session: { id: 's-1', type: 'mcp-stdio' as const }, capability: 'test.sensitive_write', input: { path: '.env', content: 'A' } };
     const pending = await kernel.invoke({ ...base, invocationId: 'i-1' }); if (pending.ok || !pending.approvalRequestId) throw new Error('pending');
     expect(repo.respond(pending.approvalRequestId, 'approve').ok).toBe(true);
-    expect(await kernel.invoke({ ...base, invocationId: 'i-2', input: { path: '.env', content: 'B' } })).toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
-    expect(await kernel.invoke({ ...base, invocationId: 'i-3', session: { id: 's-2', type: 'mcp-stdio' as const } })).toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
+    const changed = await kernel.invoke({ ...base, invocationId: 'i-2', input: { path: '.env', content: 'B' } });
+    expect(changed).toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
+    expect(changed.ok ? undefined : changed.approvalRequestId).not.toBe(pending.approvalRequestId);
+    expect(await kernel.invoke({ ...base, invocationId: 'i-3', session: { id: 's-2', type: 'mcp-stdio' as const } })).toMatchObject({
+      ok: true,
+      code: 'EXECUTED',
+      approvalDecision: 'approved',
+      approvalRequestId: pending.approvalRequestId,
+    });
   });
 
   it('persists only an opaque digest, never raw binding or HMAC key', async () => {

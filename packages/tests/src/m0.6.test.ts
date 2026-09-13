@@ -308,6 +308,35 @@ describe('M0.6 — Desktop connection controller', () => {
     expect(profileRepo.findById(input.profileId)?.tunnelReference).toBe('tunnel_home');
   });
 
+  it('clears stale Waiting for ChatGPT after trusted MCP activity in the current connection session', () => {
+    const { controller, auditRepo, runtime } = makeHarness({
+      CONTROL_PLANE_API_KEY: 'sk-session-only',
+      CONTROL_PLANE_TUNNEL_ID: 'tunnel_home',
+    });
+    runtime.readiness = { tunnelReady: true, clientConnected: false };
+    const initial = controller.getSnapshot();
+    expect(initial.ok).toBe(true);
+    if (!initial.ok || !initial.value.profile) return;
+
+    const started = controller.start({ profileId: initial.value.profile.profileId });
+    expect(started).toMatchObject({ ok: true, value: { runtime: { state: 'waiting_for_client' } } });
+
+    auditRepo.append({
+      timestamp: new Date('2026-08-30T12:00:01.000Z'),
+      sessionId: 'mcp-stdio-live-client',
+      sessionType: 'mcp-stdio',
+      action: 'git.status',
+      resultCode: 'EXECUTED',
+      durationMs: 1,
+      metadata: {},
+    });
+
+    expect(controller.getSnapshot()).toMatchObject({
+      ok: true,
+      value: { runtime: { state: 'connected' } },
+    });
+  });
+
   it('does not append audit events when the renderer polls an unchanged snapshot', () => {
     const { controller, auditRepo } = makeHarness({
       CONTROL_PLANE_API_KEY: 'sk-session-only',

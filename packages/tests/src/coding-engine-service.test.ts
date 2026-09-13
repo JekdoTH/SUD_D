@@ -46,6 +46,9 @@ function fakeRepos(initial: Workspace[] = []) {
       return { ...event, id: String(events.length) };
     },
     list: () => events.map((event, index) => ({ ...event, id: String(index + 1) })).reverse(),
+    hasSessionActivitySince: (sessionType, since) => events.some(
+      (event) => event.sessionType === sessionType && event.timestamp > since,
+    ),
   };
   return { workspaceRepo, auditRepo, events, workspaces };
 }

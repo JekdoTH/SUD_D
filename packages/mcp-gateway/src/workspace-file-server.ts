@@ -35,8 +35,10 @@ import {
   GIT_SAFETY_LIMITS,
   WORKSPACE_TEXT_FILE_LIMITS,
   canonicalizePath,
+  createApprovalModeRepository,
   createApprovalRepository,
   createAuditRepository,
+  resolveApprovalRuntimeIdentity,
   createGitSafetyAdapter,
   createManagedSerenaRuntime,
   createRestrictedVerifyAdapter,
@@ -342,8 +344,14 @@ export function createDefaultProductionMcpServer(): McpServer {
   }
   const auditRepo = createAuditRepository(db);
   const approvalRepo = createApprovalRepository(db);
+  const approvalModeRepo = createApprovalModeRepository(db);
   const teamRepo = createTeamRepository(db);
-  const approval = createApprovalCoordinator({ repository: approvalRepo });
+  const approvalRuntimeIdentity = resolveApprovalRuntimeIdentity(process.env);
+  const approval = createApprovalCoordinator({
+    repository: approvalRepo,
+    ...approvalRuntimeIdentity,
+    mode: () => approvalModeRepo.get(),
+  });
   const codingRuntime = createManagedSerenaRuntime({ dataRoot });
   const restrictedVerify = createRestrictedVerifyAdapter();
   return createProductionMcpServer({

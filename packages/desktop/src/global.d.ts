@@ -10,7 +10,9 @@ import type {
   ActivityListInput,
   DesktopActivityEventDto,
   ApprovalListInput,
+  ApprovalModeSetInput,
   ApprovalRespondInput,
+  DesktopApprovalModeDto,
   DesktopApprovalRequestDto,
   DesktopApprovalResponseDto,
   DesktopTeamMissionDto,
@@ -53,6 +55,8 @@ interface SudDApi {
   approval: {
     list(input?: ApprovalListInput): Promise<IpcResult<DesktopApprovalRequestDto[]>>;
     respond(input: ApprovalRespondInput): Promise<IpcResult<DesktopApprovalResponseDto>>;
+    getMode(): Promise<IpcResult<DesktopApprovalModeDto>>;
+    setMode(input: ApprovalModeSetInput): Promise<IpcResult<DesktopApprovalModeDto>>;
   };
   team: {
     status(input?: TeamStatusInput): Promise<IpcResult<DesktopTeamMissionDto | null>>;

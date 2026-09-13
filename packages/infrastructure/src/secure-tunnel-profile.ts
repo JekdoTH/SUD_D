@@ -8,8 +8,6 @@ import {
 } from '@sud-d/domain';
 import { credentialEnvVarNameForProfile } from './credential-store.js';
 
-export const GATEWAY_RUNTIME_EXECUTABLE_ENV = 'SUD_D_GATEWAY_RUNTIME_EXE';
-
 export interface SecureTunnelProfilePlan {
   readonly runtimeRoot: string;
   readonly profilePath: string;
@@ -48,16 +46,6 @@ function validateGatewayRuntimeExecutable(filePath: string): void {
   }
 }
 
-function gatewayNodeShimContent(): string {
-  return [
-    '@echo off',
-    `if not defined ${GATEWAY_RUNTIME_EXECUTABLE_ENV} exit /b 1`,
-    'set "ELECTRON_RUN_AS_NODE=1"',
-    `"%${GATEWAY_RUNTIME_EXECUTABLE_ENV}%" %*`,
-    '',
-  ].join('\r\n');
-}
-
 export function resolveMcpGatewayEntryPath(moduleUrl: string): string {
   const moduleDirectory = path.dirname(fileURLToPath(moduleUrl));
   return path.resolve(moduleDirectory, '../../mcp-gateway/dist/stdio-entry.js');
@@ -87,7 +75,7 @@ export function prepareSecureTunnelProfile(
   validateGatewayRuntimeExecutable(nodeExecutablePath);
 
   const credentialReference = `env:${credentialEnvVarNameForProfile(context.profileId)}`;
-  const gatewayCommand = `node.cmd ${quoteCommandArgument(gatewayEntryPath)}`;
+  const gatewayCommand = `${path.basename(nodeExecutablePath)} ${quoteCommandArgument(gatewayEntryPath)}`;
 
   const content = [
     'config_version: 1',
@@ -121,10 +109,6 @@ export function writeSecureTunnelProfile(plan: SecureTunnelProfilePlan): void {
 
   try {
     fs.rmSync(plan.healthUrlFile, { force: true });
-    const shimPath = path.join(plan.runtimeRoot, 'node.cmd');
-    const shimTempPath = `${shimPath}.tmp`;
-    fs.writeFileSync(shimTempPath, gatewayNodeShimContent(), { encoding: 'ascii' });
-    fs.renameSync(shimTempPath, shimPath);
     const tempPath = `${plan.profilePath}.tmp`;
     fs.writeFileSync(tempPath, plan.content, { encoding: 'utf8' });
     fs.renameSync(tempPath, plan.profilePath);

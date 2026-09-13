@@ -13,7 +13,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from '@sud-d/infrastructure';
 import { createWorkspaceRepository } from '@sud-d/infrastructure';
-import { createAuditRepository, createApprovalRepository, createGitSafetyAdapter, createTeamRepository, createTeamTransitionUnitOfWork } from '@sud-d/infrastructure';
+import { createAuditRepository, createApprovalModeRepository, createApprovalRepository, createGitSafetyAdapter, createTeamRepository, createTeamTransitionUnitOfWork } from '@sud-d/infrastructure';
 import { getDataRoot, canonicalizePath } from '@sud-d/infrastructure';
 import { checkDataDirectory, checkWorkspaceRoot } from '@sud-d/infrastructure';
 import {
@@ -24,6 +24,7 @@ import {
   isOpenAiSecureTunnelClientAvailable,
 } from '@sud-d/infrastructure';
 import {
+  createApprovalModeService,
   createApprovalService,
   createConnectionConfigService,
   createTeamService,
@@ -79,10 +80,12 @@ const db = openDatabase(dbPath);
 const workspaceRepo = createWorkspaceRepository(db);
 const auditRepo = createAuditRepository(db);
 const approvalRepo = createApprovalRepository(db);
+const approvalModeRepo = createApprovalModeRepository(db);
 const teamRepo = createTeamRepository(db);
 const gitSafety = createGitSafetyAdapter();
 const approvalService = createApprovalService(approvalRepo, auditRepo);
-const approvalController = createDesktopApprovalController(approvalService);
+const approvalModeService = createApprovalModeService(approvalModeRepo, auditRepo);
+const approvalController = createDesktopApprovalController(approvalService, approvalModeService);
 
 // SUD-D data root is an InternalRoot — agents must not access it as a workspace
 const dataRootCanonical = canonicalizePath(dataRoot);
@@ -400,7 +403,9 @@ function createWindow(): BrowserWindow {
   const devUrl = process.env['VITE_DEV_SERVER_URL'];
   if (devUrl) {
     void win.loadURL(devUrl);
-    win.webContents.openDevTools();
+    if (process.env['SUD_D_OPEN_DEVTOOLS'] === '1') {
+      win.webContents.openDevTools();
+    }
   } else {
     void win.loadFile(path.join(__dirname, '../dist/index.html'));
   }

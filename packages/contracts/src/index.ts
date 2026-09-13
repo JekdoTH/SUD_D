@@ -31,6 +31,8 @@ export const IPC_CHANNELS = {
   ACTIVITY_LIST: 'activity:list',
   APPROVAL_LIST: 'approval:list',
   APPROVAL_RESPOND: 'approval:respond',
+  APPROVAL_MODE_GET: 'approval:mode:get',
+  APPROVAL_MODE_SET: 'approval:mode:set',
   TEAM_STATUS: 'team:status',
   TEAM_STOP: 'team:stop',
   APP_OPEN_CHATGPT_WEB: 'app:openChatGPTWeb',
@@ -205,6 +207,19 @@ export const DesktopApprovalResponseDtoSchema = z.object({
   message: z.string().min(1).max(200),
 }).strict();
 export type DesktopApprovalResponseDto = z.infer<typeof DesktopApprovalResponseDtoSchema>;
+
+export const ApprovalModeSchema = z.enum(['standard', 'approve_for_me', 'full_access']);
+export type ApprovalModeDto = z.infer<typeof ApprovalModeSchema>;
+
+export const ApprovalModeSetInputSchema = z.object({
+  mode: ApprovalModeSchema,
+}).strict();
+export type ApprovalModeSetInput = z.infer<typeof ApprovalModeSetInputSchema>;
+
+export const DesktopApprovalModeDtoSchema = z.object({
+  mode: ApprovalModeSchema,
+}).strict();
+export type DesktopApprovalModeDto = z.infer<typeof DesktopApprovalModeDtoSchema>;
 
 // ---------------------------------------------------------------------------
 // Team Mode DTOs — safe renderer-facing orchestration metadata only

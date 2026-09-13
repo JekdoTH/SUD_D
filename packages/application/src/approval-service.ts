@@ -6,6 +6,7 @@ import {
   type AppError,
   type ApprovalBindingValue,
   type ApprovalDescriptor,
+  type ApprovalMode,
   type ApprovalRequestRecord,
   type ApprovalUserDecision,
   type AuditEvent,
@@ -51,10 +52,38 @@ export interface CreateApprovalCoordinatorOptions {
   readonly now?: () => Date;
   readonly ttlMs?: number;
   readonly maxActive?: number;
+  readonly mode?: () => ApprovalMode;
 }
 
 export interface ApprovalCoordinator extends ToolKernelApprovalPort {
   readonly runtimeInstanceId: string;
+}
+
+const APPROVE_FOR_ME_VERIFY_ACTIONS = new Set([
+  'test',
+  'lint',
+  'typecheck',
+  'build',
+  'diff_check',
+  'secret_scan',
+]);
+
+function isAutoApprovalEligible(mode: ApprovalMode, request: ApprovalAuthorizationRequest): boolean {
+  if (mode === 'standard') return false;
+  if (
+    request.security.context !== 'workspace'
+    || request.security.sensitivity !== 'normal'
+    || !request.security.workspaceId
+    || request.effect === 'delete'
+  ) {
+    return false;
+  }
+  if (mode === 'full_access') return true;
+  if (request.capability === 'git.commit') return true;
+  if (request.capability !== 'verify.run') return false;
+  if (typeof request.binding !== 'object' || request.binding === null || Array.isArray(request.binding)) return false;
+  const action = request.binding['action'];
+  return typeof action === 'string' && APPROVE_FOR_ME_VERIFY_ACTIONS.has(action);
 }
 
 export function createApprovalCoordinator(options: CreateApprovalCoordinatorOptions): ApprovalCoordinator {
@@ -63,6 +92,7 @@ export function createApprovalCoordinator(options: CreateApprovalCoordinatorOpti
   const now = options.now ?? (() => new Date());
   const ttlMs = options.ttlMs ?? BASIC_APPROVAL_LIMITS.ttlMs;
   const maxActive = options.maxActive ?? BASIC_APPROVAL_LIMITS.maxActivePerRuntime;
+  const mode = options.mode ?? (() => 'standard' as const);
   const startup = options.repository.expireOtherRuntimes(runtimeInstanceId, now().toISOString());
   const startupHealthy = startup.ok;
 
@@ -85,7 +115,6 @@ export function createApprovalCoordinator(options: CreateApprovalCoordinatorOpti
       try {
         canonical = stableStringify({
           runtimeInstanceId,
-          session: { id: request.session.id, type: request.session.type },
           capability: request.capability,
           effect: request.effect,
           security: {
@@ -102,27 +131,17 @@ export function createApprovalCoordinator(options: CreateApprovalCoordinatorOpti
       const latest = options.repository.findLatest(runtimeInstanceId, digest);
       if (!latest.ok) return { ok: false, error: latest.error };
       const existing = latest.value;
-      if (existing) {
-        if (existing.status === 'pending' && existing.expiresAt > nowIso) {
-          return { ok: true, state: 'pending', requestId: existing.id, expiresAt: existing.expiresAt };
-        }
-        if (existing.status === 'denied' && existing.expiresAt > nowIso) {
-          return { ok: true, state: 'denied', requestId: existing.id, expiresAt: existing.expiresAt };
-        }
-        if (existing.status === 'approved' && existing.expiresAt > nowIso) {
-          const consumed = options.repository.consumeApproved(runtimeInstanceId, digest, nowIso);
-          if (!consumed.ok) return { ok: false, error: consumed.error };
-          if (consumed.value) return { ok: true, state: 'approved', requestId: consumed.value.id };
-        }
+      if (existing?.status === 'denied' && existing.expiresAt > nowIso) {
+        return { ok: true, state: 'denied', requestId: existing.id, expiresAt: existing.expiresAt };
+      }
+      if (existing?.status === 'approved' && existing.expiresAt > nowIso) {
+        const consumed = options.repository.consumeApproved(runtimeInstanceId, digest, nowIso);
+        if (!consumed.ok) return { ok: false, error: consumed.error };
+        if (consumed.value) return { ok: true, state: 'approved', requestId: consumed.value.id };
       }
 
-      const active = options.repository.countActive(runtimeInstanceId, nowIso);
-      if (!active.ok) return { ok: false, error: active.error };
-      if (active.value >= maxActive) {
-        return { ok: false, error: appError('APPROVAL_QUEUE_FULL', 'Approval queue is full') };
-      }
       const expiresAt = new Date(clock.getTime() + ttlMs).toISOString();
-      const created = options.repository.createPending({
+      const recordInput = {
         runtimeInstanceId,
         bindingDigest: digest,
         sessionId: request.session.id,
@@ -136,7 +155,24 @@ export function createApprovalCoordinator(options: CreateApprovalCoordinatorOpti
         ...(descriptor.value.resourceLabel ? { resourceLabel: descriptor.value.resourceLabel } : {}),
         createdAt: nowIso,
         expiresAt,
-      });
+      };
+
+      if (isAutoApprovalEligible(mode(), request)) {
+        const recorded = options.repository.recordModeApproval(recordInput, nowIso);
+        if (!recorded.ok) return { ok: false, error: recorded.error };
+        return { ok: true, state: 'approved', requestId: recorded.value.id };
+      }
+
+      if (existing?.status === 'pending' && existing.expiresAt > nowIso) {
+        return { ok: true, state: 'pending', requestId: existing.id, expiresAt: existing.expiresAt };
+      }
+
+      const active = options.repository.countActive(runtimeInstanceId, nowIso);
+      if (!active.ok) return { ok: false, error: active.error };
+      if (active.value >= maxActive) {
+        return { ok: false, error: appError('APPROVAL_QUEUE_FULL', 'Approval queue is full') };
+      }
+      const created = options.repository.createPending(recordInput);
       if (!created.ok) return { ok: false, error: created.error };
       return { ok: true, state: 'pending', requestId: created.value.id, expiresAt };
     },

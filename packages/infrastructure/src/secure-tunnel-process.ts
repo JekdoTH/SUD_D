@@ -3,7 +3,8 @@ import path from 'node:path';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 
 import { ConnectionRuntimeFailure } from '@sud-d/domain';
-import { GATEWAY_RUNTIME_EXECUTABLE_ENV, type SecureTunnelProfilePlan } from './secure-tunnel-profile.js';
+import { createApprovalRuntimeEnvironment } from './approval-runtime-identity.js';
+import type { SecureTunnelProfilePlan } from './secure-tunnel-profile.js';
 
 export interface TunnelLaunchPlan {
   readonly executablePath: string;
@@ -45,10 +46,14 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
-function withRuntimeRootFirstOnPath(environment: NodeJS.ProcessEnv, runtimeRoot: string): NodeJS.ProcessEnv {
+function withGatewayRuntimeFirstOnPath(
+  environment: NodeJS.ProcessEnv,
+  gatewayRuntimeExecutablePath: string,
+): NodeJS.ProcessEnv {
   const pathKey = Object.keys(environment).find((key) => key.toLowerCase() === 'path') ?? 'Path';
   const currentPath = environment[pathKey] ?? '';
-  return { ...environment, [pathKey]: `${runtimeRoot}${path.delimiter}${currentPath}` };
+  const runtimeDirectory = path.dirname(gatewayRuntimeExecutablePath);
+  return { ...environment, [pathKey]: `${runtimeDirectory}${path.delimiter}${currentPath}` };
 }
 
 export function isTunnelProcessStopFailure(
@@ -125,13 +130,15 @@ export function createWindowsTunnelProcessLauncher(): TunnelProcessLauncher {
     start(plan: TunnelLaunchPlan): TunnelProcessHandle {
       let child;
       try {
+        const approvalRuntimeEnvironment = createApprovalRuntimeEnvironment();
         child = spawn(plan.executablePath, [...plan.args], {
           cwd: plan.workingDirectory,
           shell: false,
           windowsHide: true,
           env: {
-            ...withRuntimeRootFirstOnPath(process.env, plan.workingDirectory),
-            [GATEWAY_RUNTIME_EXECUTABLE_ENV]: plan.gatewayRuntimeExecutablePath,
+            ...withGatewayRuntimeFirstOnPath(process.env, plan.gatewayRuntimeExecutablePath),
+            ...approvalRuntimeEnvironment,
+            ELECTRON_RUN_AS_NODE: '1',
           },
           stdio: ['ignore', 'pipe', 'pipe'],
         });

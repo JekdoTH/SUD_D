@@ -1,9 +1,13 @@
 import type { Effect, Sensitivity } from './types.js';
 import type { PolicyContext } from './policy.js';
 
+export const APPROVAL_MODES = ['standard', 'approve_for_me', 'full_access'] as const;
+export type ApprovalMode = (typeof APPROVAL_MODES)[number];
+
 export type ApprovalStatus = 'pending' | 'approved' | 'denied' | 'consumed' | 'expired';
 export type ApprovalUserDecision = 'approve' | 'deny';
 export type ApprovalDecisionKind = 'approved' | 'denied';
+export type ApprovalDecisionSource = 'user' | 'mode';
 
 export interface ApprovalDescriptor {
   readonly title: string;
@@ -36,4 +40,5 @@ export interface ApprovalRequestRecord {
   readonly expiresAt: string;
   readonly decidedAt?: string;
   readonly consumedAt?: string;
+  readonly decisionSource?: ApprovalDecisionSource;
 }
