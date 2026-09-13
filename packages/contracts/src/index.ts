@@ -35,6 +35,7 @@ export const IPC_CHANNELS = {
   APPROVAL_MODE_SET: 'approval:mode:set',
   TEAM_STATUS: 'team:status',
   TEAM_STOP: 'team:stop',
+  OVERVIEW_WORK_STATUS: 'overview:workStatus',
   APP_OPEN_CHATGPT_WEB: 'app:openChatGPTWeb',
   APP_OPEN_OPENAI_API_KEYS_PAGE: 'app:openOpenAiApiKeysPage',
   APP_OPEN_OPENAI_TUNNEL_SETTINGS_PAGE: 'app:openOpenAiTunnelSettingsPage',
@@ -220,6 +221,41 @@ export const DesktopApprovalModeDtoSchema = z.object({
   mode: ApprovalModeSchema,
 }).strict();
 export type DesktopApprovalModeDto = z.infer<typeof DesktopApprovalModeDtoSchema>;
+
+// ---------------------------------------------------------------------------
+// Overview work status DTO — bounded read-only local state only
+// ---------------------------------------------------------------------------
+
+export const DesktopOverviewGitStatusDtoSchema = z.discriminatedUnion('availability', [
+  z.object({
+    availability: z.literal('available'),
+    branch: z.string().min(1).max(512).optional(),
+    detached: z.boolean(),
+    clean: z.boolean(),
+    changedFiles: z.number().int().min(0).max(500),
+    truncated: z.boolean(),
+  }).strict(),
+  z.object({ availability: z.literal('unavailable') }).strict(),
+]);
+export type DesktopOverviewGitStatusDto = z.infer<typeof DesktopOverviewGitStatusDtoSchema>;
+
+export const DesktopOverviewCheckpointDtoSchema = z.discriminatedUnion('availability', [
+  z.object({
+    availability: z.literal('available'),
+    taskStatus: z.enum(['pending', 'in_progress', 'blocked', 'completed']),
+    updatedAt: z.string().datetime(),
+  }).strict(),
+  z.object({ availability: z.literal('none') }).strict(),
+  z.object({ availability: z.literal('unavailable') }).strict(),
+]);
+export type DesktopOverviewCheckpointDto = z.infer<typeof DesktopOverviewCheckpointDtoSchema>;
+
+export const DesktopOverviewWorkStatusDtoSchema = z.object({
+  workspaceId: WorkspaceIdSchema.optional(),
+  git: DesktopOverviewGitStatusDtoSchema,
+  checkpoint: DesktopOverviewCheckpointDtoSchema,
+}).strict();
+export type DesktopOverviewWorkStatusDto = z.infer<typeof DesktopOverviewWorkStatusDtoSchema>;
 
 // ---------------------------------------------------------------------------
 // Team Mode DTOs — safe renderer-facing orchestration metadata only

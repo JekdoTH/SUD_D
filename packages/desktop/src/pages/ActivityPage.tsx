@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import type { ApprovalModeDto, DesktopActivityEventDto, DesktopApprovalRequestDto } from '@sud-d/contracts';
+import type { DesktopActivityEventDto, DesktopApprovalRequestDto } from '@sud-d/contracts';
 
 function toneBadge(tone: DesktopActivityEventDto['tone']): string {
   switch (tone) {
@@ -10,16 +10,6 @@ function toneBadge(tone: DesktopActivityEventDto['tone']): string {
   }
 }
 
-const APPROVAL_MODE_OPTIONS: ReadonlyArray<{
-  mode: ApprovalModeDto;
-  label: string;
-  description: string;
-}> = [
-  { mode: 'standard', label: 'Standard', description: 'Ask before protected actions.' },
-  { mode: 'approve_for_me', label: 'Approve for me', description: 'Automate bounded local verification while keeping sensitive actions manual.' },
-  { mode: 'full_access', label: 'Full Access', description: 'Maximize safe local automation without bypassing SUD-D hard boundaries.' },
-];
-
 export function ActivityPage(): React.ReactElement {
   const [events, setEvents] = useState<DesktopActivityEventDto[]>([]);
   const [approvals, setApprovals] = useState<DesktopApprovalRequestDto[]>([]);
@@ -28,15 +18,12 @@ export function ActivityPage(): React.ReactElement {
   const [approvalError, setApprovalError] = useState('');
   const [approvalMessage, setApprovalMessage] = useState('');
   const [respondingId, setRespondingId] = useState('');
-  const [approvalMode, setApprovalMode] = useState<ApprovalModeDto>('standard');
-  const [modeSaving, setModeSaving] = useState(false);
 
   const refresh = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
-    const [activityResult, approvalResult, modeResult] = await Promise.all([
+    const [activityResult, approvalResult] = await Promise.all([
       window.sudD.activity.list({ limit: 100 }),
       window.sudD.approval.list({ limit: 50 }),
-      window.sudD.approval.getMode(),
     ]);
     if (showLoading) setLoading(false);
 
@@ -54,11 +41,6 @@ export function ActivityPage(): React.ReactElement {
       setApprovalError(approvalResult.error.message);
     }
 
-    if (modeResult.ok) {
-      setApprovalMode(modeResult.value.mode);
-    } else {
-      setApprovalError(modeResult.error.message);
-    }
   }, []);
 
   useEffect(() => {
@@ -82,19 +64,6 @@ export function ActivityPage(): React.ReactElement {
     await refresh(false);
   }, [refresh]);
 
-  const changeApprovalMode = useCallback(async (mode: ApprovalModeDto) => {
-    if (modeSaving || mode === approvalMode) return;
-    setModeSaving(true);
-    setApprovalError('');
-    const result = await window.sudD.approval.setMode({ mode });
-    setModeSaving(false);
-    if (!result.ok) {
-      setApprovalError(result.error.message);
-      return;
-    }
-    setApprovalMode(result.value.mode);
-    setApprovalMessage(`Approval Mode changed to ${APPROVAL_MODE_OPTIONS.find((option) => option.mode === result.value.mode)?.label ?? result.value.mode}.`);
-  }, [approvalMode, modeSaving]);
 
   return (
     <>
@@ -107,29 +76,6 @@ export function ActivityPage(): React.ReactElement {
           {loading ? 'Refreshing…' : '↻ Refresh'}
         </button>
       </div>
-
-      <section className="card approval-mode-card" aria-labelledby="approval-mode-heading">
-        <div className="approval-mode-copy">
-          <div id="approval-mode-heading" className="card-heading">Approval Mode</div>
-          <p className="card-description">Choose how much bounded local work SUD-D may approve automatically. Policy hard boundaries always stay enforced.</p>
-        </div>
-        <div className="approval-mode-options" role="radiogroup" aria-label="Approval Mode">
-          {APPROVAL_MODE_OPTIONS.map((option) => (
-            <button
-              key={option.mode}
-              type="button"
-              className={`approval-mode-option${approvalMode === option.mode ? ' is-selected' : ''}`}
-              role="radio"
-              aria-checked={approvalMode === option.mode}
-              disabled={modeSaving}
-              onClick={() => void changeApprovalMode(option.mode)}
-            >
-              <strong>{option.label}</strong>
-              <span>{option.description}</span>
-            </button>
-          ))}
-        </div>
-      </section>
 
       <section className="card approval-card">
         <div className="card-header-row">

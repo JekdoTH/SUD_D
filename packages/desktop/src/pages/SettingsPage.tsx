@@ -27,11 +27,23 @@ export function SettingsPage(): React.ReactElement {
         <p className="page-subtitle">Baseline permission policy — read-only display</p>
       </div>
 
+      <div className="card security-posture-card">
+        <div className="card-title">Safety posture</div>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+          Persistent security boundaries remain enforced regardless of the selected Approval Mode.
+        </p>
+        <ul className="security-posture-list">
+          <li>Workspace-bound access</li>
+          <li>Network denied by default</li>
+          <li>Credentials stay hidden from the renderer</li>
+        </ul>
+      </div>
+
       <div className="card">
         <div className="card-title">Baseline Policy</div>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
           These are the built-in default decisions applied to all operations.
-          No unrestricted or full-access mode is available.
+          Approval Mode can automate eligible ASK-class actions, but it never bypasses these Policy decisions or hard boundaries.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0 24px', alignItems: 'center' }}>
@@ -61,7 +73,7 @@ export function SettingsPage(): React.ReactElement {
             'InternalRoot paths denied before workspace containment checks',
             'Symlinks and junctions denied in resource resolution',
             'Audit metadata sanitized — no secrets persisted',
-            'No unrestricted / full-access mode',
+            'Approval Mode never bypasses Policy DENY or hard boundaries',
           ].map((item) => (
             <li key={item} style={{ display: 'flex', gap: 10, fontSize: 13, color: 'var(--text-secondary)' }}>
               <span style={{ color: 'var(--green)' }}>✓</span>

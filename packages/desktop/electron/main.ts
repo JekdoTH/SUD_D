@@ -13,7 +13,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from '@sud-d/infrastructure';
 import { createWorkspaceRepository } from '@sud-d/infrastructure';
-import { createAuditRepository, createApprovalModeRepository, createApprovalRepository, createGitSafetyAdapter, createTeamRepository, createTeamTransitionUnitOfWork } from '@sud-d/infrastructure';
+import { createAuditRepository, createApprovalModeRepository, createApprovalRepository, createGitSafetyAdapter, createTeamRepository, createTeamTransitionUnitOfWork, createWorkMemoryRepository } from '@sud-d/infrastructure';
 import { getDataRoot, canonicalizePath } from '@sud-d/infrastructure';
 import { checkDataDirectory, checkWorkspaceRoot } from '@sud-d/infrastructure';
 import {
@@ -55,6 +55,11 @@ import {
   registerDesktopTeamIpcHandlers,
   type TeamIpcMain,
 } from './team-ipc.js';
+import { createDesktopOverviewStatusController } from './overview-status-controller.js';
+import {
+  registerDesktopOverviewStatusIpcHandlers,
+  type OverviewStatusIpcMain,
+} from './overview-status-ipc.js';
 import {
   WorkspaceAddInputSchema,
   WorkspaceSelectInputSchema,
@@ -83,6 +88,7 @@ const approvalRepo = createApprovalRepository(db);
 const approvalModeRepo = createApprovalModeRepository(db);
 const teamRepo = createTeamRepository(db);
 const gitSafety = createGitSafetyAdapter();
+const workMemoryRepo = createWorkMemoryRepository(db);
 const approvalService = createApprovalService(approvalRepo, auditRepo);
 const approvalModeService = createApprovalModeService(approvalModeRepo);
 const approvalController = createDesktopApprovalController(approvalService, approvalModeService);
@@ -108,6 +114,11 @@ const teamService = createTeamService({
   },
 });
 const teamController = createDesktopTeamController(teamService);
+const overviewStatusController = createDesktopOverviewStatusController({
+  workspaceReader: workspaceRepo,
+  gitReader: gitSafety,
+  workMemoryReader: workMemoryRepo,
+});
 const workspaceService = createWorkspaceService(workspaceRepo, auditRepo, internalRoots);
 const connectionProfileRepo = createConnectionProfileRepository(db);
 const connectionCredentialStore = createWindowsCredentialStore(process.env);
@@ -334,6 +345,11 @@ function registerIpcHandlers(): void {
   registerDesktopTeamIpcHandlers(
     ipcMain as unknown as TeamIpcMain,
     teamController,
+    validateDesktopSender,
+  );
+  registerDesktopOverviewStatusIpcHandlers(
+    ipcMain as unknown as OverviewStatusIpcMain,
+    overviewStatusController,
     validateDesktopSender,
   );
 }

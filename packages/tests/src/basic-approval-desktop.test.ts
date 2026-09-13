@@ -89,7 +89,7 @@ describe('Basic Approval - Desktop contracts and controller confidentiality', ()
     expect(ApprovalRespondInputSchema.safeParse({ approvalRequestId: id, decision: 'allow-always' }).success).toBe(false);
   });
 
-  it('persists a strict local Approval Mode setting with Standard as the default', () => {
+  it('persists a strict local Approval Mode setting with Approve for me as the default', () => {
     const db = makeDb();
     const repository = createApprovalRepository(db);
     const modeRepository = createApprovalModeRepository(db);
@@ -108,15 +108,17 @@ describe('Basic Approval - Desktop contracts and controller confidentiality', ()
     expect(ApprovalModeSetInputSchema.safeParse({ mode: 'full_access', executable: 'cmd.exe' }).success).toBe(false);
 
     const initial = controller.getMode();
-    expect(initial).toMatchObject({ ok: true, value: { mode: 'standard' } });
+    expect(initial).toMatchObject({ ok: true, value: { mode: 'approve_for_me' } });
     if (!initial.ok) return;
     expect(DesktopApprovalModeDtoSchema.parse(initial.value)).toEqual(initial.value);
 
-    expect(controller.setMode({ mode: 'approve_for_me' })).toMatchObject({
-      ok: true,
-      value: { mode: 'approve_for_me' },
-    });
-    expect(createApprovalModeRepository(db).get()).toBe('approve_for_me');
+    for (const mode of ['standard', 'full_access', 'approve_for_me'] as const) {
+      expect(controller.setMode({ mode })).toMatchObject({
+        ok: true,
+        value: { mode },
+      });
+      expect(createApprovalModeRepository(db).get()).toBe(mode);
+    }
     expect(auditRepository.list(10)[0]).toMatchObject({
       sessionType: 'desktop',
       action: 'approval.mode.changed',
@@ -136,7 +138,7 @@ describe('Basic Approval - Desktop contracts and controller confidentiality', ()
       ok: false,
       error: { code: 'INTERNAL_ERROR', message: 'Approval Mode is unavailable' },
     });
-    expect(modeRepository.get()).toBe('standard');
+    expect(modeRepository.get()).toBe('approve_for_me');
   });
 
   it('renderer-facing list contains only safe bounded DTO fields and no secret/binding/session/runtime data', async () => {
@@ -317,17 +319,23 @@ describe('Basic Approval - fixed-purpose Desktop IPC and UI surface', () => {
     expect(preload).not.toContain('ipcRenderer.send');
   });
 
-  it('Activity page exposes exactly the three understandable Approval Modes without generic policy controls', () => {
-    const source = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/ActivityPage.tsx'), 'utf8');
-    expect(source).toContain('Approval Mode');
-    expect(source).toContain("label: 'Standard'");
-    expect(source).toContain("label: 'Approve for me'");
-    expect(source).toContain("label: 'Full Access'");
-    expect(source).toContain('role="radiogroup"');
-    expect(source).toContain('aria-checked={approvalMode === option.mode}');
-    expect(source).toContain('window.sudD.approval.setMode({ mode })');
-    expect(source).toContain('Policy hard boundaries always stay enforced.');
-    expect(source).not.toMatch(/executable|argv|cwd|env\s*=|allow-all|policy editor|custom policy|arbitrary/i);
+  it('Overview owns exactly the three Default Approval Modes while Activity remains history-only', () => {
+    const overview = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/HomePage.tsx'), 'utf8');
+    const activity = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/ActivityPage.tsx'), 'utf8');
+
+    expect(overview).toContain('Default Approval Mode');
+    expect(overview).toContain("label: 'Standard'");
+    expect(overview).toContain("label: 'Approve for me'");
+    expect(overview).toContain("label: 'Full Access'");
+    expect(overview).toContain('role="radiogroup"');
+    expect(overview).toContain('aria-checked={approvalMode === option.mode}');
+    expect(overview).toContain('window.sudD.approval.setMode({ mode })');
+    expect(overview).toContain('shared by all approved workspaces on this device');
+    expect(overview).not.toMatch(/executable|argv|cwd|env\s*=|allow-all|policy editor|custom policy|arbitrary/i);
+
+    expect(activity).not.toContain('Default Approval Mode');
+    expect(activity).not.toContain('Approval Mode');
+    expect(activity).not.toContain('window.sudD.approval.setMode');
   });
 
   it('Activity page keeps exact pending Approve/Deny decisions and retry guidance', () => {

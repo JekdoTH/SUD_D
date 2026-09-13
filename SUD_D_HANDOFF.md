@@ -1,5 +1,52 @@
 # SUD_D Handoff
 
+## Post-Stabilization UI Closure — Complete on feature branch (2026-09-13)
+
+**Status: IMPLEMENTED AND VERIFIED — branch closure is ready for the dedicated `fix/post-stabilization-ui-closure` commit/push; `master` remains untouched.**
+
+Branch and preservation state:
+
+- branch: `fix/post-stabilization-ui-closure`
+- fixed-point/base: `a77f72dc3d6f5bae3f135d90beea12d93f7e28da`
+- local `master` and `origin/master` were still at that same base before branch finalization
+- original Home-PC handoff edit remains preserved as `stash@{0}: On master: pre-bootstrap Home 2026-09-13 preserve local handoff`
+- `.serena/` remains local-only/untracked and must not be committed
+
+Delivered closure behavior:
+
+- fresh/local Approval Mode default is now `Approve for me`; the three persisted enum values remain `Standard`, `Approve for me`, and `Full Access`, and existing persisted selections are not overwritten by a new migration
+- `Default Approval Mode` is configured from Overview → Approved workspaces through the existing enum-only Approval IPC; Activity no longer contains the settings control and remains the detailed operational/approval history surface
+- Overview now shows trusted `Current activity`, compact `Recent activity`, and `Current Session / Work Status`; Team state comes from `team.status`, recent events from the existing Desktop activity projection, and Git/checkpoint status from one new zero-input sender-validated read-only Desktop IPC seam
+- the new work-status DTO exposes only bounded branch/clean/changed-count/checkpoint metadata; renderer callers cannot supply cwd, executable, argv, env, workspace root, or other host authority
+- expensive Git status polling is separated from the 2-second lightweight Overview refresh, runs every 5 seconds, and uses an in-flight guard so slow Git reads cannot overlap
+- `Current step` uses the trusted Team `nextAction` rather than relabeling a work-item title as a step
+- Overview no longer presents `Safety status`; persistent safety posture is presented on Security, while Policy/Approval enforcement remains unchanged
+
+Verification and review evidence:
+
+- preserved focused implementation set: **29/29 PASS**
+- trusted Overview work-status seam: **3/3 PASS**
+- preserved full lint: **PASS**; post-review focused lint on changed UI/test files: **PASS**
+- typecheck: **PASS**, including after the review repair
+- final full suite after timing repair: **523 PASS / 5 skipped / 0 failed** across 43 files (40 passed, 3 skipped)
+- production build: **PASS** after the final tracked source change
+- `git diff --check`: **PASS** after the final tracked source change
+- Standards/Spec review: **PASS after repair** — the two material findings were overlapping 2-second Git-status polling and incorrect Current-step semantics; both were fixed and focused verification refreshed
+- Impeccable detector: **invoked exactly once as required; output exceeded Serena's capture ceiling, so do not claim the detector returned `[]`**
+- production Electron smoke: **PASS at 1365×768 and 960×720** with no horizontal overflow; fresh `Approve for me` default, three Overview mode controls, trusted Git branch/current-work summaries, Activity history-only behavior, and Security safety posture all verified through the real renderer/preload/IPC composition
+- changed-surface secret/scope inspection before handoff: **PASS**, with exactly the intended product paths and no staged files
+
+Continuous Repair Loop notes:
+
+- repeated full-suite timeout was diagnosed as an integration-test timing budget issue: the linked-worktree commit case inherited Vitest's 5-second default while sibling Git integration tests already use 15–20 seconds. The case received a narrow 15-second test timeout; focused proof passed at 4.17 seconds and the repaired full-suite run passed with that case at 4.999 seconds. Production Git code was unchanged.
+- UI-smoke failures were local harness defects only (Windows cleanup `EPERM`, case-sensitive checks against CSS-uppercased labels); the local harness was repaired without product-source changes and the final smoke passed.
+
+Environment note:
+
+- no live external-tunnel acceptance was used for this UI-closure proof. At continuation bootstrap, one `work.resume` connector probe returned `tunnel_client_not_seen` / HTTP 404; it was not retried again and caused no repository or product-state change.
+
+The next action for this task is branch-only finalization: stage only the in-scope product/handoff paths, run the staged scope/secret/diff checks, commit, push `fix/post-stabilization-ui-closure`, verify local branch SHA equals `origin/fix/post-stabilization-ui-closure`, and stop. Do not merge or push `master`, start native repair-loop runtime work, Playwright implementation, cloud work, per-workspace Approval Mode overrides, or another milestone.
+
 Long-term plan: see `SUD_D_ROADMAP.md`.
 
 ## Personal Alpha Stabilization — Closure at STOP Condition (2026-09-13)

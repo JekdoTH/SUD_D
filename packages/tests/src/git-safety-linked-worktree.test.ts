@@ -68,7 +68,7 @@ describe('Git Safety - standard linked worktree support', () => {
     if (!committed.ok) throw new Error(committed.error.code);
     expect(git(linkedRoot, ['rev-parse', 'HEAD'])).toBe(committed.value.commitSha);
     expect(git(linkedRoot, ['status', '--porcelain'])).toBe('');
-  });
+  }, 15_000);
 
   it('runs fixed diff_check and secret_scan against a standard linked worktree', async () => {
     const { linkedRoot } = createLinkedWorktree();

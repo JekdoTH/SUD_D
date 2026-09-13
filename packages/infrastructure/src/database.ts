@@ -361,7 +361,7 @@ const MIGRATIONS: string[] = [
     updated_at TEXT NOT NULL
   );
   INSERT INTO approval_mode_settings(singleton_id, mode, updated_at)
-    VALUES(1, 'standard', CURRENT_TIMESTAMP);
+    VALUES(1, 'approve_for_me', CURRENT_TIMESTAMP);
   `
 ];
 

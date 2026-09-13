@@ -1,7 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  AuditEventDto,
+  ApprovalModeDto,
+  DesktopActivityEventDto,
   DesktopConnectionSnapshotDto,
+  DesktopOverviewWorkStatusDto,
+  DesktopTeamMissionDto,
   WorkspaceDto,
 } from '@sud-d/contracts';
 import type { AppPage } from '../App';
@@ -15,19 +18,15 @@ interface HomePageProps {
   onNavigate: (page: AppPage) => void;
 }
 
-function friendlyAction(action: string): string {
-  const words = action
-    .replaceAll(':', ' ')
-    .replaceAll('.', ' ')
-    .replaceAll('_', ' ')
-    .split(/\s+/u)
-    .filter(Boolean);
-
-  if (words.length === 0) return 'Local activity';
-  return words
-    .map((word, index) => index === 0 ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : word)
-    .join(' ');
-}
+const APPROVAL_MODE_OPTIONS: ReadonlyArray<{
+  mode: ApprovalModeDto;
+  label: string;
+  description: string;
+}> = [
+  { mode: 'standard', label: 'Standard', description: 'Ask before protected actions.' },
+  { mode: 'approve_for_me', label: 'Approve for me', description: 'Automate bounded local verification while keeping sensitive actions manual.' },
+  { mode: 'full_access', label: 'Full Access', description: 'Maximize safe local automation without bypassing SUD-D hard boundaries.' },
+];
 
 function formatEventTime(timestamp: string): string {
   return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -35,25 +34,58 @@ function formatEventTime(timestamp: string): string {
 
 export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
   const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]);
-  const [recentEvents, setRecentEvents] = useState<AuditEventDto[]>([]);
+  const [recentEvents, setRecentEvents] = useState<DesktopActivityEventDto[]>([]);
   const [connection, setConnection] = useState<DesktopConnectionSnapshotDto | null>(null);
+  const [teamMission, setTeamMission] = useState<DesktopTeamMissionDto | null>(null);
+  const [teamStatusAvailable, setTeamStatusAvailable] = useState(true);
+  const [workStatus, setWorkStatus] = useState<DesktopOverviewWorkStatusDto | null>(null);
+  const [approvalMode, setApprovalMode] = useState<ApprovalModeDto>('approve_for_me');
+  const [modeSaving, setModeSaving] = useState(false);
+  const [approvalModeError, setApprovalModeError] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const workStatusRefreshInFlight = useRef(false);
 
   const refresh = useCallback(async () => {
-    const [workspaceResult, auditResult, connectionResult] = await Promise.all([
+    const [workspaceResult, activityResult, connectionResult, modeResult, teamResult] = await Promise.all([
       window.sudD.workspace.list(),
-      window.sudD.audit.list({ limit: 3 }),
+      window.sudD.activity.list({ limit: 5 }),
       window.sudD.connection.status(),
+      window.sudD.approval.getMode(),
+      window.sudD.team.status({}),
     ]);
 
     if (workspaceResult.ok) setWorkspaces(workspaceResult.value);
-    if (auditResult.ok) setRecentEvents(auditResult.value);
+    if (activityResult.ok) setRecentEvents(activityResult.value);
     if (connectionResult.ok) {
       setConnection(connectionResult.value);
       setError('');
     } else {
       setError(connectionResult.error.message);
+    }
+    if (modeResult.ok) {
+      setApprovalMode(modeResult.value.mode);
+      setApprovalModeError('');
+    } else {
+      setApprovalModeError(modeResult.error.message);
+    }
+    if (teamResult.ok) {
+      setTeamMission(teamResult.value);
+      setTeamStatusAvailable(true);
+    } else {
+      setTeamMission(null);
+      setTeamStatusAvailable(false);
+    }
+  }, []);
+
+  const refreshWorkStatus = useCallback(async () => {
+    if (workStatusRefreshInFlight.current) return;
+    workStatusRefreshInFlight.current = true;
+    try {
+      const result = await window.sudD.overview.workStatus();
+      setWorkStatus(result.ok ? result.value : null);
+    } finally {
+      workStatusRefreshInFlight.current = false;
     }
   }, []);
 
@@ -63,8 +95,56 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
     return () => window.clearInterval(timer);
   }, [refresh]);
 
+  useEffect(() => {
+    void refreshWorkStatus();
+    const timer = window.setInterval(() => void refreshWorkStatus(), 5000);
+    return () => window.clearInterval(timer);
+  }, [refreshWorkStatus]);
+
   const activeWorkspace = workspaces.find((workspace) => workspace.isActive);
   const visibleWorkspaces = activeWorkspace ? [activeWorkspace] : [];
+  const teamWorkState = !teamStatusAvailable
+    ? 'Unavailable'
+    : teamMission
+      ? teamMission.state === 'planning'
+        ? 'Planning'
+        : teamMission.state === 'implementing'
+          ? 'Working'
+          : teamMission.state === 'validating'
+            ? 'Validating'
+            : teamMission.state === 'reviewing'
+              ? 'Reviewing'
+              : teamMission.state === 'blocked'
+                ? 'Blocked'
+                : teamMission.state === 'completed'
+                  ? 'Completed'
+                  : 'Stopped'
+      : 'Idle';
+  const currentActivityTitle = !teamStatusAvailable
+    ? 'Current activity unavailable'
+    : teamMission
+      ? teamMission.state === 'blocked'
+        ? 'Blocked — Team Mode'
+        : 'Working — Team Mode'
+      : 'Idle';
+  const currentActivityDescription = !teamStatusAvailable
+    ? 'Trusted Team status is unavailable right now.'
+    : teamMission
+      ? teamMission.goalSummary
+      : 'No active Team work is reported for this workspace.';
+  const gitStatusLabel = workStatus?.git.availability === 'available'
+    ? workStatus.git.clean
+      ? 'Clean'
+      : `${workStatus.git.changedFiles}${workStatus.git.truncated ? '+' : ''} changed`
+    : 'Unavailable';
+  const gitBranchLabel = workStatus?.git.availability === 'available'
+    ? workStatus.git.branch ?? (workStatus.git.detached ? 'Detached HEAD' : 'Unknown')
+    : 'Unavailable';
+  const checkpointLabel = workStatus?.checkpoint.availability === 'available'
+    ? `${workStatus.checkpoint.taskStatus.replace('_', ' ')} · ${formatEventTime(workStatus.checkpoint.updatedAt)}`
+    : workStatus?.checkpoint.availability === 'none'
+      ? 'No checkpoint'
+      : 'Unavailable';
   const statePresentation = connection
     ? presentConnectionState(connection.runtime.state)
     : { label: 'Checking…', description: 'Reading local connection status.', tone: 'neutral' as const };
@@ -119,6 +199,19 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
             : primaryAction?.action === 'restart'
               ? 'Restart connection'
               : 'Connect ChatGPT';
+
+  const changeApprovalMode = useCallback(async (mode: ApprovalModeDto) => {
+    if (modeSaving || mode === approvalMode) return;
+    setModeSaving(true);
+    setApprovalModeError('');
+    const result = await window.sudD.approval.setMode({ mode });
+    setModeSaving(false);
+    if (!result.ok) {
+      setApprovalModeError(result.error.message);
+      return;
+    }
+    setApprovalMode(result.value.mode);
+  }, [approvalMode, modeSaving]);
 
   const runPrimaryAction = async (): Promise<void> => {
     if (!connection?.profile || !primaryAction?.enabled) {
@@ -250,6 +343,48 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
             ))}
           </div>
         )}
+
+        <div className="overview-approval-mode" aria-labelledby="default-approval-mode-title">
+          <div className="approval-mode-copy">
+            <h3 id="default-approval-mode-title">Default Approval Mode</h3>
+            <p>Choose the default approval behavior shared by all approved workspaces on this device. Policy hard boundaries always stay enforced.</p>
+          </div>
+          {approvalModeError && <div className="callout callout-error" role="alert">{approvalModeError}</div>}
+          <div className="approval-mode-options" role="radiogroup" aria-label="Default Approval Mode">
+            {APPROVAL_MODE_OPTIONS.map((option) => (
+              <button
+                key={option.mode}
+                type="button"
+                className={`approval-mode-option${approvalMode === option.mode ? ' is-selected' : ''}`}
+                role="radio"
+                aria-checked={approvalMode === option.mode}
+                disabled={modeSaving}
+                onClick={() => void changeApprovalMode(option.mode)}
+              >
+                <strong>{option.label}</strong>
+                <span>{option.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="card overview-summary-card overview-current-activity" aria-labelledby="current-activity-title">
+        <div className="overview-section-header">
+          <div className="overview-section-title">
+            <UiIcon name="team" size={19} />
+            <h2 id="current-activity-title">Current activity</h2>
+          </div>
+          <span className={`badge ${teamWorkState === 'Blocked' || teamWorkState === 'Unavailable' ? 'badge-yellow' : teamWorkState === 'Idle' ? 'badge-gray' : 'badge-green'}`}>
+            {teamWorkState}
+          </span>
+        </div>
+        <div className="overview-current-activity-body">
+          <strong>{currentActivityTitle}</strong>
+          <span>Current task: {currentActivityDescription}</span>
+          <span title={teamMission?.nextAction}>Current step: {teamMission?.nextAction ?? 'Unavailable'}</span>
+          {teamMission && <time dateTime={teamMission.updatedAt}>Updated {formatEventTime(teamMission.updatedAt)}</time>}
+        </div>
       </section>
 
       <div className="overview-bottom-grid">
@@ -267,12 +402,12 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
             <div className="overview-activity-list">
               {recentEvents.map((event) => (
                 <div className="overview-activity-row" key={event.id}>
-                  <span className={`activity-state-icon ${event.resultCode === 'OK' ? 'success' : 'error'}`} aria-hidden="true">
+                  <span className={`activity-state-icon ${event.tone === 'success' ? 'success' : event.tone === 'error' ? 'error' : 'neutral'}`} aria-hidden="true">
                     <UiIcon name="check" size={16} />
                   </span>
                   <div className="overview-activity-copy">
-                    <strong>{friendlyAction(event.action)}</strong>
-                    {event.resourcePath && <span title={event.resourcePath}>{event.resourcePath}</span>}
+                    <strong>{event.title}</strong>
+                    {event.details[0] && <span>{event.details[0].label}: {event.details[0].value}</span>}
                   </div>
                   <time dateTime={event.timestamp}>{formatEventTime(event.timestamp)}</time>
                 </div>
@@ -286,33 +421,36 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
           </button>
         </section>
 
-        <section className="card overview-summary-card" aria-labelledby="safety-status-title">
+        <section className="card overview-summary-card" aria-labelledby="current-session-title">
           <div className="overview-section-header">
             <div className="overview-section-title">
-              <UiIcon name="security" size={19} />
-              <h2 id="safety-status-title">Safety status</h2>
+              <UiIcon name="workspaces" size={19} />
+              <h2 id="current-session-title">Current Session / Work Status</h2>
             </div>
           </div>
 
-          <ul className="overview-safety-list">
-            <li>
-              <UiIcon name="check" size={18} />
-              <span>Workspace-bound access</span>
-            </li>
-            <li>
-              <UiIcon name="check" size={18} />
-              <span>Network denied by default</span>
-            </li>
-            <li>
-              <UiIcon name="check" size={18} />
-              <span>Credentials stay hidden from the renderer</span>
-            </li>
-          </ul>
-
-          <button className="btn btn-link overview-card-link" onClick={() => onNavigate('security')}>
-            View security
-            <UiIcon name="arrow-right" size={15} />
-          </button>
+          <dl className="overview-session-list">
+            <div>
+              <dt>Active workspace</dt>
+              <dd title={activeWorkspace?.canonicalRoot}>{activeWorkspace?.displayName ?? 'Unavailable'}</dd>
+            </div>
+            <div>
+              <dt>Git branch</dt>
+              <dd>{gitBranchLabel}</dd>
+            </div>
+            <div>
+              <dt>Team / work state</dt>
+              <dd>{teamWorkState}</dd>
+            </div>
+            <div>
+              <dt>Working tree</dt>
+              <dd>{gitStatusLabel}</dd>
+            </div>
+            <div>
+              <dt>Last checkpoint</dt>
+              <dd>{checkpointLabel}</dd>
+            </div>
+          </dl>
         </section>
       </div>
     </div>

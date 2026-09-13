@@ -18,6 +18,7 @@ import {
   type DesktopApprovalRequestDto,
   type DesktopApprovalResponseDto,
   type DesktopTeamMissionDto,
+  type DesktopOverviewWorkStatusDto,
   type TeamStatusInput,
   type TeamStopInput,
   type ConnectionStartInput,
@@ -84,6 +85,10 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.TEAM_STATUS, input) as Promise<IpcResult<DesktopTeamMissionDto | null>>,
     stop: (input?: TeamStopInput): Promise<IpcResult<DesktopTeamMissionDto>> =>
       ipcRenderer.invoke(IPC_CHANNELS.TEAM_STOP, input) as Promise<IpcResult<DesktopTeamMissionDto>>,
+  },
+  overview: {
+    workStatus: (): Promise<IpcResult<DesktopOverviewWorkStatusDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.OVERVIEW_WORK_STATUS) as Promise<IpcResult<DesktopOverviewWorkStatusDto>>,
   },
   connection: {
     status: (): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>

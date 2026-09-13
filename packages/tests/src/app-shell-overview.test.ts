@@ -136,17 +136,45 @@ describe('App Shell + Overview', () => {
     expect(home).not.toContain('Connection details');
     expect(home).toMatch(/Connection Setting[\s\S]{0,240}onNavigate\('connection'\)|onNavigate\('connection'\)[\s\S]{0,240}Connection Setting/u);
     expect(home).toContain('Approved workspaces');
+    expect(home).toContain('Current activity');
     expect(home).toContain('Recent activity');
-    expect(home).toContain('Safety status');
-    expect(home).toContain('Workspace-bound access');
-    expect(home).toContain('Network denied by default');
-    expect(home).toContain('Credentials stay hidden from the renderer');
+    expect(home).toContain('Current Session / Work Status');
+    expect(home).not.toContain('Safety status');
+    expect(home).not.toContain('Workspace-bound access');
+    expect(home).not.toContain('Network denied by default');
+    expect(home).not.toContain('Credentials stay hidden from the renderer');
     expect(home).not.toMatch(/Connection Method|IE Coder Connect|Active Sessions|Uptime|Permissions/);
     expect(home).not.toMatch(/api.?key.{0,30}(suffix|slice\s*\(\s*-)/i);
 
     expect(css).toContain('.app-topbar');
     expect(css).toContain('.overview-connection-card');
     expect(css).toContain('.overview-bottom-grid');
+  });
+
+  it('uses trusted Team, Activity, Git/checkpoint status for current work and keeps safety posture on Security', () => {
+    const home = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/HomePage.tsx'), 'utf8');
+    const security = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/SettingsPage.tsx'), 'utf8');
+
+    expect(home).toContain('window.sudD.team.status({})');
+    expect(home).toContain('window.sudD.activity.list({ limit: 5 })');
+    expect(home).toContain('window.sudD.overview.workStatus()');
+    expect(home).toContain('const refreshWorkStatus = useCallback');
+    expect(home).toContain('workStatusRefreshInFlight.current');
+    expect(home).toContain('window.setInterval(() => void refreshWorkStatus(), 5000)');
+    expect(home).toContain('teamMission?.nextAction');
+    expect(home).toContain('Current activity');
+    expect(home).toContain('Current Session / Work Status');
+    expect(home).toContain('View all activity');
+    expect(home).not.toContain('window.sudD.audit.list');
+    expect(home).not.toContain('Safety status');
+    expect(home).not.toMatch(/recentEvents\s*\[\s*0\s*\].*(Current activity|currentActivity)/u);
+
+    expect(security).toContain('Safety posture');
+    expect(security).toContain('Workspace-bound access');
+    expect(security).toContain('Network denied by default');
+    expect(security).toContain('Credentials stay hidden from the renderer');
+    expect(security).not.toContain('No unrestricted or full-access mode is available.');
+    expect(security).not.toContain('No unrestricted / full-access mode');
   });
 
   it('places Overview connection actions under the left copy and shows display-only workspace access', () => {
@@ -163,7 +191,6 @@ describe('App Shell + Overview', () => {
     expect(home).toContain('Read & write');
     expect(home).toContain('workspace-access-badge');
     expect(home).not.toMatch(/workspace-access[^\n]*(button|select|input|checkbox|onClick|onChange)/iu);
-    expect(home).not.toMatch(/permissions?|capability|policy/i);
   });
 
   it('shows only the active workspace in Overview and keeps add workspace navigation fixed', () => {
