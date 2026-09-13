@@ -36,6 +36,32 @@ describe('Git Safety - checkpoint semantics and state preservation', () => {
     expect(fs.readFileSync(path.join(h.workspaceRoot, 'tracked.txt'))).toEqual(worktreeBefore);
   }, 20_000);
 
+  it('creates a bounded branch commit from an inspected clean-index worktree', async () => {
+    const h = await makeHarness();
+    fs.writeFileSync(path.join(h.workspaceRoot, 'tracked.txt'), 'committed-working\n', 'utf8');
+    fs.writeFileSync(path.join(h.workspaceRoot, 'new-doc.md'), '# Dogfood\n', 'utf8');
+    const status = kernelValue<GitStatusResult>(await h.invoke('git.status', {}));
+    const headBefore = git(h.workspaceRoot, ['rev-parse', 'HEAD']);
+
+    const committed = kernelValue<{
+      readonly commitSha: string;
+      readonly parentHead: string;
+      readonly committedPathCount: number;
+    }>(await h.invoke('git.commit', {
+      expectedStatusId: status.statusId,
+      message: 'docs: dogfood commit',
+    }));
+
+    expect(committed.parentHead).toBe(headBefore);
+    expect(committed.committedPathCount).toBe(2);
+    expect(git(h.workspaceRoot, ['rev-parse', 'HEAD'])).toBe(committed.commitSha);
+    expect(git(h.workspaceRoot, ['rev-parse', `${committed.commitSha}^`])).toBe(headBefore);
+    expect(git(h.workspaceRoot, ['show', '-s', '--format=%s', committed.commitSha])).toBe('docs: dogfood commit');
+    expect(git(h.workspaceRoot, ['show', `${committed.commitSha}:tracked.txt`])).toBe('committed-working');
+    expect(git(h.workspaceRoot, ['show', `${committed.commitSha}:new-doc.md`])).toBe('# Dogfood');
+    expect(git(h.workspaceRoot, ['status', '--porcelain=v2'])).toBe('');
+  }, 20_000);
+
   it('uses current working-tree content while preserving mixed staged and unstaged state byte-for-byte', async () => {
     const h = await makeHarness();
     fs.writeFileSync(path.join(h.workspaceRoot, 'delete.txt'), 'delete-me\n');

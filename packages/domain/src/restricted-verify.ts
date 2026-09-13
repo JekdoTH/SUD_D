@@ -3,6 +3,8 @@ export const RESTRICTED_VERIFY_ACTIONS = Object.freeze([
   'lint',
   'typecheck',
   'build',
+  'diff_check',
+  'secret_scan',
 ] as const);
 
 export type RestrictedVerifyAction = (typeof RESTRICTED_VERIFY_ACTIONS)[number];

@@ -91,6 +91,10 @@ const gitDiffInputSchema = z.object({
 const gitCheckpointInputSchema = z.object({
   expectedStatusId: z.string().regex(/^[0-9a-f]{64}$/),
 }).strict();
+const gitCommitInputSchema = z.object({
+  expectedStatusId: z.string().regex(/^[0-9a-f]{64}$/),
+  message: z.string().min(1).max(160).refine((value) => !/[\r\n\0]/.test(value)),
+}).strict();
 
 const teamGoalSchema = z.string().min(1).max(2_000).refine((value) => !value.includes('\0'));
 const teamSummarySchema = z.string().min(1).max(1_000).refine((value) => !value.includes('\0'));
@@ -454,6 +458,15 @@ function registerGitSafetyTools(server: McpServer, kernel: ToolKernel): void {
       inputSchema: gitCheckpointInputSchema,
     },
     async (input) => invokeKernel(kernel, 'git.checkpoint', input),
+  );
+  server.registerTool(
+    'git.commit',
+    {
+      title: 'Commit Workspace changes',
+      description: 'Create one bounded local branch commit from an inspected active-Workspace status with a clean staging area.',
+      inputSchema: gitCommitInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'git.commit', input),
   );
 }
 

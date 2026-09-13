@@ -153,4 +153,32 @@ describe('Git Safety - sensitive, unsafe, bounded, and stale checkpoint cases', 
     expect(result).toMatchObject({ ok: false, code: 'EXECUTION_FAILED', causeCode: 'GIT_OPERATION_CONFLICT' });
     expect(checkpointRefs(h.workspaceRoot)).toEqual([]);
   }, 15_000);
+  it('rejects stale git.commit status without moving HEAD', async () => {
+    const h = await makeHarness();
+    fs.writeFileSync(path.join(h.workspaceRoot, 'tracked.txt'), 'first-change\n');
+    const status = kernelValue<GitStatusResult>(await h.invoke('git.status', {}));
+    const headBefore = git(h.workspaceRoot, ['rev-parse', 'HEAD']);
+    fs.writeFileSync(path.join(h.workspaceRoot, 'tracked.txt'), 'second-change\n');
+
+    const result = await h.invoke('git.commit', { expectedStatusId: status.statusId, message: 'test: stale commit' });
+
+    expect(result).toMatchObject({ ok: false, code: 'EXECUTION_FAILED', causeCode: 'GIT_STATUS_STALE' });
+    expect(git(h.workspaceRoot, ['rev-parse', 'HEAD'])).toBe(headBefore);
+  }, 15_000);
+
+  it('rejects staged state and preserves the user index', async () => {
+    const h = await makeHarness();
+    fs.writeFileSync(path.join(h.workspaceRoot, 'tracked.txt'), 'staged-change\n');
+    git(h.workspaceRoot, ['add', '--', 'tracked.txt']);
+    const indexBefore = indexBytes(h.workspaceRoot);
+    const headBefore = git(h.workspaceRoot, ['rev-parse', 'HEAD']);
+    const status = kernelValue<GitStatusResult>(await h.invoke('git.status', {}));
+
+    const result = await h.invoke('git.commit', { expectedStatusId: status.statusId, message: 'test: staged commit' });
+
+    expect(result).toMatchObject({ ok: false, code: 'EXECUTION_FAILED', causeCode: 'GIT_STATE_UNSAFE' });
+    expect(indexBytes(h.workspaceRoot)).toEqual(indexBefore);
+    expect(git(h.workspaceRoot, ['rev-parse', 'HEAD'])).toBe(headBefore);
+  }, 15_000);
+
 });

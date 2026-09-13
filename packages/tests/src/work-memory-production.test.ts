@@ -38,6 +38,10 @@ const gitSafety: GitSafetyAdapter = {
   diffApprovedSensitive: () => ok({ patch: '', bytes: 0, truncated: false, omittedSensitivePaths: [] }),
   checkpoint: () => ok({ created: false, reason: 'NO_CHANGES' }),
   checkpointApprovedSensitive: () => ok({ created: false, reason: 'NO_CHANGES' }),
+  commit: () => { throw new Error('unexpected commit'); },
+  commitApprovedSensitive: () => { throw new Error('unexpected commit'); },
+  diffCheck: () => ok({ passed: true, findingCount: 0, output: 'git diff --check passed' }),
+  secretScan: () => ok({ passed: true, findingCount: 0, output: 'secret signature scan passed' }),
 };
 interface RpcMessage { readonly result?: { readonly instructions?: string; readonly tools?: Array<{ readonly name?: string }>; readonly content?: Array<{ readonly type?: string; readonly text?: string }>; readonly isError?: boolean }; }
 function reader(output: PassThrough) {
@@ -69,14 +73,14 @@ function approvalId(value: Record<string, unknown>): string {
 }
 
 describe('Work Memory production MCP bootstrap', () => {
-  it('exposes 26 tools and resets bootstrap for a new server while persisted Resume Context survives', async () => {
+  it('exposes 27 tools and resets bootstrap for a new server while persisted Resume Context survives', async () => {
     const root=fs.mkdtempSync(path.join(os.tmpdir(),'sud-d-work-prod-')); roots.push(root); const wsRoot=path.join(root,'workspace'); fs.mkdirSync(wsRoot);
     const db=openDatabase(path.join(root,'state.db')); dbs.push(db); const workspaceRepo=createWorkspaceRepository(db); const ws=workspaceRepo.save('A',canonical(wsRoot)); workspaceRepo.setActive(ws.id); const auditRepo=createAuditRepository(db); const workMemoryRepo=createWorkMemoryRepository(db);
     const make=()=>createProductionMcpServer({ workspaceRepo,auditRepo,internalRoots:[],fileSystem:createWorkspaceTextFileSystem(),gitSafety,teamRepo:createTeamRepository(db),teamTransitionUow:createTeamTransitionUnitOfWork(db),semanticRead:{read:async()=>({content:[]})},semanticWrite:{write:async()=>({content:[]})},restrictedVerify:{run:async(_c,r)=>({action:r.action,passed:true,exitCode:0,output:'',truncated:false,durationMs:1})},workMemoryRepo });
 
     const serverA=make(); const a=await connect(serverA);
     expect(a.initialized.result?.instructions).toContain('work.resume');
-    const listed=await a.list(); const names=(listed.result?.tools??[]).map((t)=>t.name).filter((v):v is string=>typeof v==='string').sort(); expect(names).toHaveLength(26); expect(names).toContain('work.resume'); expect(names).toContain('work.checkpoint');
+    const listed=await a.list(); const names=(listed.result?.tools??[]).map((t)=>t.name).filter((v):v is string=>typeof v==='string').sort(); expect(names).toHaveLength(27); expect(names).toContain('work.resume'); expect(names).toContain('work.checkpoint');
     expect(payload(await a.call('git.status',{}))).toMatchObject({ok:false,code:'WORK_RESUME_REQUIRED'});
     expect(payload(await a.call('work.resume',{}))).toMatchObject({ok:true,code:'EXECUTED',value:{workspaceId:ws.id}});
     expect(payload(await a.call('git.status',{}))).toMatchObject({ok:true,code:'EXECUTED'});

@@ -75,9 +75,9 @@ Safety/control evidence: the mission honored the task STOP condition, did not mu
 
 Interpretation: this is a Personal Alpha capability-coverage gap exposed by dogfood, not evidence that Team Mode state transitions themselves failed. Team Mode successfully started, entered Planner, detected an unsatisfied completion requirement, and stopped safely before side effects.
 
-Current impact: BLOCKER for any task whose required completion contract includes Git commit, exact diff whitespace validation, or repo-policy secret scanning through SUD-D only.
+Impact at discovery: BLOCKER for any task whose required completion contract includes Git commit, exact diff whitespace validation, or repo-policy secret scanning through SUD-D only.
 
-Status: OPEN / dogfood blocker. Recording this finding does not authorize capability implementation.
+Implementation status (2026-09-13): APPROVED FIX IMPLEMENTED AND LOCALLY VERIFIED / SUD-D-only dogfood rerun pending. The bounded surface now adds `git.commit` and extends `verify.run` with `diff_check` and `secret_scan`; production MCP now exposes 27 tools while Team remains exactly four tools. The fix keeps Git/process behavior fixed-purpose and workspace-bound and does not add arbitrary shell, executable, argv, cwd, or env control. Final local verification: full suite 501 passed / 5 skipped, lint/typecheck/build PASS, `git diff --check` PASS, and built bounded diff/secret verification PASS with zero findings.
 
 ## Diagnostic evidence
 
@@ -95,13 +95,13 @@ The running tunnel was also observed healthy/ready against the current SUD-D gat
 - DGF-002: OPEN — stale `Waiting for ChatGPT` UI state after real MCP use.
 - DGF-003: RESOLVED OPERATIONALLY — refresh ChatGPT actions, then use a fresh chat.
 - DGF-004: RESOLVED OPERATIONALLY — refresh ChatGPT actions, then use a fresh chat.
-- DGF-005: OPEN / BLOCKER — current SUD-D surface cannot complete required commit + exact diff check + repo-policy secret scan.
+- DGF-005: FIX IMPLEMENTED / DOGFOOD RERUN PENDING — local production surface now provides bounded commit + diff check + repo-policy secret scan; real SUD-D-only acceptance remains the closure criterion.
 - Team/Work Memory entrypoints are callable through SUD-D HOME, and Team Mode has demonstrated safe STOP-before-side-effect behavior on an unsupported completion contract.
 
 ## Next dogfood step
 
-1. Keep the blocked workload stopped; do not weaken its completion requirements merely to force a green run.
-2. Product Owner decides whether DGF-005 becomes an approved dogfood-fix milestone or remains deferred.
-3. If approved, design the smallest bounded capabilities needed for commit, exact diff validation, and repo-policy secret scanning without opening arbitrary shell execution.
-4. After those capabilities are separately implemented and verified, refresh ChatGPT actions if the exposed tool contract changed, then rerun the same docs-only workload from a fresh Team mission.
-5. Continue to prohibit external-tool fallback during the SUD-D dogfood workload.
+1. Restart/refresh SUD-D HOME actions so ChatGPT sees the 27-tool contract and six fixed verify actions.
+2. Open a fresh ChatGPT session, call `work.resume`, and rerun the same docs-only Team Mode workload from a new mission.
+3. Require real `Planner → Worker → Validator → Reviewer → completed` evidence plus the required commit/diff/secret verification through SUD-D only.
+4. Keep Remote Commander/Desktop Commander disabled during that acceptance workload; external fallback would invalidate the dogfood proof.
+5. Mark DGF-005 resolved only after the fresh SUD-D-only workload completes successfully.

@@ -28,13 +28,14 @@ import {
 } from './git-safety-test-harness.js';
 
 describe('Git Safety - trusted composition and detection', () => {
-  it('registers exactly four approved Git capabilities with fixed effects', async () => {
+  it('registers exactly five approved Git capabilities with fixed effects', async () => {
     const h = await makeHarness();
     expect(h.capabilities.map((capability) => [capability.name, capability.effect])).toEqual([
       ['git.detect', 'read'],
       ['git.status', 'read'],
       ['git.diff', 'read'],
       ['git.checkpoint', 'create'],
+      ['git.commit', 'modify'],
     ]);
   });
 
@@ -120,7 +121,7 @@ describe('Git Safety - status and production MCP surface', () => {
     expect(second.statusId).not.toBe(first.statusId);
   });
 
-  it('production tools/list exposes exactly six Workspace, four Git, four Team, five semantic reads, four semantic writes, Restricted Verify, and two Work Memory tools', async () => {
+  it('production tools/list exposes exactly six Workspace, five Git, four Team, five semantic reads, four semantic writes, Restricted Verify, and two Work Memory tools', async () => {
     const h = await makeHarness();
     const server = createProductionMcpServer({
       workspaceRepo: h.workspaceRepo,

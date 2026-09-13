@@ -86,6 +86,19 @@ export interface GitCheckpointResult {
   readonly capturedPathCount?: number;
 }
 
+export interface GitCommitResult {
+  readonly commitSha: string;
+  readonly parentHead: string;
+  readonly branch: string;
+  readonly committedPathCount: number;
+}
+
+export interface GitVerificationResult {
+  readonly passed: boolean;
+  readonly findingCount: number;
+  readonly output: string;
+}
+
 export interface GitSafetyAdapter {
   detect(workspaceCanonicalRoot: string): Result<GitDetectResult, AppError>;
   status(workspaceCanonicalRoot: string, limit?: number): Result<GitStatusResult, AppError>;
@@ -105,6 +118,18 @@ export interface GitSafetyAdapter {
     workspaceCanonicalRoot: string,
     expectedStatusId: string,
   ): Result<GitCheckpointResult, AppError>;
+  commit(
+    workspaceCanonicalRoot: string,
+    expectedStatusId: string,
+    message: string,
+  ): Result<GitCommitResult, AppError>;
+  commitApprovedSensitive(
+    workspaceCanonicalRoot: string,
+    expectedStatusId: string,
+    message: string,
+  ): Result<GitCommitResult, AppError>;
+  diffCheck(workspaceCanonicalRoot: string): Result<GitVerificationResult, AppError>;
+  secretScan(workspaceCanonicalRoot: string): Result<GitVerificationResult, AppError>;
 }
 
 interface GitRuntime {
@@ -132,6 +157,8 @@ interface CheckpointFileSnapshot {
 const CHECKPOINT_MESSAGE = 'SUD-D safety checkpoint';
 const CHECKPOINT_AUTHOR_NAME = 'SUD-D Safety Checkpoint';
 const CHECKPOINT_AUTHOR_EMAIL = 'checkpoint@sud-d.invalid';
+const COMMIT_AUTHOR_NAME = 'SUD-D Workspace Commit';
+const COMMIT_AUTHOR_EMAIL = 'commit@sud-d.invalid';
 
 export function createGitSafetyAdapter(): GitSafetyAdapter {
   return Object.freeze({
@@ -152,6 +179,18 @@ export function createGitSafetyAdapter(): GitSafetyAdapter {
     },
     checkpointApprovedSensitive(workspaceCanonicalRoot: string, expectedStatusId: string) {
       return createCheckpoint(workspaceCanonicalRoot, expectedStatusId, true);
+    },
+    commit(workspaceCanonicalRoot: string, expectedStatusId: string, message: string) {
+      return createBranchCommit(workspaceCanonicalRoot, expectedStatusId, message, false);
+    },
+    commitApprovedSensitive(workspaceCanonicalRoot: string, expectedStatusId: string, message: string) {
+      return createBranchCommit(workspaceCanonicalRoot, expectedStatusId, message, true);
+    },
+    diffCheck(workspaceCanonicalRoot: string) {
+      return runDiffCheck(workspaceCanonicalRoot);
+    },
+    secretScan(workspaceCanonicalRoot: string) {
+      return runSecretScan(workspaceCanonicalRoot);
     },
   });
 }
@@ -562,6 +601,373 @@ function createCheckpoint(
   }
 }
 
+function runDiffCheck(workspaceCanonicalRoot: string): Result<GitVerificationResult, AppError> {
+  const detected = detectRepository(workspaceCanonicalRoot);
+  if (!detected.ok) return detected;
+  if (!detected.value.isSupported || !detected.value.headSha) {
+    return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Active Workspace is not a supported Git repository'));
+  }
+  const status = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
+  if (!status.ok) return status;
+  if (status.value.truncated) {
+    return err(appError('RESOURCE_TOO_LARGE', 'Git diff check path count exceeds the trusted limit'));
+  }
+  if (status.value.state !== 'normal') {
+    return err(appError('GIT_STATE_UNSAFE', 'Git diff check requires a normal repository state'));
+  }
+  if (status.value.entries.some((entry) => entry.gitlink)) {
+    return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git diff check does not support submodule/gitlink changes'));
+  }
+  if (status.value.entries.length === 0) {
+    return ok({ passed: true, findingCount: 0, output: 'git diff --check passed' });
+  }
+  const runtime = makeGitRuntime();
+  if (!runtime.ok) return runtime;
+  const tempIndex = path.join(runtime.value.root, 'diff-check.index');
+  const tempObjects = path.join(runtime.value.root, 'objects');
+  try {
+    fs.mkdirSync(tempObjects, { recursive: true });
+    const isolatedEnv = {
+      GIT_INDEX_FILE: tempIndex,
+      GIT_OBJECT_DIRECTORY: tempObjects,
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: path.join(workspaceCanonicalRoot, '.git', 'objects'),
+    };
+    const seeded = runGit(workspaceCanonicalRoot, runtime.value, ['read-tree', detected.value.headSha], { extraEnv: isolatedEnv });
+    if (!isSuccessfulGitCommand(seeded)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to initialize isolated Git diff-check index'));
+    }
+    const headModes = readHeadModes(workspaceCanonicalRoot, runtime.value, detected.value.headSha, status.value.entries.map((entry) => entry.path));
+    if (!headModes.ok) return headModes;
+    const prepared = prepareCheckpointEntries(
+      workspaceCanonicalRoot,
+      runtime.value,
+      status.value.entries,
+      headModes.value,
+      isolatedEnv,
+      false,
+      true,
+    );
+    if (!prepared.ok) return prepared;
+    const zeroOid = '0'.repeat(detected.value.headSha.length);
+    const updated = runGit(
+      workspaceCanonicalRoot,
+      runtime.value,
+      ['update-index', '-z', '--index-info'],
+      { input: buildIndexInfo(prepared.value.files, prepared.value.deletedPaths, zeroOid), extraEnv: isolatedEnv },
+    );
+    if (!isSuccessfulGitCommand(updated)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to prepare isolated Git diff-check index'));
+    }
+    const tree = runGit(workspaceCanonicalRoot, runtime.value, ['write-tree'], { extraEnv: isolatedEnv });
+    if (!isSuccessfulGitCommand(tree)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to create isolated Git diff-check tree'));
+    }
+    const treeOid = decode(tree.value.stdout).trim();
+    const result = runGit(
+      workspaceCanonicalRoot,
+      runtime.value,
+      [
+        'diff-tree',
+        '--check',
+        '--no-commit-id',
+        '--no-ext-diff',
+        '--no-textconv',
+        '--no-renames',
+        '--no-color',
+        '--ignore-submodules=all',
+        detected.value.headSha,
+        treeOid,
+      ],
+      { maxOutputBytes: GIT_SAFETY_LIMITS.maxDiffBytes, extraEnv: isolatedEnv },
+    );
+    if (!result.ok || result.value.overflowed) {
+      return err(appError('RESOURCE_TOO_LARGE', 'Git diff check output exceeded the trusted limit'));
+    }
+    const passed = result.value.status === 0;
+    const findingCount = passed
+      ? 0
+      : Math.max(1, decode(result.value.stdout).split(/\r?\n/).filter((line) => /:\d+:/.test(line)).length);
+    return ok({
+      passed,
+      findingCount,
+      output: passed ? 'git diff --check passed' : 'git diff --check found whitespace errors',
+    });
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+const SECRET_SIGNATURE_PATTERNS = Object.freeze([
+  /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/,
+  /\bsk-[A-Za-z0-9_-]{20,}\b/,
+  /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bxox[baprs]-[A-Za-z0-9-]{20,}\b/,
+] as const);
+
+function secretBearingLines(text: string): readonly string[] {
+  return text.split(/\r?\n/).filter((line) =>
+    SECRET_SIGNATURE_PATTERNS.some((pattern) => pattern.test(line)));
+}
+
+function introducesSecretSignature(currentText: string, previousText: string): boolean {
+  const previousCounts = new Map<string, number>();
+  for (const line of secretBearingLines(previousText)) {
+    previousCounts.set(line, (previousCounts.get(line) ?? 0) + 1);
+  }
+  for (const line of secretBearingLines(currentText)) {
+    const previousCount = previousCounts.get(line) ?? 0;
+    if (previousCount === 0) return true;
+    previousCounts.set(line, previousCount - 1);
+  }
+  return false;
+}
+
+function runSecretScan(workspaceCanonicalRoot: string): Result<GitVerificationResult, AppError> {
+  const status = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
+  if (!status.ok) return status;
+  if (status.value.truncated) {
+    return err(appError('RESOURCE_TOO_LARGE', 'Secret scan changed-path count exceeds the trusted limit'));
+  }
+  const runtime = makeGitRuntime();
+  if (!runtime.ok) return runtime;
+  const suspectPaths = new Set<string>();
+  let aggregateBytes = 0;
+  try {
+    for (const entry of status.value.entries) {
+      if (entry.sensitive) {
+        suspectPaths.add(entry.path);
+        continue;
+      }
+      if (entry.kind === 'deleted') continue;
+      const resolved = resolveExistingResource({
+        workspaceCanonicalRoot,
+        relativePath: entry.path,
+        internalRoots: [],
+      });
+      if (!resolved.ok) return resolved;
+      const stat = fs.lstatSync(resolved.value.canonical);
+      if (stat.isSymbolicLink() || !stat.isFile()) {
+        return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Secret scan supports regular changed files only'));
+      }
+      if (stat.size > GIT_SAFETY_LIMITS.maxCheckpointFileBytes) {
+        return err(appError('RESOURCE_TOO_LARGE', 'Secret scan file exceeds the trusted size limit'));
+      }
+      aggregateBytes += stat.size;
+      if (aggregateBytes > GIT_SAFETY_LIMITS.maxCheckpointAggregateBytes) {
+        return err(appError('RESOURCE_TOO_LARGE', 'Secret scan aggregate size exceeds the trusted limit'));
+      }
+      const currentText = fs.readFileSync(resolved.value.canonical).toString('utf8');
+      let previousText = '';
+      if (!entry.untracked && entry.kind !== 'added') {
+        const previous = runGit(
+          workspaceCanonicalRoot,
+          runtime.value,
+          ['cat-file', 'blob', `${status.value.headSha}:${entry.path}`],
+          { maxOutputBytes: GIT_SAFETY_LIMITS.maxCheckpointFileBytes },
+        );
+        if (!previous.ok || previous.value.overflowed) {
+          return err(appError('RESOURCE_TOO_LARGE', 'Secret scan prior file exceeds the trusted limit'));
+        }
+        if (previous.value.status !== 0) {
+          return err(appError('INTERNAL_ERROR', 'Secret scan could not inspect prior Workspace content'));
+        }
+        previousText = previous.value.stdout.toString('utf8');
+      }
+      if (introducesSecretSignature(currentText, previousText)) suspectPaths.add(entry.path);
+    }
+  } catch {
+    return err(appError('INTERNAL_ERROR', 'Secret scan could not inspect a changed Workspace file'));
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+  const findingCount = suspectPaths.size;
+  return ok({
+    passed: findingCount === 0,
+    findingCount,
+    output: findingCount === 0
+      ? 'secret signature scan passed'
+      : `secret signature scan found ${findingCount} suspect file${findingCount === 1 ? '' : 's'}`,
+  });
+}
+
+function createBranchCommit(
+  workspaceCanonicalRoot: string,
+  expectedStatusId: string,
+  message: string,
+  allowSensitive = false,
+): Result<GitCommitResult, AppError> {
+  if (!message || message.length > 160 || /[\r\n\0]/.test(message)) {
+    return err(appError('VALIDATION_FAILED', 'Git commit message is invalid'));
+  }
+  const detected = detectRepository(workspaceCanonicalRoot);
+  if (!detected.ok) return detected;
+  if (!detected.value.isSupported || !detected.value.headSha || !detected.value.branch || detected.value.detached) {
+    return err(appError('GIT_STATE_UNSAFE', 'Git commit requires a supported local branch'));
+  }
+  const before = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
+  if (!before.ok) return before;
+  if (before.value.statusId !== expectedStatusId) {
+    return err(appError('GIT_STATUS_STALE', 'Workspace Git status changed before commit'));
+  }
+  if (before.value.truncated) {
+    return err(appError('RESOURCE_TOO_LARGE', 'Git commit path count exceeds the trusted limit'));
+  }
+  if (before.value.state !== 'normal' || before.value.entries.some((entry) => entry.staged)) {
+    return err(appError('GIT_STATE_UNSAFE', 'Git commit requires a normal repository with a clean staging area'));
+  }
+  if (!allowSensitive && before.value.entries.some((entry) => entry.sensitive)) {
+    return err(appError('SENSITIVE_RESOURCE', 'Credential-like Git changes require approval'));
+  }
+  if (before.value.entries.some((entry) => entry.gitlink)) {
+    return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git commit does not support submodule/gitlink changes'));
+  }
+  if (before.value.entries.length === 0) {
+    return err(appError('GIT_STATE_UNSAFE', 'Git commit requires Workspace changes'));
+  }
+  if (hasConcurrentGitLock(workspaceCanonicalRoot)) {
+    return err(appError('GIT_OPERATION_CONFLICT', 'Another Git operation is in progress'));
+  }
+
+  const indexBefore = readUserIndexFingerprint(workspaceCanonicalRoot);
+  if (!indexBefore.ok) return indexBefore;
+  const runtime = makeGitRuntime();
+  if (!runtime.ok) return runtime;
+  const tempIndex = path.join(runtime.value.root, 'commit.index');
+  const isolatedIndexEnv = { GIT_INDEX_FILE: tempIndex };
+  try {
+    const branchRef = runGit(workspaceCanonicalRoot, runtime.value, ['symbolic-ref', '--quiet', 'HEAD']);
+    if (!isSuccessfulGitCommand(branchRef)) {
+      return err(appError('GIT_STATE_UNSAFE', 'Git commit requires a local branch'));
+    }
+    const trustedBranchRef = decode(branchRef.value.stdout).trim();
+    if (!trustedBranchRef.startsWith('refs/heads/') || trustedBranchRef.length <= 'refs/heads/'.length) {
+      return err(appError('GIT_STATE_UNSAFE', 'Git branch reference is unsupported'));
+    }
+
+    const seeded = runGit(workspaceCanonicalRoot, runtime.value, ['read-tree', before.value.headSha], { extraEnv: isolatedIndexEnv });
+    if (!isSuccessfulGitCommand(seeded)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to initialize isolated Git commit index'));
+    }
+    const headModes = readHeadModes(
+      workspaceCanonicalRoot,
+      runtime.value,
+      before.value.headSha,
+      before.value.entries.map((entry) => entry.path),
+    );
+    if (!headModes.ok) return headModes;
+    const prepared = prepareCheckpointEntries(
+      workspaceCanonicalRoot,
+      runtime.value,
+      before.value.entries,
+      headModes.value,
+      undefined,
+      allowSensitive,
+    );
+    if (!prepared.ok) return prepared;
+    const zeroOid = '0'.repeat(before.value.headSha.length);
+    const updated = runGit(
+      workspaceCanonicalRoot,
+      runtime.value,
+      ['update-index', '-z', '--index-info'],
+      { input: buildIndexInfo(prepared.value.files, prepared.value.deletedPaths, zeroOid), extraEnv: isolatedIndexEnv },
+    );
+    if (!isSuccessfulGitCommand(updated)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to prepare isolated Git commit index'));
+    }
+    const tree = runGit(workspaceCanonicalRoot, runtime.value, ['write-tree'], { extraEnv: isolatedIndexEnv });
+    if (!isSuccessfulGitCommand(tree)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to create Git commit tree'));
+    }
+    const treeOid = decode(tree.value.stdout).trim();
+
+    const preCommit = revalidateCheckpointState(
+      workspaceCanonicalRoot,
+      before.value,
+      indexBefore.value,
+      prepared.value.files,
+      prepared.value.deletedPaths,
+      allowSensitive,
+    );
+    if (!preCommit.ok) return preCommit;
+    if (hasConcurrentGitLock(workspaceCanonicalRoot)) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Another Git operation is in progress'));
+    }
+
+    const commit = runGit(
+      workspaceCanonicalRoot,
+      runtime.value,
+      ['commit-tree', treeOid, '-p', before.value.headSha, '--no-gpg-sign', '-m', message],
+      {
+        extraEnv: {
+          ...isolatedIndexEnv,
+          GIT_AUTHOR_NAME: COMMIT_AUTHOR_NAME,
+          GIT_AUTHOR_EMAIL: COMMIT_AUTHOR_EMAIL,
+          GIT_COMMITTER_NAME: COMMIT_AUTHOR_NAME,
+          GIT_COMMITTER_EMAIL: COMMIT_AUTHOR_EMAIL,
+        },
+      },
+    );
+    if (!isSuccessfulGitCommand(commit)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to create Git commit object'));
+    }
+    const commitSha = decode(commit.value.stdout).trim();
+
+    const preRef = revalidateCheckpointState(
+      workspaceCanonicalRoot,
+      before.value,
+      indexBefore.value,
+      prepared.value.files,
+      prepared.value.deletedPaths,
+      allowSensitive,
+    );
+    if (!preRef.ok) return preRef;
+    if (hasConcurrentGitLock(workspaceCanonicalRoot)) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Another Git operation is in progress'));
+    }
+    const moved = runGit(
+      workspaceCanonicalRoot,
+      runtime.value,
+      ['update-ref', trustedBranchRef, commitSha, before.value.headSha],
+    );
+    if (!isSuccessfulGitCommand(moved)) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Git branch changed before commit could be published'));
+    }
+
+    const refreshedIndex = runGit(workspaceCanonicalRoot, runtime.value, ['reset', '--mixed', '--no-refresh', commitSha]);
+    if (!isSuccessfulGitCommand(refreshedIndex)) {
+      runGit(workspaceCanonicalRoot, runtime.value, ['update-ref', trustedBranchRef, before.value.headSha, commitSha]);
+      return err(appError('INTERNAL_ERROR', 'Git commit could not refresh the clean staging area'));
+    }
+    const publishedHead = runGit(workspaceCanonicalRoot, runtime.value, ['rev-parse', '--verify', 'HEAD']);
+    const publishedTree = runGit(workspaceCanonicalRoot, runtime.value, ['write-tree']);
+    const filesStableAfter = verifyCheckpointFileSnapshots(
+      workspaceCanonicalRoot,
+      prepared.value.files,
+      prepared.value.deletedPaths,
+    );
+    if (
+      !isSuccessfulGitCommand(publishedHead)
+      || decode(publishedHead.value.stdout).trim() !== commitSha
+      || !isSuccessfulGitCommand(publishedTree)
+      || decode(publishedTree.value.stdout).trim() !== treeOid
+      || !filesStableAfter.ok
+    ) {
+      runGit(workspaceCanonicalRoot, runtime.value, ['update-ref', trustedBranchRef, before.value.headSha, commitSha]);
+      runGit(workspaceCanonicalRoot, runtime.value, ['reset', '--mixed', '--no-refresh', before.value.headSha]);
+      return err(appError('INTERNAL_ERROR', 'Git commit final state was inconsistent'));
+    }
+    return ok({
+      commitSha,
+      parentHead: before.value.headSha,
+      branch: detected.value.branch,
+      committedPathCount: before.value.entries.length,
+    });
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
 function prepareCheckpointEntries(
   workspaceCanonicalRoot: string,
   runtime: GitRuntime,
@@ -569,6 +975,7 @@ function prepareCheckpointEntries(
   headModes: ReadonlyMap<string, string>,
   extraGitEnv: Readonly<Record<string, string>> = {},
   allowSensitive = false,
+  normalizeTextLineEndings = false,
 ): Result<{ readonly files: readonly CheckpointFileSnapshot[]; readonly deletedPaths: readonly string[] }, AppError> {
   const pending: Array<Omit<CheckpointFileSnapshot, 'blobOid'> & { readonly tempPath: string }> = [];
   const deletedPaths: string[] = [];
@@ -624,6 +1031,9 @@ function prepareCheckpointEntries(
     }
     if (buffer.byteLength !== stat.size) {
       return err(appError('GIT_STATUS_STALE', 'Workspace file changed while checkpoint was prepared'));
+    }
+    if (normalizeTextLineEndings && !buffer.includes(0)) {
+      buffer = Buffer.from(buffer.toString('latin1').replace(/\r\n/g, '\n'), 'latin1');
     }
 
     const tempPath = path.join(runtime.root, `blob-${pending.length}.snapshot`);

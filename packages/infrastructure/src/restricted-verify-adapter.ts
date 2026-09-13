@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { createGitSafetyAdapter, type GitSafetyAdapter } from './git-safety-adapter.js';
 
 interface ChildProcessEventSource {
   once(event: 'error', listener: (error: Error) => void): void;
@@ -94,6 +95,7 @@ export interface RestrictedVerifyAdapterOptions {
   readonly nodeExecutable?: string;
   readonly hostEnvironment?: NodeJS.ProcessEnv;
   readonly limits?: RestrictedVerifyProcessLimits;
+  readonly gitSafety?: GitSafetyAdapter;
 }
 
 export interface RestrictedVerifyAdapter {
@@ -108,8 +110,24 @@ export function createRestrictedVerifyAdapter(
 ): RestrictedVerifyAdapter {
   const hostEnvironment = options.hostEnvironment ?? process.env;
   const limits = options.limits ?? RESTRICTED_VERIFY_LIMITS;
+  const gitSafety = options.gitSafety ?? createGitSafetyAdapter();
   return Object.freeze({
     async run(context: RestrictedVerifyWorkspaceContext, request: RestrictedVerifyRequest): Promise<RestrictedVerifyResult> {
+      if (request.action === 'diff_check' || request.action === 'secret_scan') {
+        const startedAt = Date.now();
+        const checked = request.action === 'diff_check'
+          ? gitSafety.diffCheck(context.canonicalRoot)
+          : gitSafety.secretScan(context.canonicalRoot);
+        if (!checked.ok) throw new RestrictedVerifyFailure('VERIFY_PROFILE_UNAVAILABLE');
+        return {
+          action: request.action,
+          passed: checked.value.passed,
+          exitCode: checked.value.passed ? 0 : 1,
+          output: checked.value.output,
+          truncated: false,
+          durationMs: Math.max(0, Date.now() - startedAt),
+        };
+      }
       const nodeExecutable = options.nodeExecutable ?? resolveRestrictedVerifyNodeExecutable(hostEnvironment);
       const plan = resolveRestrictedVerifyProfile({
         workspaceRoot: context.canonicalRoot,

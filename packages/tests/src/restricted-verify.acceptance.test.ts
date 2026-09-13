@@ -30,7 +30,7 @@ const APPROVED_TOOLS = [
   'code.diagnostics', 'code.find_references', 'code.find_symbol',
   'code.insert_after', 'code.insert_before', 'code.overview',
   'code.rename', 'code.replace_symbol', 'code.search',
-  'git.checkpoint', 'git.detect', 'git.diff', 'git.status',
+  'git.checkpoint', 'git.commit', 'git.detect', 'git.diff', 'git.status',
   'team.start', 'team.status', 'team.stop', 'team.submit',
   'verify.run',
   'work.checkpoint', 'work.resume',
@@ -209,7 +209,7 @@ describe('Restricted Verify Home-PC Windows production acceptance', () => {
         .filter((name): name is string => typeof name === 'string')
         .sort();
       expect(names).toEqual(APPROVED_TOOLS);
-      expect(names).toHaveLength(26);
+      expect(names).toHaveLength(27);
       expect(names).not.toContain('code.run');
       expect(names).not.toContain('dev.verify');
       expect(names).not.toContain('execute_shell_command');

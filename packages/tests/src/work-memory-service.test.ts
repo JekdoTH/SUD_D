@@ -50,6 +50,10 @@ function gitAdapter(state: { head: string; status: string; detects: number; stat
     diffApprovedSensitive: () => { throw new Error('unexpected diff'); },
     checkpoint: () => { throw new Error('unexpected checkpoint'); },
     checkpointApprovedSensitive: () => { throw new Error('unexpected checkpoint'); },
+    commit: () => { throw new Error('unexpected commit'); },
+    commitApprovedSensitive: () => { throw new Error('unexpected commit'); },
+    diffCheck: () => { throw new Error('unexpected diff check'); },
+    secretScan: () => { throw new Error('unexpected secret scan'); },
   };
 }
 

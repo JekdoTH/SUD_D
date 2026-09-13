@@ -40,8 +40,12 @@ describe('Git Safety - hidden execution hardening and audit', () => {
     expect(fs.existsSync(marker)).toBe(false);
     kernelValue<GitDiffResult>(await h.invoke('git.diff', {}));
     expect(fs.existsSync(marker)).toBe(false);
+    expect(h.gitSafety.diffCheck(h.workspaceRoot)).toMatchObject({ ok: true });
+    expect(fs.existsSync(marker)).toBe(false);
     const checkpoint = requireCreatedCheckpoint(kernelValue<GitCheckpointResult>(await h.invoke('git.checkpoint', { expectedStatusId: status.statusId })));
     expect(checkpoint.created).toBe(true);
+    expect(fs.existsSync(marker)).toBe(false);
+    kernelValue(await h.invoke('git.commit', { expectedStatusId: status.statusId, message: 'test: hardened commit' }));
     expect(fs.existsSync(marker)).toBe(false);
   }, 30_000);
 
@@ -52,11 +56,13 @@ describe('Git Safety - hidden execution hardening and audit', () => {
     const status = kernelValue<GitStatusResult>(await h.invoke('git.status', {}));
     kernelValue<GitDiffResult>(await h.invoke('git.diff', {}));
     kernelValue<GitCheckpointResult>(await h.invoke('git.checkpoint', { expectedStatusId: status.statusId }));
+    kernelValue(await h.invoke('git.commit', { expectedStatusId: status.statusId, message: 'test: audited commit' }));
     const serialized = JSON.stringify(h.auditRepo.list(50));
     expect(serialized).not.toContain(marker);
     expect(serialized).not.toContain(h.workspaceRoot);
     expect(serialized).not.toMatch(/GIT_INDEX_FILE|hash-object|update-ref|commit-tree|--no-filters/i);
     expect(h.auditRepo.list(50).some((event) => event.action === 'tool_kernel.invoke' && event.metadata.capability === 'git.checkpoint' && event.resultCode === 'EXECUTED')).toBe(true);
+    expect(h.auditRepo.list(50).some((event) => event.action === 'tool_kernel.invoke' && event.metadata.capability === 'git.commit' && event.resultCode === 'EXECUTED')).toBe(true);
 
     fs.writeFileSync(path.join(h.workspaceRoot, '.env.local'), 'AUDIT_SECRET=never-audit\n');
     const credentialStatus = kernelValue<GitStatusResult>(await h.invoke('git.status', {}));

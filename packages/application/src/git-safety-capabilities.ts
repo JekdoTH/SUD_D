@@ -22,6 +22,7 @@ export const GIT_SAFETY_CAPABILITY_NAMES = Object.freeze([
   'git.status',
   'git.diff',
   'git.checkpoint',
+  'git.commit',
 ] as const);
 
 export type GitSafetyCapabilityName = (typeof GIT_SAFETY_CAPABILITY_NAMES)[number];
@@ -42,6 +43,11 @@ interface DiffInput {
 
 interface CheckpointInput {
   readonly expectedStatusId: string;
+}
+
+interface CommitInput {
+  readonly expectedStatusId: string;
+  readonly message: string;
 }
 
 export function createGitSafetyCapabilities(
@@ -131,6 +137,36 @@ export function createGitSafetyCapabilities(
           : dependencies.gitSafety.checkpoint(workspace.value.canonicalRoot, input.expectedStatusId);
       },
     }),
+    defineToolCapability<CommitInput, unknown>({
+      name: 'git.commit',
+      effect: 'modify',
+      validate: validateCommitInput,
+      resolveSecurity() {
+        const workspace = getActiveWorkspace(dependencies.workspaceRepo);
+        if (!workspace.ok) return workspace;
+        const status = dependencies.gitSafety.status(workspace.value.canonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
+        if (!status.ok) return status;
+        const sensitivity = status.value.entries.some((entry) => entry.sensitive) ? 'credential' : 'normal';
+        return ok({ sensitivity, context: 'workspace', workspaceId: workspace.value.id });
+      },
+      approval: {
+        describe: () => ok({
+          title: 'Commit sensitive Workspace changes',
+          resourceLabel: 'Active Workspace',
+        }),
+        bind: (input, security) => bindGitApprovalState(dependencies, security.workspaceId, {
+          expectedStatusId: input.expectedStatusId,
+          message: input.message,
+        }),
+      },
+      execute(input, context) {
+        const workspace = getExecutionWorkspace(dependencies.workspaceRepo, context);
+        if (!workspace.ok) return workspace;
+        return context.approvalDecision === 'approved'
+          ? dependencies.gitSafety.commitApprovedSensitive(workspace.value.canonicalRoot, input.expectedStatusId, input.message)
+          : dependencies.gitSafety.commit(workspace.value.canonicalRoot, input.expectedStatusId, input.message);
+      },
+    }),
   ]);
 }
 
@@ -190,6 +226,17 @@ function validateCheckpointInput(input: unknown): Result<CheckpointInput, AppErr
     return invalidInput('Git checkpoint status token is invalid');
   }
   return ok({ expectedStatusId: input.expectedStatusId });
+}
+
+function validateCommitInput(input: unknown): Result<CommitInput, AppError> {
+  if (!isStrictObject(input, ['expectedStatusId', 'message'])) return invalidInput('Git commit input is invalid');
+  if (typeof input.expectedStatusId !== 'string' || !/^[0-9a-f]{64}$/.test(input.expectedStatusId)) {
+    return invalidInput('Git commit status token is invalid');
+  }
+  if (typeof input.message !== 'string' || input.message.length < 1 || input.message.length > 160 || /[\r\n\0]/.test(input.message)) {
+    return invalidInput('Git commit message is invalid');
+  }
+  return ok({ expectedStatusId: input.expectedStatusId, message: input.message });
 }
 
 function validateGitRelativePath(relativePath: string): Result<string, AppError> {

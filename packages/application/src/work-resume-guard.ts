@@ -18,6 +18,7 @@ const RESUME_GUARDED_CAPABILITIES = new Set<string>([
   'git.status',
   'git.diff',
   'git.checkpoint',
+  'git.commit',
   'team.start',
   'team.status',
   'team.submit',

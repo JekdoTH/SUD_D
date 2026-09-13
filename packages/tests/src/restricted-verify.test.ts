@@ -86,8 +86,8 @@ function fakeWorkspaceRepo(initial: Workspace): WorkspaceRepository & { current:
 }
 
 describe('Restricted Verify Personal Alpha contract', () => {
-  it('exposes exactly the four approved verification actions', () => {
-    expect(RESTRICTED_VERIFY_ACTIONS).toEqual(['test', 'lint', 'typecheck', 'build']);
+  it('exposes exactly the six approved verification actions', () => {
+    expect(RESTRICTED_VERIFY_ACTIONS).toEqual(['test', 'lint', 'typecheck', 'build', 'diff_check', 'secret_scan']);
   });
 });
 
@@ -317,6 +317,101 @@ describe('Restricted Verify infrastructure adapter', () => {
     expect(result).toMatchObject({ action: 'test', passed: true, exitCode: 0, truncated: false });
     expect(result.output).toContain('fixed verify adapter ok');
     expect(Object.keys(adapter)).toEqual(['run']);
+  });
+
+  it('runs fixed diff_check against the active Git worktree without requiring a package script', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sud-d-verify-diff-check-'));
+    tempDirs.push(root);
+    const workspaceRoot = path.join(root, 'workspace');
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    fs.writeFileSync(path.join(workspaceRoot, 'package.json'), JSON.stringify({ packageManager: 'pnpm@10.34.5', scripts: {} }), 'utf8');
+    execFileSync('git', ['init', '-q'], { cwd: workspaceRoot, windowsHide: true });
+    execFileSync('git', ['config', 'user.name', 'Fixture User'], { cwd: workspaceRoot, windowsHide: true });
+    execFileSync('git', ['config', 'user.email', 'fixture@example.invalid'], { cwd: workspaceRoot, windowsHide: true });
+    fs.writeFileSync(path.join(workspaceRoot, 'tracked.txt'), 'base\n', 'utf8');
+    execFileSync('git', ['add', '--', 'tracked.txt'], { cwd: workspaceRoot, windowsHide: true });
+    execFileSync('git', ['commit', '-q', '-m', 'fixture'], { cwd: workspaceRoot, windowsHide: true });
+    fs.writeFileSync(path.join(workspaceRoot, 'tracked.txt'), 'trailing whitespace   \n', 'utf8');
+
+    const adapter = createRestrictedVerifyAdapter();
+    const result = await adapter.run(
+      { workspaceId: 'verify-ws', canonicalRoot: canonical(workspaceRoot) },
+      { action: 'diff_check' },
+    );
+
+    expect(result).toMatchObject({ action: 'diff_check', passed: false, exitCode: 1, truncated: false });
+    expect(result.output).toBe('git diff --check found whitespace errors');
+    expect(JSON.stringify(result)).not.toContain('trailing whitespace');
+  });
+
+  it('treats Windows CRLF normalization as clean in fixed diff_check', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sud-d-verify-crlf-check-'));
+    tempDirs.push(root);
+    const workspaceRoot = path.join(root, 'workspace');
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    execFileSync('git', ['init', '-q'], { cwd: workspaceRoot, windowsHide: true });
+    execFileSync('git', ['config', 'user.name', 'Fixture User'], { cwd: workspaceRoot, windowsHide: true });
+    execFileSync('git', ['config', 'user.email', 'fixture@example.invalid'], { cwd: workspaceRoot, windowsHide: true });
+    fs.writeFileSync(path.join(workspaceRoot, 'tracked.txt'), 'base\n', 'utf8');
+    execFileSync('git', ['add', '--', 'tracked.txt'], { cwd: workspaceRoot, windowsHide: true });
+    execFileSync('git', ['commit', '-q', '-m', 'fixture'], { cwd: workspaceRoot, windowsHide: true });
+    fs.writeFileSync(path.join(workspaceRoot, 'tracked.txt'), 'base\r\n', 'utf8');
+
+    const result = await createRestrictedVerifyAdapter().run(
+      { workspaceId: 'verify-ws', canonicalRoot: canonical(workspaceRoot) },
+      { action: 'diff_check' },
+    );
+
+    expect(result).toMatchObject({ action: 'diff_check', passed: true, exitCode: 0, truncated: false });
+  });
+
+  it('ignores pre-existing secret signatures when the changed lines are safe', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sud-d-verify-secret-existing-'));
+    tempDirs.push(root);
+    const workspaceRoot = path.join(root, 'workspace');
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    execFileSync('git', ['init', '-q'], { cwd: workspaceRoot, windowsHide: true });
+    execFileSync('git', ['config', 'user.name', 'Fixture User'], { cwd: workspaceRoot, windowsHide: true });
+    execFileSync('git', ['config', 'user.email', 'fixture@example.invalid'], { cwd: workspaceRoot, windowsHide: true });
+    const secretSentinel = ['-----BEGIN', 'PRIVATE KEY-----'].join(' ');
+    fs.writeFileSync(path.join(workspaceRoot, 'tracked.txt'), `${secretSentinel}\nbefore\n`, 'utf8');
+    execFileSync('git', ['add', '--', 'tracked.txt'], { cwd: workspaceRoot, windowsHide: true });
+    execFileSync('git', ['commit', '-q', '-m', 'fixture'], { cwd: workspaceRoot, windowsHide: true });
+    fs.writeFileSync(path.join(workspaceRoot, 'tracked.txt'), `${secretSentinel}\nbefore\nafter safe edit\n`, 'utf8');
+
+    const adapter = createRestrictedVerifyAdapter();
+    const result = await adapter.run(
+      { workspaceId: 'verify-ws', canonicalRoot: canonical(workspaceRoot) },
+      { action: 'secret_scan' },
+    );
+
+    expect(result).toMatchObject({ action: 'secret_scan', passed: true, exitCode: 0, truncated: false });
+    expect(result.output).toBe('secret signature scan passed');
+  });
+
+  it('runs a bounded changed-content secret signature scan without returning matched secret text', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sud-d-verify-secret-scan-'));
+    tempDirs.push(root);
+    const workspaceRoot = path.join(root, 'workspace');
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    execFileSync('git', ['init', '-q'], { cwd: workspaceRoot, windowsHide: true });
+    execFileSync('git', ['config', 'user.name', 'Fixture User'], { cwd: workspaceRoot, windowsHide: true });
+    execFileSync('git', ['config', 'user.email', 'fixture@example.invalid'], { cwd: workspaceRoot, windowsHide: true });
+    fs.writeFileSync(path.join(workspaceRoot, 'tracked.txt'), 'base\n', 'utf8');
+    execFileSync('git', ['add', '--', 'tracked.txt'], { cwd: workspaceRoot, windowsHide: true });
+    execFileSync('git', ['commit', '-q', '-m', 'fixture'], { cwd: workspaceRoot, windowsHide: true });
+    const secretSentinel = ['-----BEGIN', 'PRIVATE KEY-----'].join(' ');
+    fs.writeFileSync(path.join(workspaceRoot, 'notes.txt'), `safe preface\n${secretSentinel}\n`, 'utf8');
+
+    const adapter = createRestrictedVerifyAdapter();
+    const result = await adapter.run(
+      { workspaceId: 'verify-ws', canonicalRoot: canonical(workspaceRoot) },
+      { action: 'secret_scan' },
+    );
+
+    expect(result).toMatchObject({ action: 'secret_scan', passed: false, exitCode: 1, truncated: false });
+    expect(result.output).toBe('secret signature scan found 1 suspect file');
+    expect(JSON.stringify(result)).not.toContain(secretSentinel);
   });
 });
 describe('Restricted Verify capability failures', () => {
