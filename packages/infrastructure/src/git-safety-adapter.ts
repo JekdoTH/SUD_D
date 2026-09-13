@@ -140,6 +140,11 @@ interface GitRuntime {
   readonly home: string;
 }
 
+interface GitMetadataLayout {
+  readonly worktreeGitDir: string;
+  readonly commonGitDir: string;
+}
+
 interface GitCommandResult {
   readonly stdout: Buffer;
   readonly status: number;
@@ -195,6 +200,85 @@ export function createGitSafetyAdapter(): GitSafetyAdapter {
   });
 }
 
+function resolveGitMetadataLayout(workspaceCanonicalRoot: string): Result<GitMetadataLayout, AppError> {
+  const marker = path.join(workspaceCanonicalRoot, '.git');
+  try {
+    const markerStat = fs.lstatSync(marker);
+    if (markerStat.isSymbolicLink()) {
+      return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+    }
+    if (markerStat.isDirectory()) {
+      const gitDir = canonicalExisting(marker);
+      if (!gitDir.ok) return gitDir;
+      return ok({ worktreeGitDir: gitDir.value, commonGitDir: gitDir.value });
+    }
+    if (!markerStat.isFile() || markerStat.size <= 0 || markerStat.size > 4096) {
+      return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+    }
+
+    const body = fs.readFileSync(marker, 'utf8');
+    const match = /^gitdir: ([^\r\n]+)\r?\n?$/.exec(body);
+    const rawGitDir = match?.[1];
+    if (!rawGitDir || !path.isAbsolute(rawGitDir)) {
+      return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+    }
+
+    const targetStat = fs.lstatSync(rawGitDir);
+    if (targetStat.isSymbolicLink() || !targetStat.isDirectory()) {
+      return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+    }
+    const worktreeGitDir = canonicalExisting(rawGitDir);
+    if (!worktreeGitDir.ok) return worktreeGitDir;
+
+    const commondirPath = path.join(worktreeGitDir.value, 'commondir');
+    const commondirStat = fs.lstatSync(commondirPath);
+    if (commondirStat.isSymbolicLink() || !commondirStat.isFile() || commondirStat.size > 64) {
+      return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+    }
+    if (!/^\.\.\/\.\.\r?\n?$/.test(fs.readFileSync(commondirPath, 'utf8'))) {
+      return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+    }
+    const commonGitDir = canonicalExisting(path.resolve(worktreeGitDir.value, '..', '..'));
+    if (!commonGitDir.ok) return commonGitDir;
+    const worktreesDir = canonicalExisting(path.join(commonGitDir.value, 'worktrees'));
+    if (!worktreesDir.ok || !samePath(path.dirname(worktreeGitDir.value), worktreesDir.value)) {
+      return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+    }
+
+    const backlinkPath = path.join(worktreeGitDir.value, 'gitdir');
+    const backlinkStat = fs.lstatSync(backlinkPath);
+    if (backlinkStat.isSymbolicLink() || !backlinkStat.isFile() || backlinkStat.size <= 0 || backlinkStat.size > 4096) {
+      return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+    }
+    const backlinkMatch = /^([^\r\n]+)\r?\n?$/.exec(fs.readFileSync(backlinkPath, 'utf8'));
+    const backlinkRaw = backlinkMatch?.[1];
+    if (!backlinkRaw || !path.isAbsolute(backlinkRaw)) {
+      return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+    }
+    const backlink = canonicalExisting(backlinkRaw);
+    const markerCanonical = canonicalExisting(marker);
+    if (!backlink.ok || !markerCanonical.ok || !samePath(backlink.value, markerCanonical.value)) {
+      return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+    }
+
+    for (const requiredDir of [path.join(commonGitDir.value, 'objects'), path.join(commonGitDir.value, 'refs')]) {
+      const stat = fs.lstatSync(requiredDir);
+      if (stat.isSymbolicLink() || !stat.isDirectory()) {
+        return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+      }
+    }
+    for (const requiredFile of [path.join(worktreeGitDir.value, 'HEAD'), path.join(worktreeGitDir.value, 'index')]) {
+      const stat = fs.lstatSync(requiredFile);
+      if (stat.isSymbolicLink() || !stat.isFile()) {
+        return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+      }
+    }
+    return ok({ worktreeGitDir: worktreeGitDir.value, commonGitDir: commonGitDir.value });
+  } catch {
+    return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Git metadata layout is unsupported'));
+  }
+}
+
 function detectRepository(workspaceCanonicalRoot: string): Result<GitDetectResult, AppError> {
   const gitMarker = path.join(workspaceCanonicalRoot, '.git');
   try {
@@ -204,12 +288,13 @@ function detectRepository(workspaceCanonicalRoot: string): Result<GitDetectResul
       }
       return ok({ isRepository: false, isSupported: false, reason: 'NOT_REPOSITORY', state: 'normal' });
     }
-    const markerStat = fs.lstatSync(gitMarker);
-    if (markerStat.isSymbolicLink() || !markerStat.isDirectory()) {
-      return ok({ isRepository: true, isSupported: false, reason: 'EXTERNAL_GITDIR', state: 'normal' });
-    }
   } catch {
     return err(appError('INTERNAL_ERROR', 'Failed to inspect Git repository metadata'));
+  }
+
+  const metadata = resolveGitMetadataLayout(workspaceCanonicalRoot);
+  if (!metadata.ok) {
+    return ok({ isRepository: true, isSupported: false, reason: 'EXTERNAL_GITDIR', state: 'normal' });
   }
 
   const runtime = makeGitRuntime();
@@ -231,7 +316,7 @@ function detectRepository(workspaceCanonicalRoot: string): Result<GitDetectResul
 
     const head = runGit(workspaceCanonicalRoot, runtime.value, ['rev-parse', '--verify', 'HEAD']);
     if (!head.ok || head.value.status !== 0 || head.value.overflowed) {
-      return ok({ isRepository: true, isSupported: false, reason: 'UNBORN_HEAD', state: readRepositoryState(workspaceCanonicalRoot) });
+      return ok({ isRepository: true, isSupported: false, reason: 'UNBORN_HEAD', state: readRepositoryState(metadata.value.worktreeGitDir) });
     }
     const headSha = decode(head.value.stdout).trim();
     const branchResult = runGit(workspaceCanonicalRoot, runtime.value, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
@@ -243,7 +328,7 @@ function detectRepository(workspaceCanonicalRoot: string): Result<GitDetectResul
       isSupported: true,
       ...(branch ? { branch } : { detached: true }),
       headSha,
-      state: readRepositoryState(workspaceCanonicalRoot),
+      state: readRepositoryState(metadata.value.worktreeGitDir),
     });
   } finally {
     cleanupGitRuntime(runtime.value);
@@ -314,6 +399,8 @@ function readDiff(
   if (!detected.value.isSupported || !detected.value.headSha) {
     return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Active Workspace is not a supported Git repository'));
   }
+  const metadata = resolveGitMetadataLayout(workspaceCanonicalRoot);
+  if (!metadata.ok) return metadata;
 
   const requestedPath = options.relativePath;
   if (requestedPath !== undefined) {
@@ -358,7 +445,7 @@ function readDiff(
     const isolatedEnv = {
       GIT_INDEX_FILE: tempIndex,
       GIT_OBJECT_DIRECTORY: tempObjects,
-      GIT_ALTERNATE_OBJECT_DIRECTORIES: path.join(workspaceCanonicalRoot, '.git', 'objects'),
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: path.join(metadata.value.commonGitDir, 'objects'),
     };
     const seeded = runGit(
       workspaceCanonicalRoot,
@@ -607,6 +694,8 @@ function runDiffCheck(workspaceCanonicalRoot: string): Result<GitVerificationRes
   if (!detected.value.isSupported || !detected.value.headSha) {
     return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Active Workspace is not a supported Git repository'));
   }
+  const metadata = resolveGitMetadataLayout(workspaceCanonicalRoot);
+  if (!metadata.ok) return metadata;
   const status = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
   if (!status.ok) return status;
   if (status.value.truncated) {
@@ -630,7 +719,7 @@ function runDiffCheck(workspaceCanonicalRoot: string): Result<GitVerificationRes
     const isolatedEnv = {
       GIT_INDEX_FILE: tempIndex,
       GIT_OBJECT_DIRECTORY: tempObjects,
-      GIT_ALTERNATE_OBJECT_DIRECTORIES: path.join(workspaceCanonicalRoot, '.git', 'objects'),
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: path.join(metadata.value.commonGitDir, 'objects'),
     };
     const seeded = runGit(workspaceCanonicalRoot, runtime.value, ['read-tree', detected.value.headSha], { extraEnv: isolatedEnv });
     if (!isSuccessfulGitCommand(seeded)) {
@@ -1210,8 +1299,10 @@ function verifyCheckpointFileSnapshots(
 }
 
 function readUserIndexFingerprint(workspaceCanonicalRoot: string): Result<string, AppError> {
+  const metadata = resolveGitMetadataLayout(workspaceCanonicalRoot);
+  if (!metadata.ok) return metadata;
   try {
-    const indexPath = path.join(workspaceCanonicalRoot, '.git', 'index');
+    const indexPath = path.join(metadata.value.worktreeGitDir, 'index');
     const bytes = fs.existsSync(indexPath) ? fs.readFileSync(indexPath) : Buffer.alloc(0);
     return ok(createHash('sha256').update(bytes).digest('hex'));
   } catch {
@@ -1220,9 +1311,13 @@ function readUserIndexFingerprint(workspaceCanonicalRoot: string): Result<string
 }
 
 function hasConcurrentGitLock(workspaceCanonicalRoot: string): boolean {
-  const gitDir = path.join(workspaceCanonicalRoot, '.git');
-  return ['index.lock', 'HEAD.lock', 'packed-refs.lock'].some((relativePath) =>
-    fs.existsSync(path.join(gitDir, relativePath)));
+  const metadata = resolveGitMetadataLayout(workspaceCanonicalRoot);
+  if (!metadata.ok) return true;
+  return [
+    path.join(metadata.value.worktreeGitDir, 'index.lock'),
+    path.join(metadata.value.worktreeGitDir, 'HEAD.lock'),
+    path.join(metadata.value.commonGitDir, 'packed-refs.lock'),
+  ].some((candidate) => fs.existsSync(candidate));
 }
 
 function isRegularGitMode(mode: string): boolean {
@@ -1473,9 +1568,8 @@ function looksLikeBareRepository(root: string): boolean {
   }
 }
 
-function readRepositoryState(workspaceCanonicalRoot: string): GitRepositoryState {
-  const gitDir = path.join(workspaceCanonicalRoot, '.git');
-  const exists = (relative: string) => fs.existsSync(path.join(gitDir, relative));
+function readRepositoryState(worktreeGitDir: string): GitRepositoryState {
+  const exists = (relative: string) => fs.existsSync(path.join(worktreeGitDir, relative));
   if (exists('MERGE_HEAD')) return 'merge';
   if (exists('rebase-merge') || exists('rebase-apply')) return 'rebase';
   if (exists('CHERRY_PICK_HEAD')) return 'cherry_pick';
