@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  ApprovalModeDto,
   DesktopActivityEventDto,
   DesktopConnectionSnapshotDto,
   DesktopOverviewWorkStatusDto,
@@ -18,16 +17,6 @@ interface HomePageProps {
   onNavigate: (page: AppPage) => void;
 }
 
-const APPROVAL_MODE_OPTIONS: ReadonlyArray<{
-  mode: ApprovalModeDto;
-  label: string;
-  description: string;
-}> = [
-  { mode: 'standard', label: 'Standard', description: 'Ask before protected actions.' },
-  { mode: 'approve_for_me', label: 'Approve for me', description: 'Automate bounded local verification while keeping sensitive actions manual.' },
-  { mode: 'full_access', label: 'Full Access', description: 'Maximize safe local automation without bypassing SUD-D hard boundaries.' },
-];
-
 function formatEventTime(timestamp: string): string {
   return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
@@ -39,19 +28,15 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
   const [teamMission, setTeamMission] = useState<DesktopTeamMissionDto | null>(null);
   const [teamStatusAvailable, setTeamStatusAvailable] = useState(true);
   const [workStatus, setWorkStatus] = useState<DesktopOverviewWorkStatusDto | null>(null);
-  const [approvalMode, setApprovalMode] = useState<ApprovalModeDto>('approve_for_me');
-  const [modeSaving, setModeSaving] = useState(false);
-  const [approvalModeError, setApprovalModeError] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const workStatusRefreshInFlight = useRef(false);
 
   const refresh = useCallback(async () => {
-    const [workspaceResult, activityResult, connectionResult, modeResult, teamResult] = await Promise.all([
+    const [workspaceResult, activityResult, connectionResult, teamResult] = await Promise.all([
       window.sudD.workspace.list(),
       window.sudD.activity.list({ limit: 5 }),
       window.sudD.connection.status(),
-      window.sudD.approval.getMode(),
       window.sudD.team.status({}),
     ]);
 
@@ -62,12 +47,6 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
       setError('');
     } else {
       setError(connectionResult.error.message);
-    }
-    if (modeResult.ok) {
-      setApprovalMode(modeResult.value.mode);
-      setApprovalModeError('');
-    } else {
-      setApprovalModeError(modeResult.error.message);
     }
     if (teamResult.ok) {
       setTeamMission(teamResult.value);
@@ -200,19 +179,6 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
               ? 'Restart connection'
               : 'Connect ChatGPT';
 
-  const changeApprovalMode = useCallback(async (mode: ApprovalModeDto) => {
-    if (modeSaving || mode === approvalMode) return;
-    setModeSaving(true);
-    setApprovalModeError('');
-    const result = await window.sudD.approval.setMode({ mode });
-    setModeSaving(false);
-    if (!result.ok) {
-      setApprovalModeError(result.error.message);
-      return;
-    }
-    setApprovalMode(result.value.mode);
-  }, [approvalMode, modeSaving]);
-
   const runPrimaryAction = async (): Promise<void> => {
     if (!connection?.profile || !primaryAction?.enabled) {
       if (primaryAction?.action === 'choose_workspace') onNavigate('workspaces');
@@ -344,29 +310,6 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
           </div>
         )}
 
-        <div className="overview-approval-mode" aria-labelledby="default-approval-mode-title">
-          <div className="approval-mode-copy">
-            <h3 id="default-approval-mode-title">Default Approval Mode</h3>
-            <p>Choose the default approval behavior shared by all approved workspaces on this device. Policy hard boundaries always stay enforced.</p>
-          </div>
-          {approvalModeError && <div className="callout callout-error" role="alert">{approvalModeError}</div>}
-          <div className="approval-mode-options" role="radiogroup" aria-label="Default Approval Mode">
-            {APPROVAL_MODE_OPTIONS.map((option) => (
-              <button
-                key={option.mode}
-                type="button"
-                className={`approval-mode-option${approvalMode === option.mode ? ' is-selected' : ''}`}
-                role="radio"
-                aria-checked={approvalMode === option.mode}
-                disabled={modeSaving}
-                onClick={() => void changeApprovalMode(option.mode)}
-              >
-                <strong>{option.label}</strong>
-                <span>{option.description}</span>
-              </button>
-            ))}
-          </div>
-        </div>
       </section>
 
       <section className="card overview-summary-card overview-current-activity" aria-labelledby="current-activity-title">

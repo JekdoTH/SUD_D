@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import type { DesktopConnectionSnapshotDto, WorkspaceDto } from '@sud-d/contracts';
+import type { ApprovalModeDto, DesktopConnectionSnapshotDto, WorkspaceDto } from '@sud-d/contracts';
 import type { AppPage } from '../App';
 import {
   canRestartConnection,
@@ -12,6 +12,16 @@ import { UiIcon } from '../ui-icons';
 interface ConnectionPageProps {
   onNavigate: (page: AppPage) => void;
 }
+
+const APPROVAL_MODE_OPTIONS: ReadonlyArray<{
+  mode: ApprovalModeDto;
+  label: string;
+  description: string;
+}> = [
+  { mode: 'standard', label: 'Standard', description: 'Ask before protected actions.' },
+  { mode: 'approve_for_me', label: 'Approve for me', description: 'Automate bounded local verification while keeping sensitive actions manual.' },
+  { mode: 'full_access', label: 'Full Access', description: 'Maximize safe local automation without bypassing SUD-D hard boundaries.' },
+];
 
 function componentTone(state: string): string {
   if (state === 'ready' || state === 'connected') return 'badge-green';
@@ -58,11 +68,15 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
   const [error, setError] = useState('');
   const [tunnelReference, setTunnelReference] = useState('');
   const [editingTunnel, setEditingTunnel] = useState(false);
+  const [approvalMode, setApprovalMode] = useState<ApprovalModeDto>('approve_for_me');
+  const [modeSaving, setModeSaving] = useState(false);
+  const [approvalModeError, setApprovalModeError] = useState('');
 
   const refresh = useCallback(async () => {
-    const [connectionResult, workspaceResult] = await Promise.all([
+    const [connectionResult, workspaceResult, modeResult] = await Promise.all([
       window.sudD.connection.status(),
       window.sudD.workspace.list(),
+      window.sudD.approval.getMode(),
     ]);
     if (connectionResult.ok) {
       setSnapshot(connectionResult.value);
@@ -71,6 +85,12 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
       setError(connectionResult.error.message);
     }
     if (workspaceResult.ok) setWorkspaces(workspaceResult.value);
+    if (modeResult.ok) {
+      setApprovalMode(modeResult.value.mode);
+      setApprovalModeError('');
+    } else {
+      setApprovalModeError(modeResult.error.message);
+    }
   }, []);
 
   useEffect(() => {
@@ -217,6 +237,19 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
       setError('Failed to open OpenAI Tunnel Settings page');
     }
   };
+
+  const changeApprovalMode = useCallback(async (mode: ApprovalModeDto) => {
+    if (modeSaving || mode === approvalMode) return;
+    setModeSaving(true);
+    setApprovalModeError('');
+    const result = await window.sudD.approval.setMode({ mode });
+    setModeSaving(false);
+    if (!result.ok) {
+      setApprovalModeError(result.error.message);
+      return;
+    }
+    setApprovalMode(result.value.mode);
+  }, [approvalMode, modeSaving]);
 
   const runtimeError = snapshot?.runtime.error;
   const primaryLabel = primaryAction?.action === 'choose_workspace'
@@ -425,6 +458,30 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
           )}
         </section>
       </div>
+
+      <section className="card approval-mode-card" aria-labelledby="default-approval-mode-title">
+        <div className="approval-mode-copy">
+          <div id="default-approval-mode-title" className="card-heading">Default Approval Mode</div>
+          <p className="card-description">Choose the default approval behavior shared by all approved workspaces on this device. Policy hard boundaries always stay enforced.</p>
+        </div>
+        {approvalModeError && <div className="callout callout-error" role="alert">{approvalModeError}</div>}
+        <div className="approval-mode-options" role="radiogroup" aria-label="Default Approval Mode">
+          {APPROVAL_MODE_OPTIONS.map((option) => (
+            <button
+              key={option.mode}
+              type="button"
+              className={`approval-mode-option${approvalMode === option.mode ? ' is-selected' : ''}`}
+              role="radio"
+              aria-checked={approvalMode === option.mode}
+              disabled={modeSaving}
+              onClick={() => void changeApprovalMode(option.mode)}
+            >
+              <strong>{option.label}</strong>
+              <span>{option.description}</span>
+            </button>
+          ))}
+        </div>
+      </section>
 
       <details className="card advanced-card">
         <summary>Advanced details</summary>

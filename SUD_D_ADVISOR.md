@@ -48,6 +48,8 @@ For every meaningful proposed addition, test these questions:
 
 A useful requirement may still be deferred when its complexity or authority cost is not justified by current usage. Preserve the reason so the same debate does not have to be reconstructed later.
 
+For personal-first delivery, optimize for fast single-user completion: challenge duplicated verification/reporting and speculative enterprise ceremony, preserve security/data hard boundaries, and prefer required focused evidence plus final-once gates followed by Product Owner manual acceptance.
+
 ## Automatic Knowledge Capture
 
 The Steward is responsible for noticing durable project knowledge. The Product Owner does not need to say “remember this” after every decision.

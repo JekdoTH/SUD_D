@@ -319,20 +319,26 @@ describe('Basic Approval - fixed-purpose Desktop IPC and UI surface', () => {
     expect(preload).not.toContain('ipcRenderer.send');
   });
 
-  it('Overview owns exactly the three Default Approval Modes while Activity remains history-only', () => {
+  it('Connection owns exactly the three Default Approval Modes while Overview and Activity remain operational-only', () => {
+    const connection = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/ConnectionPage.tsx'), 'utf8');
     const overview = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/HomePage.tsx'), 'utf8');
     const activity = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/ActivityPage.tsx'), 'utf8');
 
-    expect(overview).toContain('Default Approval Mode');
-    expect(overview).toContain("label: 'Standard'");
-    expect(overview).toContain("label: 'Approve for me'");
-    expect(overview).toContain("label: 'Full Access'");
-    expect(overview).toContain('role="radiogroup"');
-    expect(overview).toContain('aria-checked={approvalMode === option.mode}');
-    expect(overview).toContain('window.sudD.approval.setMode({ mode })');
-    expect(overview).toContain('shared by all approved workspaces on this device');
-    expect(overview).not.toMatch(/executable|argv|cwd|env\s*=|allow-all|policy editor|custom policy|arbitrary/i);
+    expect(connection).toContain('Default Approval Mode');
+    expect(connection).toContain("label: 'Standard'");
+    expect(connection).toContain("label: 'Approve for me'");
+    expect(connection).toContain("label: 'Full Access'");
+    expect(connection).toContain('role="radiogroup"');
+    expect(connection).toContain('aria-checked={approvalMode === option.mode}');
+    expect(connection).toContain('window.sudD.approval.getMode()');
+    expect(connection).toContain('window.sudD.approval.setMode({ mode })');
+    expect(connection).toContain('shared by all approved workspaces on this device');
+    expect(connection).not.toMatch(/executable|argv|cwd|env\s*=|allow-all|policy editor|custom policy|arbitrary/i);
+    expect(connection.indexOf('Default Approval Mode')).toBeGreaterThan(connection.indexOf('Secure Tunnel'));
+    expect(connection.indexOf('Advanced details')).toBeGreaterThan(connection.indexOf('Default Approval Mode'));
 
+    expect(overview).not.toContain('Default Approval Mode');
+    expect(overview).not.toContain('window.sudD.approval.setMode');
     expect(activity).not.toContain('Default Approval Mode');
     expect(activity).not.toContain('Approval Mode');
     expect(activity).not.toContain('window.sudD.approval.setMode');

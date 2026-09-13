@@ -216,6 +216,24 @@ Post-M0.8 Secure Runtime API Key Setup and Connection UI/UX Simplification are c
 
 SUD_D is currently personal-first: one primary Windows user with approximately one occasional tester. The approved near-term priority is to reach a useful **Personal Alpha and Team Mode MVP as quickly as practical** while keeping the core security boundary intact.
 
+### Next Approved Major Milestone — Git Bootstrap + Branch/Worktree + Remote Sync
+
+After the current Approval Mode placement follow-up and Product Owner manual visual acceptance, the next approved major milestone is **Git Bootstrap + Branch/Worktree + Remote Sync**. Its approved direction is:
+
+- repository detect / init / clone / remote configuration
+- create or connect a GitHub repository; new GitHub repositories default to **Private**, with Public only by explicit choice
+- branch list / create / switch / safe delete / merge
+- linked worktree list / create / remove
+- remote status / fetch / safe sync / push
+- Home-PC ↔ GitHub ↔ Work-PC workflow with divergence/conflict detection
+- no automatic force-push, rebase, or destructive reset
+- local Git and Network Git remain separate authority classes
+- Network Git must use reviewed fixed-purpose Kernel / Policy / Approval / Audit capabilities and must not silently weaken default Network DENY
+- no generic shell or renderer-controlled executable / argv / cwd / env
+- credentials and tokens never enter the renderer, ordinary SQLite, logs, audit, or non-secret DTOs
+
+This records approved direction only; it does not authorize Git implementation from this follow-up task.
+
 The near-term execution order is intentionally capability-driven rather than strictly following the historical milestone numbers:
 
 ```text
