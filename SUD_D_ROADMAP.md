@@ -218,7 +218,7 @@ SUD_D is currently personal-first: one primary Windows user with approximately o
 
 ### Next Approved Major Milestone — Git Bootstrap + Branch + Remote Sync
 
-The Product Owner-approved design is [Git Bootstrap + Branch + Remote Sync Design](docs/superpowers/specs/2026-09-14-git-bootstrap-branch-remote-sync-design.md). Implementation waits for Product Owner review of that written spec and a separate implementation plan.
+The Product Owner-approved design is [Git Bootstrap + Branch + Remote Sync Design](docs/superpowers/specs/2026-09-14-git-bootstrap-branch-remote-sync-design.md), and its implementation sequence is defined in [Git Bootstrap + Branch + Remote Sync Implementation Plan](docs/superpowers/plans/2026-09-14-git-bootstrap-branch-remote-sync.md). Runtime/UI implementation begins only from a separately authorized execution task after these docs are integrated to `master`.
 
 Durable scope:
 

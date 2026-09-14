@@ -1,37 +1,34 @@
 # SUD_D Handoff
 
-## Git Bootstrap + Branch + Remote Sync Design — Awaiting Product Owner Review (2026-09-14)
+## Git Bootstrap + Branch + Remote Sync — Spec Approved, Implementation Plan Ready (2026-09-14)
 
-**Status: PRODUCT OWNER DESIGN DECISION FORMALIZED ON `docs/git-bootstrap-branch-remote-sync-design`; implementation has not started.**
+**Status: PRODUCT OWNER APPROVED THE WRITTEN DESIGN; THE IMPLEMENTATION PLAN IS PREPARED ON `docs/git-bootstrap-branch-remote-sync-design`; runtime/UI implementation has not started.**
 
 Current state:
 
-- Approval Mode placement follow-up passed Product Owner visual acceptance and was fast-forward integrated to `master`.
-- pre-docs baseline: `master == origin/master == 42d4f3017be4773ca8276470e523baff1157711d`
+- Product Owner approval: `Git design spec PASS`
+- pre-planning design commit: `6706abf91fa9500a45523eafea72867a922127d0`
+- `master == origin/master == 42d4f3017be4773ca8276470e523baff1157711d`
 - current docs branch: `docs/git-bootstrap-branch-remote-sync-design`
-- formal design spec: `docs/superpowers/specs/2026-09-14-git-bootstrap-branch-remote-sync-design.md`
-- Product Owner-approved milestone name: **Git Bootstrap + Branch + Remote Sync**
+- approved design spec: `docs/superpowers/specs/2026-09-14-git-bootstrap-branch-remote-sync-design.md`
+- implementation plan: `docs/superpowers/plans/2026-09-14-git-bootstrap-branch-remote-sync.md`
 - `.serena/` remains local-only/untracked
 - preserve `stash@{0}: On master: pre-bootstrap Home 2026-09-13 preserve local handoff`
 
-Approved design summary:
+Plan boundary:
 
-- extend the existing deep Git/Tool Kernel foundation rather than adding a parallel Git engine;
-- keep user-facing worktree lifecycle and GitHub-repository creation deferred while preserving linked-worktree compatibility;
-- Primary Remote and Primary / Default Branch are resolved from trusted state rather than hard-coded names;
-- GitHub HTTPS/SSH Sync and Push are core, with machine-owned credentials and fixed-purpose network Policy/Approval/Audit;
-- generic shell, auto-stash/rebase/reset, force operations, credential persistence, and non-GitHub network Git remain out of scope.
+- one Security / Data Critical implementation plan covers domain/contracts, Primary Remote persistence, the existing deep Git adapter, fixed-purpose GitHub network execution, shared Tool Kernel capabilities, Desktop IPC/UI, focused security/integration proof, final review/smoke, and Product Owner real GitHub acceptance;
+- the plan preserves the approved `github_network` Approval Mode semantics and all existing hard boundaries;
+- implementation starts only after the approved spec + plan are integrated to `master`, in a separately authorized isolated feature worktree/branch;
+- this planning task changes documentation only and does not create the implementation branch/worktree or modify runtime/UI source.
 
-Docs verification:
+Planning verification:
 
-- spec self-review: **PASS** — no placeholders, scope leakage, hard-coded Primary Remote/default branch, or contradictory safety behavior
-- staged docs scope: **PASS** — exactly spec + Roadmap + Handoff; no production source/config changed
-- `git diff --check`: **PASS**
-- added-line high-signal secret scan: **PASS**
-- Roadmap/Handoff consistency with the spec: **PASS**
-- full application tests/build were not run because this task is documentation-only and changes no runtime/generated configuration
+- implementation-plan self-review: **PASS** — 11 tasks, no placeholders, approved-spec coverage and introduced type/interface names checked;
+- staged docs scope / `git diff --check` / added-line high-signal secret scan: **PASS**;
+- full product tests/build were not run because this task changes documentation only and no generated/runtime configuration.
 
-Next action: **Product Owner reviews the written design spec.** If approved, create a separate implementation plan before any runtime/UI implementation. Do not start the Git implementation from this docs task.
+Next action: **Product Owner reviews the implementation plan and, when ready, integrates this docs branch to `master` in a separate Git task.** Runtime/UI implementation remains stopped until a separate execution instruction.
 
 Long-term plan: see `SUD_D_ROADMAP.md`.
 
