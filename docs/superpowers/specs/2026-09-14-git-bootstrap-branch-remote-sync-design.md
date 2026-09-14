@@ -276,9 +276,15 @@ Generic `PolicyContext: 'network'` remains unconditional DENY.
 
 Add one narrower reviewed context, canonically **`github_network`**, used only after the Git application/adapter has validated that the operation is one of the approved fixed-purpose GitHub operations and the remote is a valid GitHub HTTPS/SSH remote.
 
-Baseline policy for `github_network` is **ASK**. It is never ALLOW by default.
+Policy classifies an eligible validated `github_network` request as **ASK**. Approval handling then depends on the device's existing Approval Mode:
 
-This keeps local Git and network Git distinguishable in Policy, Approval, and Audit. It also preserves current Approval Mode behavior: automatic modes currently auto-approve only eligible normal `workspace` requests, so `github_network` actions remain explicit user decisions unless a future separately approved policy changes that rule.
+- **Standard** — the ASK request requires an explicit user decision.
+- **Approve for me** — the Approval layer may auto-approve the ASK request after fixed-purpose capability validation, GitHub host/transport validation, Workspace/path rules, Git safety/state checks, and Policy checks have all passed.
+- **Full Access** — the Approval layer may auto-approve the ASK request after the same validations and Policy checks have all passed.
+
+Approval Mode is consulted only after those gates establish an eligible `github_network` ASK request. A Policy DENY, invalid/unsupported remote, unsafe Git state, containment failure, credential-rule failure, or unsupported capability remains denied/stopped regardless of mode. This does not grant generic network permission or broaden Approval Mode beyond the reviewed `github_network` capability class.
+
+Manual and mode-based approvals both remain auditable through the existing Tool Kernel / Approval / Audit path.
 
 The allowed GitHub-network operations in this milestone are:
 
@@ -620,7 +626,7 @@ Primary actions:
 
 The UI describes state in product language (`Up to date`, `Local commits ready to push`, `Remote commits available`, `Diverged — manual resolution required`) rather than exposing raw Git porcelain.
 
-When Tool Kernel returns Approval Required, reuse the existing Approval system and present a clear route to the existing approval decision surface. Do not create a second approval model in the Git page.
+When Standard mode leaves an eligible `github_network` request at Approval Required, reuse the existing Approval system and present a clear route to the existing approval decision surface. When Approve for me or Full Access auto-approves an eligible validated request, the Git page continues with the operation/result state without inventing a second approval model. Policy DENY and unsafe/unsupported states remain blocked before either path.
 
 ### 18.4 Error copy
 
@@ -701,7 +707,9 @@ The implementation plan must cover focused proof for:
 - strict GitHub HTTPS/SSH remote validation and credential-bearing URL rejection;
 - local-vs-`github_network` Policy classification;
 - generic Network DENY remaining intact;
-- Approval binding/audit for network Git with no Approval Mode auto-approval;
+- Approval binding/audit for network Git across Standard manual ASK and eligible Approve for me / Full Access mode auto-approval;
+- Approval Mode hard-boundary proof: Policy DENY, invalid/unsupported remote, unsafe Git state, containment failure, credential-rule failure, and unsupported capability remain blocked in every mode;
+- audit remains ON for both manual and mode-based `github_network` approvals;
 - clean/dirty guards including untracked files;
 - branch create/switch;
 - linked-worktree branch occupancy protection;
@@ -768,6 +776,10 @@ Implementation is conformant only if all are true:
 - no generic shell or renderer-controlled executable/argv/cwd/env exists;
 - generic Network DENY remains intact;
 - only validated GitHub HTTPS/SSH network operations use the reviewed `github_network` path;
+- Standard leaves eligible `github_network` Policy ASK requests for explicit user approval;
+- Approve for me and Full Access may auto-approve only eligible validated `github_network` ASK requests after all fixed-purpose validation, Git safety, containment/credential rules, and Policy checks pass;
+- Approval Mode never converts Policy DENY, invalid/unsupported remote state, unsafe Git state, containment/credential failure, or unsupported capability into an allowed request;
+- Audit remains ON for both manual and mode-based GitHub network approvals;
 - GitHub credentials remain machine-owned and absent from renderer/SQLite/audit/log/error DTOs;
 - Primary Remote is not hard-coded to `origin`;
 - Primary / Default Branch is not hard-coded to `master` or `main`;
