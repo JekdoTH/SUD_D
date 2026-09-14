@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 
 import {
   appError,
@@ -13,6 +12,11 @@ import {
   type Result,
 } from '@sud-d/domain';
 import { resolveExistingResource } from './path-adapter.js';
+import {
+  createGitCommandRunner,
+  type GitCommandResult,
+  type GitCommandRunner,
+} from './git-command-runner.js';
 
 export const GIT_SAFETY_LIMITS = Object.freeze({
   maxStatusEntries: 500,
@@ -134,21 +138,12 @@ export interface GitSafetyAdapter {
 
 interface GitRuntime {
   readonly root: string;
-  readonly hooks: string;
-  readonly globalConfig: string;
-  readonly systemConfig: string;
-  readonly home: string;
+  readonly commandRunner: GitCommandRunner;
 }
 
 interface GitMetadataLayout {
   readonly worktreeGitDir: string;
   readonly commonGitDir: string;
-}
-
-interface GitCommandResult {
-  readonly stdout: Buffer;
-  readonly status: number;
-  readonly overflowed: boolean;
 }
 
 interface CheckpointFileSnapshot {
@@ -165,37 +160,40 @@ const CHECKPOINT_AUTHOR_EMAIL = 'checkpoint@sud-d.invalid';
 const COMMIT_AUTHOR_NAME = 'SUD-D Workspace Commit';
 const COMMIT_AUTHOR_EMAIL = 'commit@sud-d.invalid';
 
-export function createGitSafetyAdapter(): GitSafetyAdapter {
+export function createGitSafetyAdapter(
+  options: { readonly commandRunner?: GitCommandRunner } = {},
+): GitSafetyAdapter {
+  const commandRunner = options.commandRunner ?? createGitCommandRunner();
   return Object.freeze({
     detect(workspaceCanonicalRoot: string) {
-      return detectRepository(workspaceCanonicalRoot);
+      return detectRepository(workspaceCanonicalRoot, commandRunner);
     },
     status(workspaceCanonicalRoot: string, limit?: number) {
-      return readStatus(workspaceCanonicalRoot, limit);
+      return readStatus(workspaceCanonicalRoot, limit, commandRunner);
     },
     diff(workspaceCanonicalRoot: string, options?: { readonly relativePath?: string; readonly maxBytes?: number }) {
-      return readDiff(workspaceCanonicalRoot, options, false);
+      return readDiff(workspaceCanonicalRoot, options, false, commandRunner);
     },
     diffApprovedSensitive(workspaceCanonicalRoot: string, options: { readonly relativePath: string; readonly maxBytes?: number }) {
-      return readDiff(workspaceCanonicalRoot, options, true);
+      return readDiff(workspaceCanonicalRoot, options, true, commandRunner);
     },
     checkpoint(workspaceCanonicalRoot: string, expectedStatusId: string) {
-      return createCheckpoint(workspaceCanonicalRoot, expectedStatusId, false);
+      return createCheckpoint(workspaceCanonicalRoot, expectedStatusId, false, commandRunner);
     },
     checkpointApprovedSensitive(workspaceCanonicalRoot: string, expectedStatusId: string) {
-      return createCheckpoint(workspaceCanonicalRoot, expectedStatusId, true);
+      return createCheckpoint(workspaceCanonicalRoot, expectedStatusId, true, commandRunner);
     },
     commit(workspaceCanonicalRoot: string, expectedStatusId: string, message: string) {
-      return createBranchCommit(workspaceCanonicalRoot, expectedStatusId, message, false);
+      return createBranchCommit(workspaceCanonicalRoot, expectedStatusId, message, false, commandRunner);
     },
     commitApprovedSensitive(workspaceCanonicalRoot: string, expectedStatusId: string, message: string) {
-      return createBranchCommit(workspaceCanonicalRoot, expectedStatusId, message, true);
+      return createBranchCommit(workspaceCanonicalRoot, expectedStatusId, message, true, commandRunner);
     },
     diffCheck(workspaceCanonicalRoot: string) {
-      return runDiffCheck(workspaceCanonicalRoot);
+      return runDiffCheck(workspaceCanonicalRoot, commandRunner);
     },
     secretScan(workspaceCanonicalRoot: string) {
-      return runSecretScan(workspaceCanonicalRoot);
+      return runSecretScan(workspaceCanonicalRoot, commandRunner);
     },
   });
 }
@@ -279,7 +277,10 @@ function resolveGitMetadataLayout(workspaceCanonicalRoot: string): Result<GitMet
   }
 }
 
-function detectRepository(workspaceCanonicalRoot: string): Result<GitDetectResult, AppError> {
+function detectRepository(
+  workspaceCanonicalRoot: string,
+  commandRunner: GitCommandRunner,
+): Result<GitDetectResult, AppError> {
   const gitMarker = path.join(workspaceCanonicalRoot, '.git');
   try {
     if (!fs.existsSync(gitMarker)) {
@@ -297,7 +298,7 @@ function detectRepository(workspaceCanonicalRoot: string): Result<GitDetectResul
     return ok({ isRepository: true, isSupported: false, reason: 'EXTERNAL_GITDIR', state: 'normal' });
   }
 
-  const runtime = makeGitRuntime();
+  const runtime = makeGitRuntime(commandRunner);
   if (!runtime.ok) return runtime;
   try {
     const top = runGit(workspaceCanonicalRoot, runtime.value, ['rev-parse', '--show-toplevel']);
@@ -335,14 +336,18 @@ function detectRepository(workspaceCanonicalRoot: string): Result<GitDetectResul
   }
 }
 
-function readStatus(workspaceCanonicalRoot: string, requestedLimit: number = GIT_SAFETY_LIMITS.maxStatusEntries): Result<GitStatusResult, AppError> {
-  const detected = detectRepository(workspaceCanonicalRoot);
+function readStatus(
+  workspaceCanonicalRoot: string,
+  requestedLimit: number = GIT_SAFETY_LIMITS.maxStatusEntries,
+  commandRunner: GitCommandRunner,
+): Result<GitStatusResult, AppError> {
+  const detected = detectRepository(workspaceCanonicalRoot, commandRunner);
   if (!detected.ok) return detected;
   if (!detected.value.isSupported || !detected.value.headSha) {
     return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Active Workspace is not a supported Git repository'));
   }
 
-  const runtime = makeGitRuntime();
+  const runtime = makeGitRuntime(commandRunner);
   if (!runtime.ok) return runtime;
   try {
     const status = runGit(workspaceCanonicalRoot, runtime.value, [
@@ -393,8 +398,9 @@ function readDiff(
   workspaceCanonicalRoot: string,
   options: { readonly relativePath?: string; readonly maxBytes?: number } = {},
   allowSensitive = false,
+  commandRunner: GitCommandRunner,
 ): Result<GitDiffResult, AppError> {
-  const detected = detectRepository(workspaceCanonicalRoot);
+  const detected = detectRepository(workspaceCanonicalRoot, commandRunner);
   if (!detected.ok) return detected;
   if (!detected.value.isSupported || !detected.value.headSha) {
     return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Active Workspace is not a supported Git repository'));
@@ -411,7 +417,7 @@ function readDiff(
     }
   }
 
-  const status = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
+  const status = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries, commandRunner);
   if (!status.ok) return status;
   if (status.value.truncated) {
     return err(appError('RESOURCE_TOO_LARGE', 'Git diff changed-path count exceeds the trusted limit'));
@@ -436,7 +442,7 @@ function readDiff(
   const maxBytes = options.maxBytes === undefined
     ? GIT_SAFETY_LIMITS.maxDiffBytes
     : Math.min(Math.max(1, options.maxBytes), GIT_SAFETY_LIMITS.maxDiffBytes);
-  const runtime = makeGitRuntime();
+  const runtime = makeGitRuntime(commandRunner);
   if (!runtime.ok) return runtime;
   const tempIndex = path.join(runtime.value.root, 'diff.index');
   const tempObjects = path.join(runtime.value.root, 'objects');
@@ -540,8 +546,9 @@ function createCheckpoint(
   workspaceCanonicalRoot: string,
   expectedStatusId: string,
   allowSensitive = false,
+  commandRunner: GitCommandRunner,
 ): Result<GitCheckpointResult, AppError> {
-  const before = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
+  const before = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries, commandRunner);
   if (!before.ok) return before;
   if (before.value.statusId !== expectedStatusId) {
     return err(appError('GIT_STATUS_STALE', 'Workspace Git status changed before checkpoint'));
@@ -567,7 +574,7 @@ function createCheckpoint(
 
   const indexBefore = readUserIndexFingerprint(workspaceCanonicalRoot);
   if (!indexBefore.ok) return indexBefore;
-  const runtime = makeGitRuntime();
+  const runtime = makeGitRuntime(commandRunner);
   if (!runtime.ok) return runtime;
   const tempIndex = path.join(runtime.value.root, 'checkpoint.index');
   const isolatedIndexEnv = { GIT_INDEX_FILE: tempIndex };
@@ -631,6 +638,7 @@ function createCheckpoint(
       prepared.value.files,
       prepared.value.deletedPaths,
       allowSensitive,
+      commandRunner,
     );
     if (!preCommit.ok) return preCommit;
 
@@ -660,6 +668,7 @@ function createCheckpoint(
       prepared.value.files,
       prepared.value.deletedPaths,
       allowSensitive,
+      commandRunner,
     );
     if (!preRef.ok) return preRef;
     if (hasConcurrentGitLock(workspaceCanonicalRoot)) {
@@ -688,15 +697,18 @@ function createCheckpoint(
   }
 }
 
-function runDiffCheck(workspaceCanonicalRoot: string): Result<GitVerificationResult, AppError> {
-  const detected = detectRepository(workspaceCanonicalRoot);
+function runDiffCheck(
+  workspaceCanonicalRoot: string,
+  commandRunner: GitCommandRunner,
+): Result<GitVerificationResult, AppError> {
+  const detected = detectRepository(workspaceCanonicalRoot, commandRunner);
   if (!detected.ok) return detected;
   if (!detected.value.isSupported || !detected.value.headSha) {
     return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'Active Workspace is not a supported Git repository'));
   }
   const metadata = resolveGitMetadataLayout(workspaceCanonicalRoot);
   if (!metadata.ok) return metadata;
-  const status = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
+  const status = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries, commandRunner);
   if (!status.ok) return status;
   if (status.value.truncated) {
     return err(appError('RESOURCE_TOO_LARGE', 'Git diff check path count exceeds the trusted limit'));
@@ -710,7 +722,7 @@ function runDiffCheck(workspaceCanonicalRoot: string): Result<GitVerificationRes
   if (status.value.entries.length === 0) {
     return ok({ passed: true, findingCount: 0, output: 'git diff --check passed' });
   }
-  const runtime = makeGitRuntime();
+  const runtime = makeGitRuntime(commandRunner);
   if (!runtime.ok) return runtime;
   const tempIndex = path.join(runtime.value.root, 'diff-check.index');
   const tempObjects = path.join(runtime.value.root, 'objects');
@@ -812,13 +824,16 @@ function introducesSecretSignature(currentText: string, previousText: string): b
   return false;
 }
 
-function runSecretScan(workspaceCanonicalRoot: string): Result<GitVerificationResult, AppError> {
-  const status = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
+function runSecretScan(
+  workspaceCanonicalRoot: string,
+  commandRunner: GitCommandRunner,
+): Result<GitVerificationResult, AppError> {
+  const status = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries, commandRunner);
   if (!status.ok) return status;
   if (status.value.truncated) {
     return err(appError('RESOURCE_TOO_LARGE', 'Secret scan changed-path count exceeds the trusted limit'));
   }
-  const runtime = makeGitRuntime();
+  const runtime = makeGitRuntime(commandRunner);
   if (!runtime.ok) return runtime;
   const suspectPaths = new Set<string>();
   let aggregateBytes = 0;
@@ -885,16 +900,17 @@ function createBranchCommit(
   expectedStatusId: string,
   message: string,
   allowSensitive = false,
+  commandRunner: GitCommandRunner,
 ): Result<GitCommitResult, AppError> {
   if (!message || message.length > 160 || /[\r\n\0]/.test(message)) {
     return err(appError('VALIDATION_FAILED', 'Git commit message is invalid'));
   }
-  const detected = detectRepository(workspaceCanonicalRoot);
+  const detected = detectRepository(workspaceCanonicalRoot, commandRunner);
   if (!detected.ok) return detected;
   if (!detected.value.isSupported || !detected.value.headSha || !detected.value.branch || detected.value.detached) {
     return err(appError('GIT_STATE_UNSAFE', 'Git commit requires a supported local branch'));
   }
-  const before = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
+  const before = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries, commandRunner);
   if (!before.ok) return before;
   if (before.value.statusId !== expectedStatusId) {
     return err(appError('GIT_STATUS_STALE', 'Workspace Git status changed before commit'));
@@ -920,7 +936,7 @@ function createBranchCommit(
 
   const indexBefore = readUserIndexFingerprint(workspaceCanonicalRoot);
   if (!indexBefore.ok) return indexBefore;
-  const runtime = makeGitRuntime();
+  const runtime = makeGitRuntime(commandRunner);
   if (!runtime.ok) return runtime;
   const tempIndex = path.join(runtime.value.root, 'commit.index');
   const isolatedIndexEnv = { GIT_INDEX_FILE: tempIndex };
@@ -977,6 +993,7 @@ function createBranchCommit(
       prepared.value.files,
       prepared.value.deletedPaths,
       allowSensitive,
+      commandRunner,
     );
     if (!preCommit.ok) return preCommit;
     if (hasConcurrentGitLock(workspaceCanonicalRoot)) {
@@ -1009,6 +1026,7 @@ function createBranchCommit(
       prepared.value.files,
       prepared.value.deletedPaths,
       allowSensitive,
+      commandRunner,
     );
     if (!preRef.ok) return preRef;
     if (hasConcurrentGitLock(workspaceCanonicalRoot)) {
@@ -1234,9 +1252,10 @@ function revalidateCheckpointState(
   expectedIndexFingerprint: string,
   files: readonly CheckpointFileSnapshot[],
   deletedPaths: readonly string[],
-  allowSensitive = false,
+  allowSensitive: boolean,
+  commandRunner: GitCommandRunner,
 ): Result<void, AppError> {
-  const current = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries);
+  const current = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries, commandRunner);
   if (!current.ok) return current;
   if (
     current.value.statusId !== expected.statusId
@@ -1444,18 +1463,10 @@ function buildStatusId(
   return ok(digest.digest('hex'));
 }
 
-function makeGitRuntime(): Result<GitRuntime, AppError> {
+function makeGitRuntime(commandRunner: GitCommandRunner): Result<GitRuntime, AppError> {
   try {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sudd-git-runtime-'));
-    const hooks = path.join(root, 'hooks');
-    const home = path.join(root, 'home');
-    fs.mkdirSync(hooks, { recursive: true });
-    fs.mkdirSync(home, { recursive: true });
-    const globalConfig = path.join(root, 'global.gitconfig');
-    const systemConfig = path.join(root, 'system.gitconfig');
-    fs.writeFileSync(globalConfig, '', 'utf8');
-    fs.writeFileSync(systemConfig, '', 'utf8');
-    return ok({ root, hooks, globalConfig, systemConfig, home });
+    return ok({ root, commandRunner });
   } catch {
     return err(appError('INTERNAL_ERROR', 'Failed to initialize trusted Git runtime'));
   }
@@ -1471,79 +1482,12 @@ function runGit(
   commandArgs: readonly string[],
   options: { readonly input?: Buffer | string; readonly maxOutputBytes?: number; readonly extraEnv?: Readonly<Record<string, string>> } = {},
 ): Result<GitCommandResult, AppError> {
-  const executable = resolveTrustedGitExecutable();
-  if (!executable.ok) return executable;
-  const args = [
-    '--no-pager',
-    '--literal-pathspecs',
-    '-c', `core.hooksPath=${runtime.hooks}`,
-    '-c', 'protocol.allow=never',
-    '-c', 'core.fsmonitor=false',
-    '-c', 'credential.helper=',
-    '-c', 'commit.gpgSign=false',
-    '-c', 'tag.gpgSign=false',
-    ...commandArgs,
-  ];
-  const env: NodeJS.ProcessEnv = {
-    SystemRoot: process.env.SystemRoot ?? 'C:\\Windows',
-    WINDIR: process.env.WINDIR ?? process.env.SystemRoot ?? 'C:\\Windows',
-    TEMP: runtime.root,
-    TMP: runtime.root,
-    HOME: runtime.home,
-    XDG_CONFIG_HOME: runtime.home,
-    PATH: '',
-    GIT_CONFIG_GLOBAL: runtime.globalConfig,
-    GIT_CONFIG_SYSTEM: runtime.systemConfig,
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_OPTIONAL_LOCKS: '0',
-    GIT_TERMINAL_PROMPT: '0',
-    GIT_PAGER: 'cat',
-    PAGER: 'cat',
-    GIT_ASKPASS: '',
-    SSH_ASKPASS: '',
-    GCM_INTERACTIVE: 'Never',
-    ...options.extraEnv,
-  };
-  try {
-    const result = spawnSync(executable.value, args, {
-      cwd: workspaceCanonicalRoot,
-      shell: false,
-      windowsHide: true,
-      input: options.input,
-      encoding: null,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: GIT_SAFETY_LIMITS.timeoutMs,
-      maxBuffer: options.maxOutputBytes ?? GIT_SAFETY_LIMITS.maxGitOutputBytes,
-      env,
-    });
-    const stdout = result.stdout ?? Buffer.alloc(0);
-    if (result.error) {
-      const code = (result.error as NodeJS.ErrnoException).code;
-      if (code === 'ENOBUFS') return ok({ stdout, status: result.status ?? 1, overflowed: true });
-      return err(appError('INTERNAL_ERROR', 'Trusted Git operation failed'));
-    }
-    return ok({ stdout, status: result.status ?? 1, overflowed: false });
-  } catch {
-    return err(appError('INTERNAL_ERROR', 'Trusted Git operation failed'));
-  }
-}
-
-function resolveTrustedGitExecutable(): Result<string, AppError> {
-  const candidates = [
-    'C:\\Program Files\\Git\\cmd\\git.exe',
-    'C:\\Program Files\\Git\\bin\\git.exe',
-  ];
-  for (const candidate of candidates) {
-    try {
-      if (!fs.existsSync(candidate)) continue;
-      const stat = fs.statSync(candidate);
-      if (!stat.isFile()) continue;
-      const resolved = fs.realpathSync.native(candidate);
-      if (path.basename(resolved).toLowerCase() !== 'git.exe') continue;
-      return ok(resolved);
-    } catch { /* try next trusted location */ }
-  }
-  return err(appError('INTERNAL_ERROR', 'Trusted Git executable is unavailable'));
+  return runtime.commandRunner.runLocal(workspaceCanonicalRoot, commandArgs, {
+    ...(options.input === undefined ? {} : { input: options.input }),
+    ...(options.maxOutputBytes === undefined ? {} : { maxOutputBytes: options.maxOutputBytes }),
+    ...(options.extraEnv === undefined ? {} : { trustedEnv: options.extraEnv }),
+    timeoutMs: GIT_SAFETY_LIMITS.timeoutMs,
+  });
 }
 
 function canonicalExisting(value: string): Result<string, AppError> {
