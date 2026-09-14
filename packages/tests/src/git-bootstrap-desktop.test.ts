@@ -185,4 +185,44 @@ describe('Git Bootstrap - Desktop Git controller', () => {
     expect(controllerSource).not.toMatch(/GitSafetyAdapter|createGitSafetyAdapter|runLocal|runGitHubNetwork/i);
     expect(ipcSource).not.toMatch(/GitSafetyAdapter|createGitSafetyAdapter|runLocal|runGitHubNetwork/i);
   });
+
+  it('defines the Git page as a state-first fixed-purpose renderer surface', () => {
+    const app = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/App.tsx'), 'utf8');
+    const icons = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/ui-icons.tsx'), 'utf8');
+    const gitPage = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/GitPage.tsx'), 'utf8');
+
+    expect(app).toContain("| 'git'");
+    expect(app.indexOf("{ id: 'git', icon: 'git', label: 'Git' }")).toBeGreaterThan(app.indexOf("{ id: 'workspaces'"));
+    expect(app).toContain('<GitPage onNavigate={setPage} />');
+    expect(icons).toContain("| 'git'");
+    expect(icons).toContain("case 'git':");
+
+    for (const copy of [
+      'Repository',
+      'Branches',
+      'Remote Sync',
+      'Initialize Git',
+      'Clone from GitHub',
+      'Sync from GitHub',
+      'Push to GitHub',
+      'Up to date',
+      'Local commits ready to push',
+      'Remote commits available',
+      'Diverged — manual resolution required',
+      'Git state changed. Review the refreshed state before retrying.',
+      'Approval required before this GitHub action can run.',
+      'Review approval',
+    ]) {
+      expect(gitPage).toContain(copy);
+    }
+
+    expect(gitPage).toContain("onNavigate('activity')");
+    expect(gitPage).toContain('window.sudD.git.snapshot()');
+    expect(gitPage).toContain('window.sudD.dialog.openDirectory()');
+    expect(gitPage).toContain('5000');
+    expect(gitPage).toContain('expectedSnapshotId: snapshot.snapshotId');
+    expect(gitPage).not.toMatch(/ipcRenderer|\bargv\b|\bcwd\b|processEnv|\benv\b|child_process/i);
+    expect(gitPage).not.toMatch(/password|username|token|private.?key/i);
+    expect(gitPage).not.toMatch(/Approve for me|Full Access|approved automatically/i);
+  });
 });

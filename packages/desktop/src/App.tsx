@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { HomePage } from './pages/HomePage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { GitPage } from './pages/GitPage';
 import { ConnectionPage } from './pages/ConnectionPage';
 import { ActivityPage } from './pages/ActivityPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -14,6 +15,7 @@ import { presentConnectionState, type ConnectionStatePresentation } from './conn
 export type AppPage =
   | 'overview'
   | 'workspaces'
+  | 'git'
   | 'connection'
   | 'activity'
   | 'team'
@@ -25,6 +27,7 @@ const NAV_ITEMS: { id: AppPage; icon: UiIconName; label: string }[] = [
   { id: 'overview', icon: 'overview', label: 'Overview' },
   { id: 'connection', icon: 'connection', label: 'Connection' },
   { id: 'workspaces', icon: 'workspaces', label: 'Workspaces' },
+  { id: 'git', icon: 'git', label: 'Git' },
   { id: 'activity', icon: 'activity', label: 'Activity' },
   { id: 'team', icon: 'team', label: 'Team' },
   { id: 'security', icon: 'security', label: 'Security' },
@@ -155,6 +158,7 @@ export function App(): React.ReactElement {
         <main className="main">
           {page === 'overview' && <HomePage onNavigate={setPage} />}
           {page === 'workspaces' && <ProjectsPage />}
+          {page === 'git' && <GitPage onNavigate={setPage} />}
           {page === 'connection' && <ConnectionPage onNavigate={setPage} />}
           {page === 'activity' && <ActivityPage />}
           {page === 'team' && <TeamPage />}

@@ -3,6 +3,7 @@ import React from 'react';
 export type UiIconName =
   | 'overview'
   | 'workspaces'
+  | 'git'
   | 'connection'
   | 'activity'
   | 'team'
@@ -48,6 +49,16 @@ export function UiIcon({ name, size = 20, className }: UiIconProps): React.React
         <svg {...common}>
           <path d="M3.5 7.75h6l1.8 2h9.2v8.75a1.75 1.75 0 0 1-1.75 1.75H5.25A1.75 1.75 0 0 1 3.5 18.5Z" />
           <path d="M3.5 9.75V6a1.75 1.75 0 0 1 1.75-1.75H9l1.6 1.8h8.15A1.75 1.75 0 0 1 20.5 7.8v1.95" />
+        </svg>
+      );
+    case 'git':
+      return (
+        <svg {...common}>
+          <circle cx="6" cy="5" r="2" />
+          <circle cx="18" cy="7" r="2" />
+          <circle cx="9" cy="19" r="2" />
+          <path d="M6 7v4.25A7.75 7.75 0 0 0 13.75 19H7" />
+          <path d="M6 10.5a9.5 9.5 0 0 0 9.5-3.5H16" />
         </svg>
       );
     case 'connection':
