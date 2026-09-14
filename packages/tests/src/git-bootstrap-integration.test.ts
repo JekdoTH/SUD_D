@@ -6,8 +6,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ok } from '@sud-d/domain';
 import { createGitSafetyAdapter } from '@sud-d/infrastructure';
-import type { GitCommandRunner, GitCommandResult } from '../../infrastructure/src/git-command-runner.js';
-import { git, tempDir } from './git-safety-test-harness.js';
+import type { GitCommandRunner, GitCommandResult, GitRunOptions } from '../../infrastructure/src/git-command-runner.js';
+import { git, indexBytes, tempDir } from './git-safety-test-harness.js';
 
 const GITHUB_URL = 'https://github.com/acme/widgets.git';
 
@@ -25,14 +25,21 @@ function configureIdentity(root: string, label: string): void {
   git(root, ['config', 'user.name', label]);
 }
 
-function executeGit(cwd: string, args: readonly string[]): ReturnType<typeof ok<GitCommandResult>> {
+function executeGit(
+  cwd: string,
+  args: readonly string[],
+  options: GitRunOptions = {},
+): ReturnType<typeof ok<GitCommandResult>> {
   const result = spawnSync('git', [...args], {
     cwd,
     shell: false,
     windowsHide: true,
     encoding: null,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    maxBuffer: 2 * 1024 * 1024,
+    input: options.input,
+    env: { ...process.env, ...options.trustedEnv },
+    stdio: ['pipe', 'pipe', 'pipe'],
+    maxBuffer: options.maxOutputBytes ?? 2 * 1024 * 1024,
+    timeout: options.timeoutMs,
   });
   return ok({
     stdout: result.stdout ?? Buffer.alloc(0),
@@ -46,19 +53,21 @@ function createMappedGitHubRunner(
   mappings: ReadonlyMap<string, string>,
   calls: NetworkCall[],
   afterNetworkCall?: (call: NetworkCall) => void,
+  localCalls?: NetworkCall[],
 ): GitCommandRunner {
   const mappingArgs = [...mappings.entries()].flatMap(([remoteUrl, localBare]) => [
     '-c',
     `url.${pathToFileURL(localBare).href}.insteadOf=${remoteUrl}`,
   ]);
   return {
-    runLocal(cwd, args) {
-      return executeGit(cwd, args);
+    runLocal(cwd, args, options) {
+      localCalls?.push({ cwd, args: [...args] });
+      return executeGit(cwd, args, options);
     },
-    runGitHubNetwork(cwd, args) {
+    runGitHubNetwork(cwd, args, options) {
       const call = { cwd, args: [...args] };
       calls.push(call);
-      const result = executeGit(cwd, [...mappingArgs, ...args]);
+      const result = executeGit(cwd, [...mappingArgs, ...args], options);
       afterNetworkCall?.(call);
       return result;
     },
@@ -104,11 +113,263 @@ function createRemoteFixture(afterNetworkCall?: (call: NetworkCall, workspace: s
   return { bare, publisher, workspace, calls, adapter };
 }
 
+function createTwoDeviceFixture(initialRemoteBranches: readonly string[] = []): {
+  readonly bare: string;
+  readonly home: string;
+  readonly work: string;
+  readonly homeNetworkCalls: NetworkCall[];
+  readonly workNetworkCalls: NetworkCall[];
+  readonly homeLocalCalls: NetworkCall[];
+  readonly workLocalCalls: NetworkCall[];
+  readonly homeAdapter: ReturnType<typeof createGitSafetyAdapter>;
+  readonly workAdapter: ReturnType<typeof createGitSafetyAdapter>;
+} {
+  const root = tempDir('sudd-git-two-device-');
+  const bare = path.join(root, 'remote.git');
+  const seed = path.join(root, 'seed');
+  const home = path.join(root, 'home');
+  const work = path.join(root, 'work');
+  fs.mkdirSync(seed, { recursive: true });
+  git(root, ['init', '--bare', bare]);
+  git(seed, ['init']);
+  configureIdentity(seed, 'Two Device Seed');
+  fs.writeFileSync(path.join(seed, 'tracked.txt'), 'base\n', 'utf8');
+  git(seed, ['add', '--', 'tracked.txt']);
+  git(seed, ['commit', '-m', 'base']);
+  git(seed, ['branch', '-m', 'trunk']);
+  git(seed, ['remote', 'add', 'origin', bare]);
+  git(seed, ['push', '-u', 'origin', 'trunk']);
+  git(bare, ['symbolic-ref', 'HEAD', 'refs/heads/trunk']);
+  const baseSha = git(seed, ['rev-parse', 'HEAD']);
+  for (const branchName of initialRemoteBranches) {
+    git(bare, ['update-ref', `refs/heads/${branchName}`, baseSha]);
+  }
+
+  for (const [workspace, label] of [[home, 'Home Fixture'], [work, 'Work Fixture']] as const) {
+    git(root, ['clone', '--branch', 'trunk', bare, workspace]);
+    configureIdentity(workspace, label);
+    git(workspace, ['remote', 'rename', 'origin', 'upstream']);
+    git(workspace, ['remote', 'set-url', 'upstream', GITHUB_URL]);
+  }
+
+  const mappings = new Map([[GITHUB_URL, bare]]);
+  const homeNetworkCalls: NetworkCall[] = [];
+  const workNetworkCalls: NetworkCall[] = [];
+  const homeLocalCalls: NetworkCall[] = [];
+  const workLocalCalls: NetworkCall[] = [];
+  const homeAdapter = createGitSafetyAdapter({
+    commandRunner: createMappedGitHubRunner(mappings, homeNetworkCalls, undefined, homeLocalCalls),
+  });
+  const workAdapter = createGitSafetyAdapter({
+    commandRunner: createMappedGitHubRunner(mappings, workNetworkCalls, undefined, workLocalCalls),
+  });
+  return {
+    bare,
+    home,
+    work,
+    homeNetworkCalls,
+    workNetworkCalls,
+    homeLocalCalls,
+    workLocalCalls,
+    homeAdapter,
+    workAdapter,
+  };
+}
+
 beforeEach(async () => {
   await new Promise<void>((resolve) => setImmediate(resolve));
 });
 
 describe('Git Bootstrap - deterministic GitHub network workflow', () => {
+  it('completes the deterministic Home Push to Work Sync/Push to Home Sync workflow without destructive Git commands', () => {
+    const branchName = 'feature/two-device';
+    const fixture = createTwoDeviceFixture([branchName]);
+    const homeRoot = canonical(fixture.home);
+    const workRoot = canonical(fixture.work);
+    const networkWorkflowLocalCalls: NetworkCall[] = [];
+
+    const homeBase = fixture.homeAdapter.status(homeRoot);
+    if (!homeBase.ok) throw new Error(homeBase.error.code);
+    expect(fixture.homeAdapter.createBranch(homeRoot, homeBase.value.statusId, branchName)).toMatchObject({ ok: true });
+    const homeCreated = fixture.homeAdapter.status(homeRoot);
+    if (!homeCreated.ok) throw new Error(homeCreated.error.code);
+    expect(fixture.homeAdapter.switchBranch(homeRoot, homeCreated.value.statusId, branchName)).toMatchObject({ ok: true });
+
+    fs.writeFileSync(path.join(fixture.home, 'home.txt'), 'home change\n', 'utf8');
+    const homeDirty = fixture.homeAdapter.status(homeRoot);
+    if (!homeDirty.ok) throw new Error(homeDirty.error.code);
+    const homeCommit = fixture.homeAdapter.commit(homeRoot, homeDirty.value.statusId, 'test: home change');
+    if (!homeCommit.ok) throw new Error(homeCommit.error.code);
+    const homePushStatus = fixture.homeAdapter.status(homeRoot);
+    if (!homePushStatus.ok) throw new Error(homePushStatus.error.code);
+    const homePushLocalStart = fixture.homeLocalCalls.length;
+    const homePush = fixture.homeAdapter.pushToGitHub(homeRoot, {
+      expectedStatusId: homePushStatus.value.statusId,
+      remoteName: 'upstream',
+      branchName,
+    });
+    networkWorkflowLocalCalls.push(...fixture.homeLocalCalls.slice(homePushLocalStart));
+    expect(homePush).toEqual({
+      ok: true,
+      value: { headSha: homeCommit.value.commitSha, remoteSha: homeCommit.value.commitSha, upstreamSet: true },
+    });
+    expect(git(fixture.bare, ['rev-parse', `refs/heads/${branchName}`])).toBe(homeCommit.value.commitSha);
+    expect(git(fixture.home, ['for-each-ref', '--format=%(upstream:short)', `refs/heads/${branchName}`])).toBe(`upstream/${branchName}`);
+
+    const workBase = fixture.workAdapter.status(workRoot);
+    if (!workBase.ok) throw new Error(workBase.error.code);
+    expect(fixture.workAdapter.createBranch(workRoot, workBase.value.statusId, branchName)).toMatchObject({ ok: true });
+    git(fixture.work, ['branch', '--set-upstream-to', `upstream/${branchName}`, branchName]);
+    const workCreated = fixture.workAdapter.status(workRoot);
+    if (!workCreated.ok) throw new Error(workCreated.error.code);
+    expect(fixture.workAdapter.switchBranch(workRoot, workCreated.value.statusId, branchName)).toMatchObject({ ok: true });
+    const workBeforeSync = fixture.workAdapter.status(workRoot);
+    if (!workBeforeSync.ok) throw new Error(workBeforeSync.error.code);
+    const workSyncLocalStart = fixture.workLocalCalls.length;
+    const workSync = fixture.workAdapter.syncFromGitHub(workRoot, {
+      expectedStatusId: workBeforeSync.value.statusId,
+      remoteName: 'upstream',
+      branchName,
+      upstreamBranch: `upstream/${branchName}`,
+    });
+    networkWorkflowLocalCalls.push(...fixture.workLocalCalls.slice(workSyncLocalStart));
+    expect(workSync).toEqual({
+      ok: true,
+      value: { relation: 'remote_ahead', changed: true, headSha: homeCommit.value.commitSha },
+    });
+    expect(fs.readFileSync(path.join(fixture.work, 'home.txt'), 'utf8').trim()).toBe('home change');
+
+    fs.writeFileSync(path.join(fixture.work, 'work.txt'), 'work change\n', 'utf8');
+    const workDirty = fixture.workAdapter.status(workRoot);
+    if (!workDirty.ok) throw new Error(workDirty.error.code);
+    const workCommit = fixture.workAdapter.commit(workRoot, workDirty.value.statusId, 'test: work change');
+    if (!workCommit.ok) throw new Error(workCommit.error.code);
+    const workPushStatus = fixture.workAdapter.status(workRoot);
+    if (!workPushStatus.ok) throw new Error(workPushStatus.error.code);
+    const workPushLocalStart = fixture.workLocalCalls.length;
+    const workPush = fixture.workAdapter.pushToGitHub(workRoot, {
+      expectedStatusId: workPushStatus.value.statusId,
+      remoteName: 'upstream',
+      branchName,
+    });
+    networkWorkflowLocalCalls.push(...fixture.workLocalCalls.slice(workPushLocalStart));
+    expect(workPush).toEqual({
+      ok: true,
+      value: { headSha: workCommit.value.commitSha, remoteSha: workCommit.value.commitSha, upstreamSet: false },
+    });
+
+    const homeBeforeSync = fixture.homeAdapter.status(homeRoot);
+    if (!homeBeforeSync.ok) throw new Error(homeBeforeSync.error.code);
+    const homeSyncLocalStart = fixture.homeLocalCalls.length;
+    const homeSync = fixture.homeAdapter.syncFromGitHub(homeRoot, {
+      expectedStatusId: homeBeforeSync.value.statusId,
+      remoteName: 'upstream',
+      branchName,
+      upstreamBranch: `upstream/${branchName}`,
+    });
+    networkWorkflowLocalCalls.push(...fixture.homeLocalCalls.slice(homeSyncLocalStart));
+    expect(homeSync).toEqual({
+      ok: true,
+      value: { relation: 'remote_ahead', changed: true, headSha: workCommit.value.commitSha },
+    });
+
+    expect(git(fixture.home, ['rev-parse', 'HEAD'])).toBe(workCommit.value.commitSha);
+    expect(git(fixture.work, ['rev-parse', 'HEAD'])).toBe(workCommit.value.commitSha);
+    expect(git(fixture.home, ['rev-parse', 'HEAD^{tree}'])).toBe(git(fixture.work, ['rev-parse', 'HEAD^{tree}']));
+    expect(git(fixture.bare, ['rev-parse', `refs/heads/${branchName}`])).toBe(workCommit.value.commitSha);
+    expect(git(fixture.home, ['status', '--porcelain'])).toBe('');
+    expect(git(fixture.work, ['status', '--porcelain'])).toBe('');
+    expect(fixture.homeAdapter.relation(homeRoot, 'upstream', branchName)).toMatchObject({ ok: true, value: { kind: 'up_to_date' } });
+    expect(fixture.workAdapter.relation(workRoot, 'upstream', branchName)).toMatchObject({ ok: true, value: { kind: 'up_to_date' } });
+
+    const issuedArgs = [
+      ...fixture.homeNetworkCalls,
+      ...fixture.workNetworkCalls,
+      ...networkWorkflowLocalCalls,
+    ].flatMap((call) => call.args);
+    expect(issuedArgs).not.toContain('--force');
+    expect(issuedArgs).not.toContain('-f');
+    expect(issuedArgs).not.toContain('rebase');
+    expect(issuedArgs).not.toContain('reset');
+    expect(issuedArgs).not.toContain('stash');
+  }, 45_000);
+
+  it('stops a diverged Work Sync while preserving local HEAD, index, worktree, and remote state', () => {
+    const branchName = 'feature/diverged-two-device';
+    const fixture = createTwoDeviceFixture([branchName]);
+    const homeRoot = canonical(fixture.home);
+    const workRoot = canonical(fixture.work);
+
+    const homeBase = fixture.homeAdapter.status(homeRoot);
+    if (!homeBase.ok) throw new Error(homeBase.error.code);
+    expect(fixture.homeAdapter.createBranch(homeRoot, homeBase.value.statusId, branchName)).toMatchObject({ ok: true });
+    const homeCreated = fixture.homeAdapter.status(homeRoot);
+    if (!homeCreated.ok) throw new Error(homeCreated.error.code);
+    expect(fixture.homeAdapter.switchBranch(homeRoot, homeCreated.value.statusId, branchName)).toMatchObject({ ok: true });
+
+    const workBase = fixture.workAdapter.status(workRoot);
+    if (!workBase.ok) throw new Error(workBase.error.code);
+    expect(fixture.workAdapter.createBranch(workRoot, workBase.value.statusId, branchName)).toMatchObject({ ok: true });
+    git(fixture.work, ['branch', '--set-upstream-to', `upstream/${branchName}`, branchName]);
+    const workCreated = fixture.workAdapter.status(workRoot);
+    if (!workCreated.ok) throw new Error(workCreated.error.code);
+    expect(fixture.workAdapter.switchBranch(workRoot, workCreated.value.statusId, branchName)).toMatchObject({ ok: true });
+
+    fs.writeFileSync(path.join(fixture.home, 'home-diverged.txt'), 'home side\n', 'utf8');
+    const homeDirty = fixture.homeAdapter.status(homeRoot);
+    if (!homeDirty.ok) throw new Error(homeDirty.error.code);
+    const homeCommit = fixture.homeAdapter.commit(homeRoot, homeDirty.value.statusId, 'test: home diverged');
+    if (!homeCommit.ok) throw new Error(homeCommit.error.code);
+    const homePushStatus = fixture.homeAdapter.status(homeRoot);
+    if (!homePushStatus.ok) throw new Error(homePushStatus.error.code);
+    expect(fixture.homeAdapter.pushToGitHub(homeRoot, {
+      expectedStatusId: homePushStatus.value.statusId,
+      remoteName: 'upstream',
+      branchName,
+    })).toMatchObject({ ok: true, value: { remoteSha: homeCommit.value.commitSha } });
+
+    fs.writeFileSync(path.join(fixture.work, 'work-diverged.txt'), 'work side\n', 'utf8');
+    const workDirty = fixture.workAdapter.status(workRoot);
+    if (!workDirty.ok) throw new Error(workDirty.error.code);
+    const workCommit = fixture.workAdapter.commit(workRoot, workDirty.value.statusId, 'test: work diverged');
+    if (!workCommit.ok) throw new Error(workCommit.error.code);
+    const remoteBefore = git(fixture.bare, ['rev-parse', `refs/heads/${branchName}`]);
+    expect(remoteBefore).toBe(homeCommit.value.commitSha);
+
+    const beforeSync = fixture.workAdapter.status(workRoot);
+    if (!beforeSync.ok) throw new Error(beforeSync.error.code);
+    const beforeHead = git(fixture.work, ['rev-parse', 'HEAD']);
+    const beforeIndex = indexBytes(fixture.work);
+    const beforePorcelain = git(fixture.work, ['status', '--porcelain=v2']);
+    const beforeWorktree = fs.readFileSync(path.join(fixture.work, 'work-diverged.txt'));
+    expect(beforeHead).toBe(workCommit.value.commitSha);
+    const localCallStart = fixture.workLocalCalls.length;
+    const networkCallStart = fixture.workNetworkCalls.length;
+    const sync = fixture.workAdapter.syncFromGitHub(workRoot, {
+      expectedStatusId: beforeSync.value.statusId,
+      remoteName: 'upstream',
+      branchName,
+      upstreamBranch: `upstream/${branchName}`,
+    });
+    const syncLocalCalls = fixture.workLocalCalls.slice(localCallStart);
+    const syncNetworkCalls = fixture.workNetworkCalls.slice(networkCallStart);
+
+    expect(sync).toMatchObject({ ok: false, error: { code: 'GIT_DIVERGED' } });
+    expect(git(fixture.work, ['rev-parse', 'HEAD'])).toBe(beforeHead);
+    expect(indexBytes(fixture.work).equals(beforeIndex)).toBe(true);
+    expect(git(fixture.work, ['status', '--porcelain=v2'])).toBe(beforePorcelain);
+    expect(fs.readFileSync(path.join(fixture.work, 'work-diverged.txt'))).toEqual(beforeWorktree);
+    expect(git(fixture.bare, ['rev-parse', `refs/heads/${branchName}`])).toBe(remoteBefore);
+
+    const syncArgs = [...syncLocalCalls, ...syncNetworkCalls].flatMap((call) => call.args);
+    expect(syncArgs).not.toContain('--force');
+    expect(syncArgs).not.toContain('-f');
+    expect(syncArgs).not.toContain('merge');
+    expect(syncArgs).not.toContain('rebase');
+    expect(syncArgs).not.toContain('reset');
+    expect(syncArgs).not.toContain('stash');
+  }, 45_000);
+
   it('fetches the validated GitHub remote and refreshes a non-main default branch', () => {
     const fixture = createRemoteFixture();
     fs.writeFileSync(path.join(fixture.publisher, 'remote.txt'), 'remote\n', 'utf8');

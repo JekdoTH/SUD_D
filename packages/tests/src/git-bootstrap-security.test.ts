@@ -85,6 +85,12 @@ describe('Git Bootstrap - workflow capability security', () => {
     expect(h.get('git.remote.configure').validate({ expectedSnapshotId: SNAPSHOT, remoteName: 'upstream', remoteUrl: 'https://github.com/acme/widgets.git' })).toMatchObject({ ok: true });
     expect(h.get('git.branch.create').validate({ expectedSnapshotId: SNAPSHOT, branchName: 'feature/x' })).toMatchObject({ ok: true });
     expect(h.get('git.clone').validate({ repositoryUrl: 'https://github.com/acme/widgets.git', destinationPath: 'C:\\Work\\clone-target', displayName: 'Clone' })).toMatchObject({ ok: true });
+    const privilegedExtras = [
+      { executable: 'git.exe' },
+      { argv: ['push', '--force'] },
+      { cwd: 'C:\\SECRET_CWD' },
+      { env: { SUD_D_TOKEN: 'SECRET_TOKEN' } },
+    ];
     for (const name of GIT_WORKFLOW_CAPABILITY_NAMES) {
       const valid = name === 'git.inspect' ? {} : name === 'git.clone'
         ? { repositoryUrl: 'https://github.com/acme/widgets.git', destinationPath: 'C:\\Work\\clone-target', displayName: 'Clone' }
@@ -95,7 +101,9 @@ describe('Git Bootstrap - workflow capability security', () => {
             : name.startsWith('git.branch.')
               ? { expectedSnapshotId: SNAPSHOT, branchName: 'feature/x' }
               : { expectedSnapshotId: SNAPSHOT };
-      expect(h.get(name).validate({ ...valid, executable: 'git.exe' })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
+      for (const extra of privilegedExtras) {
+        expect(h.get(name).validate({ ...valid, ...extra })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
+      }
     }
   });
 
@@ -112,11 +120,18 @@ describe('Git Bootstrap - workflow capability security', () => {
     expect(h.get('git.sync').approval?.bind({ expectedSnapshotId: SNAPSHOT }, syncSecurity.value)).toEqual({
       ok: true, value: { operation: 'sync', expectedSnapshotId: SNAPSHOT, remoteName: 'upstream', safeRepository: 'acme/widgets', transport: 'https' },
     });
-    const cloneSecurity = h.get('git.clone').resolveSecurity({ repositoryUrl: 'https://github.com/acme/widgets.git', destinationPath: 'C:\\Work\\clone-target', displayName: 'Clone' });
+    const sensitiveCloneRequest = {
+      repositoryUrl: 'https://TOKEN_SECRET@github.com/acme/widgets.git',
+      destinationPath: 'C:\\PRIVATE_KEY_PATH\\clone-target',
+      displayName: 'Clone',
+    };
+    const cloneSecurity = h.get('git.clone').resolveSecurity(sensitiveCloneRequest);
     if (!cloneSecurity.ok) throw new Error(cloneSecurity.error.code);
-    expect(h.get('git.clone').approval?.bind({ repositoryUrl: 'https://github.com/acme/widgets.git', destinationPath: 'C:\\Work\\clone-target', displayName: 'Clone' }, cloneSecurity.value)).toEqual({
+    const cloneBinding = h.get('git.clone').approval?.bind(sensitiveCloneRequest, cloneSecurity.value);
+    expect(cloneBinding).toEqual({
       ok: true, value: { operation: 'clone', safeRepository: 'acme/widgets', transport: 'https', destinationLabel: 'clone-target' },
     });
+    expect(JSON.stringify(cloneBinding)).not.toMatch(/TOKEN_SECRET|PRIVATE_KEY_PATH|https:\/\//i);
     expect(h.get('git.branch.delete').approval).toBeDefined();
   });
 
