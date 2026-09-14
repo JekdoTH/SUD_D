@@ -33,6 +33,18 @@ export const IPC_CHANNELS = {
   APPROVAL_RESPOND: 'approval:respond',
   APPROVAL_MODE_GET: 'approval:mode:get',
   APPROVAL_MODE_SET: 'approval:mode:set',
+  GIT_SNAPSHOT: 'git:snapshot',
+  GIT_INIT: 'git:init',
+  GIT_REMOTE_CONFIGURE: 'git:remote:configure',
+  GIT_REMOTE_SELECT: 'git:remote:select',
+  GIT_BRANCH_CREATE: 'git:branch:create',
+  GIT_BRANCH_SWITCH: 'git:branch:switch',
+  GIT_BRANCH_MERGE: 'git:branch:merge',
+  GIT_BRANCH_DELETE: 'git:branch:delete',
+  GIT_FETCH: 'git:fetch',
+  GIT_SYNC: 'git:sync',
+  GIT_PUSH: 'git:push',
+  GIT_CLONE: 'git:clone',
   TEAM_STATUS: 'team:status',
   TEAM_STOP: 'team:stop',
   OVERVIEW_WORK_STATUS: 'overview:workStatus',
@@ -221,6 +233,120 @@ export const DesktopApprovalModeDtoSchema = z.object({
   mode: ApprovalModeSchema,
 }).strict();
 export type DesktopApprovalModeDto = z.infer<typeof DesktopApprovalModeDtoSchema>;
+
+// ---------------------------------------------------------------------------
+// Git workflow DTOs — semantic intent + bounded renderer-safe state only
+// ---------------------------------------------------------------------------
+
+export const GitSnapshotIdSchema = z.string().regex(/^[0-9a-f]{64}$/);
+export const GitBranchNameSchema = z.string().min(1).max(255).refine((value) => !/[\r\n\0]/.test(value));
+export const GitRemoteNameSchema = z.string().min(1).max(128).refine((value) => !/[\s\r\n\0]/.test(value));
+export const GitRemoteUrlSchema = z.string().min(1).max(2048).refine((value) => !/[\r\n\0]/.test(value));
+
+export const GitInitInputSchema = z.object({
+  expectedSnapshotId: GitSnapshotIdSchema,
+}).strict();
+export type GitInitInput = z.infer<typeof GitInitInputSchema>;
+
+export const GitConfigureRemoteInputSchema = z.object({
+  expectedSnapshotId: GitSnapshotIdSchema,
+  remoteName: GitRemoteNameSchema,
+  remoteUrl: GitRemoteUrlSchema,
+}).strict();
+export type GitConfigureRemoteInput = z.infer<typeof GitConfigureRemoteInputSchema>;
+
+export const GitSelectPrimaryRemoteInputSchema = z.object({
+  expectedSnapshotId: GitSnapshotIdSchema,
+  remoteName: GitRemoteNameSchema,
+}).strict();
+export type GitSelectPrimaryRemoteInput = z.infer<typeof GitSelectPrimaryRemoteInputSchema>;
+
+const GitBranchMutationInputSchema = z.object({
+  expectedSnapshotId: GitSnapshotIdSchema,
+  branchName: GitBranchNameSchema,
+}).strict();
+export const GitBranchCreateInputSchema = GitBranchMutationInputSchema;
+export const GitBranchSwitchInputSchema = GitBranchMutationInputSchema;
+export const GitBranchMergeInputSchema = GitBranchMutationInputSchema;
+export const GitBranchDeleteInputSchema = GitBranchMutationInputSchema;
+export type GitBranchCreateInput = z.infer<typeof GitBranchCreateInputSchema>;
+export type GitBranchSwitchInput = z.infer<typeof GitBranchSwitchInputSchema>;
+export type GitBranchMergeInput = z.infer<typeof GitBranchMergeInputSchema>;
+export type GitBranchDeleteInput = z.infer<typeof GitBranchDeleteInputSchema>;
+
+const GitNetworkExistingWorkspaceInputSchema = z.object({
+  expectedSnapshotId: GitSnapshotIdSchema,
+}).strict();
+export const GitFetchInputSchema = GitNetworkExistingWorkspaceInputSchema;
+export const GitSyncInputSchema = GitNetworkExistingWorkspaceInputSchema;
+export const GitPushInputSchema = GitNetworkExistingWorkspaceInputSchema;
+export type GitFetchInput = z.infer<typeof GitFetchInputSchema>;
+export type GitSyncInput = z.infer<typeof GitSyncInputSchema>;
+export type GitPushInput = z.infer<typeof GitPushInputSchema>;
+
+export const GitCloneInputSchema = z.object({
+  repositoryUrl: GitRemoteUrlSchema,
+  destinationPath: z.string().min(1).max(32767),
+  displayName: DisplayNameSchema,
+}).strict();
+export type GitCloneInput = z.infer<typeof GitCloneInputSchema>;
+
+const GitAvailabilitySchema = z.object({
+  available: z.boolean(),
+  reason: z.string().min(1).max(200).optional(),
+}).strict();
+
+const DesktopGitBranchDtoSchema = z.object({
+  name: GitBranchNameSchema,
+  current: z.boolean(),
+  checkedOutElsewhere: z.boolean(),
+}).strict();
+
+export const DesktopGitSnapshotDtoSchema = z.object({
+  workspace: z.object({ id: WorkspaceIdSchema, displayName: DisplayNameSchema }).strict(),
+  snapshotId: GitSnapshotIdSchema,
+  repository: z.enum(['not_repository', 'ready', 'unsupported']),
+  repositoryState: z.enum(['normal', 'merge', 'rebase', 'cherry_pick', 'revert', 'bisect', 'conflict']),
+  clean: z.boolean(),
+  changedFiles: z.number().int().min(0).max(500),
+  truncated: z.boolean(),
+  currentBranch: GitBranchNameSchema.optional(),
+  detached: z.boolean(),
+  branches: z.array(DesktopGitBranchDtoSchema).max(500),
+  defaultBranch: z.object({
+    state: z.enum(['known', 'unknown']),
+    branch: GitBranchNameSchema.optional(),
+  }).strict(),
+  primaryRemote: z.object({
+    state: z.enum(['resolved', 'missing', 'ambiguous', 'unsupported']),
+    name: GitRemoteNameSchema.optional(),
+    safeRepository: z.string().min(1).max(512).optional(),
+    transport: z.enum(['https', 'ssh']).optional(),
+  }).strict(),
+  upstreamBranch: GitBranchNameSchema.optional(),
+  relation: z.enum(['unknown', 'up_to_date', 'local_ahead', 'remote_ahead', 'diverged', 'no_upstream', 'unavailable']),
+  ahead: z.number().int().min(0).max(1_000_000).optional(),
+  behind: z.number().int().min(0).max(1_000_000).optional(),
+  authStatus: z.enum(['unknown', 'working', 'failed']),
+  operations: z.object({
+    initialize: GitAvailabilitySchema,
+    configureRemote: GitAvailabilitySchema,
+    createBranch: GitAvailabilitySchema,
+    switchBranch: GitAvailabilitySchema,
+    mergeBranch: GitAvailabilitySchema,
+    deleteBranch: GitAvailabilitySchema,
+    fetch: GitAvailabilitySchema,
+    sync: GitAvailabilitySchema,
+    push: GitAvailabilitySchema,
+  }).strict(),
+}).strict();
+export type DesktopGitSnapshotDto = z.infer<typeof DesktopGitSnapshotDtoSchema>;
+
+export const DesktopGitCloneResultDtoSchema = z.object({
+  workspace: WorkspaceDtoSchema,
+  snapshot: DesktopGitSnapshotDtoSchema,
+}).strict();
+export type DesktopGitCloneResultDto = z.infer<typeof DesktopGitCloneResultDtoSchema>;
 
 // ---------------------------------------------------------------------------
 // Overview work status DTO — bounded read-only local state only

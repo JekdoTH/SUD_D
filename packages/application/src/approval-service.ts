@@ -68,8 +68,22 @@ const APPROVE_FOR_ME_VERIFY_ACTIONS = new Set([
   'secret_scan',
 ]);
 
+const GITHUB_NETWORK_AUTO_APPROVAL_CAPABILITIES = new Set([
+  'git.clone',
+  'git.fetch',
+  'git.sync',
+  'git.push',
+]);
+
 function isAutoApprovalEligible(mode: ApprovalMode, request: ApprovalAuthorizationRequest): boolean {
   if (mode === 'standard') return false;
+
+  if (request.security.context === 'github_network') {
+    return request.security.sensitivity === 'normal'
+      && request.effect !== 'delete'
+      && GITHUB_NETWORK_AUTO_APPROVAL_CAPABILITIES.has(request.capability);
+  }
+
   if (
     request.security.context !== 'workspace'
     || request.security.sensitivity !== 'normal'

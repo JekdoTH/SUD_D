@@ -8,7 +8,8 @@ export type PolicyContext =
   | 'workspace'
   | 'outside_workspace'
   | 'internal_root'
-  | 'network';
+  | 'network'
+  | 'github_network';
 
 export interface PolicyRequest {
   readonly effect: Effect;
@@ -31,9 +32,14 @@ export function evaluatePolicy(req: PolicyRequest): PolicyDecision {
     return { decision: 'deny', reason: 'Path is outside any registered Workspace' };
   }
 
-  // Network always denied
+  // Generic network remains denied.
   if (req.context === 'network') {
     return { decision: 'deny', reason: 'Network access is not permitted' };
+  }
+
+  // Reviewed fixed-purpose GitHub network operations require Approval.
+  if (req.context === 'github_network') {
+    return { decision: 'ask', reason: 'Reviewed GitHub network operation requires Approval' };
   }
 
   // Delete always ask regardless of sensitivity

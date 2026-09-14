@@ -178,6 +178,57 @@ describe('Basic Approval - policy, expiry, queue, and one-time consumption', () 
     expect(coordinator.authorize({ ...base, effect: 'delete' })).toMatchObject({ ok: true, state: 'pending' });
   });
 
+  it.each(['git.clone', 'git.fetch', 'git.sync', 'git.push'] as const)(
+    '%s is manual in Standard and mode-approved in the two automatic modes',
+    (capability) => {
+      const { db } = makeDb();
+      const repository = createApprovalRepository(db);
+      const hmacKey = Buffer.alloc(32, 35);
+      const githubRequest = {
+        session: { id: 'git-mode-test', type: 'desktop' as const },
+        capability,
+        effect: 'modify' as const,
+        security: { sensitivity: 'normal' as const, context: 'github_network' as const },
+        descriptor: { title: 'Sync GitHub repository', resourceLabel: 'acme/widgets' },
+        binding: { operation: capability },
+      };
+
+      const standard = createApprovalCoordinator({ repository, runtimeInstanceId: `std-${capability}`, hmacKey, mode: () => 'standard' });
+      const approveForMe = createApprovalCoordinator({ repository, runtimeInstanceId: `afm-${capability}`, hmacKey, mode: () => 'approve_for_me' });
+      const fullAccess = createApprovalCoordinator({ repository, runtimeInstanceId: `full-${capability}`, hmacKey, mode: () => 'full_access' });
+
+      expect(standard.authorize(githubRequest)).toMatchObject({ ok: true, state: 'pending' });
+      expect(approveForMe.authorize(githubRequest)).toMatchObject({ ok: true, state: 'approved' });
+      expect(fullAccess.authorize(githubRequest)).toMatchObject({ ok: true, state: 'approved' });
+    },
+  );
+
+  it('never mode-approves credential/destructive/unlisted github_network requests', () => {
+    const { db } = makeDb();
+    const repository = createApprovalRepository(db);
+    const coordinator = createApprovalCoordinator({
+      repository,
+      runtimeInstanceId: 'runtime-github-hard-boundary',
+      hmacKey: Buffer.alloc(32, 36),
+      mode: () => 'full_access',
+    });
+    const base = {
+      session: { id: 'git-mode-boundary', type: 'desktop' as const },
+      capability: 'git.sync',
+      effect: 'modify' as const,
+      security: { sensitivity: 'normal' as const, context: 'github_network' as const },
+      descriptor: { title: 'Sync GitHub repository', resourceLabel: 'acme/widgets' },
+      binding: { operation: 'git.sync' },
+    };
+
+    expect(coordinator.authorize({ ...base, security: { ...base.security, sensitivity: 'credential' as const } }))
+      .toMatchObject({ ok: true, state: 'pending' });
+    expect(coordinator.authorize({ ...base, effect: 'delete' as const }))
+      .toMatchObject({ ok: true, state: 'pending' });
+    expect(coordinator.authorize({ ...base, capability: 'git.remote.configure' }))
+      .toMatchObject({ ok: true, state: 'pending' });
+  });
+
   it('approval automation cannot bypass Policy hard DENY contexts', async () => {
     const { db } = makeDb();
     const repository = createApprovalRepository(db);

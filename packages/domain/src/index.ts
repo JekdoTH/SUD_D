@@ -8,6 +8,7 @@ export * from './restricted-verify.js';
 export * from './work-memory.js';
 export * from './classifier.js';
 export * from './policy.js';
+export * from './git.js';
 export * from './tool-kernel.js';
 export * from './approval.js';
 export * from './team.js';
