@@ -17,6 +17,19 @@ import type {
   DesktopApprovalResponseDto,
   DesktopTeamMissionDto,
   DesktopOverviewWorkStatusDto,
+  DesktopGitSnapshotDto,
+  DesktopGitCloneResultDto,
+  GitInitInput,
+  GitConfigureRemoteInput,
+  GitSelectPrimaryRemoteInput,
+  GitBranchCreateInput,
+  GitBranchSwitchInput,
+  GitBranchMergeInput,
+  GitBranchDeleteInput,
+  GitFetchInput,
+  GitSyncInput,
+  GitPushInput,
+  GitCloneInput,
   TeamStatusInput,
   TeamStopInput,
   ConnectionStartInput,
@@ -58,6 +71,20 @@ interface SudDApi {
     respond(input: ApprovalRespondInput): Promise<IpcResult<DesktopApprovalResponseDto>>;
     getMode(): Promise<IpcResult<DesktopApprovalModeDto>>;
     setMode(input: ApprovalModeSetInput): Promise<IpcResult<DesktopApprovalModeDto>>;
+  };
+  git: {
+    snapshot(): Promise<IpcResult<DesktopGitSnapshotDto>>;
+    init(input: GitInitInput): Promise<IpcResult<DesktopGitSnapshotDto>>;
+    configure(input: GitConfigureRemoteInput): Promise<IpcResult<DesktopGitSnapshotDto>>;
+    select(input: GitSelectPrimaryRemoteInput): Promise<IpcResult<DesktopGitSnapshotDto>>;
+    create(input: GitBranchCreateInput): Promise<IpcResult<DesktopGitSnapshotDto>>;
+    switch(input: GitBranchSwitchInput): Promise<IpcResult<DesktopGitSnapshotDto>>;
+    merge(input: GitBranchMergeInput): Promise<IpcResult<DesktopGitSnapshotDto>>;
+    delete(input: GitBranchDeleteInput): Promise<IpcResult<DesktopGitSnapshotDto>>;
+    fetch(input: GitFetchInput): Promise<IpcResult<DesktopGitSnapshotDto>>;
+    sync(input: GitSyncInput): Promise<IpcResult<DesktopGitSnapshotDto>>;
+    push(input: GitPushInput): Promise<IpcResult<DesktopGitSnapshotDto>>;
+    clone(input: GitCloneInput): Promise<IpcResult<DesktopGitCloneResultDto>>;
   };
   team: {
     status(input?: TeamStatusInput): Promise<IpcResult<DesktopTeamMissionDto | null>>;

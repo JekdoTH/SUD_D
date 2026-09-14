@@ -19,6 +19,19 @@ import {
   type DesktopApprovalResponseDto,
   type DesktopTeamMissionDto,
   type DesktopOverviewWorkStatusDto,
+  type DesktopGitSnapshotDto,
+  type DesktopGitCloneResultDto,
+  type GitInitInput,
+  type GitConfigureRemoteInput,
+  type GitSelectPrimaryRemoteInput,
+  type GitBranchCreateInput,
+  type GitBranchSwitchInput,
+  type GitBranchMergeInput,
+  type GitBranchDeleteInput,
+  type GitFetchInput,
+  type GitSyncInput,
+  type GitPushInput,
+  type GitCloneInput,
   type TeamStatusInput,
   type TeamStopInput,
   type ConnectionStartInput,
@@ -79,6 +92,32 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_MODE_GET) as Promise<IpcResult<DesktopApprovalModeDto>>,
     setMode: (input: ApprovalModeSetInput): Promise<IpcResult<DesktopApprovalModeDto>> =>
       ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_MODE_SET, input) as Promise<IpcResult<DesktopApprovalModeDto>>,
+  },
+  git: {
+    snapshot: (): Promise<IpcResult<DesktopGitSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_SNAPSHOT) as Promise<IpcResult<DesktopGitSnapshotDto>>,
+    init: (input: GitInitInput): Promise<IpcResult<DesktopGitSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_INIT, input) as Promise<IpcResult<DesktopGitSnapshotDto>>,
+    configure: (input: GitConfigureRemoteInput): Promise<IpcResult<DesktopGitSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_REMOTE_CONFIGURE, input) as Promise<IpcResult<DesktopGitSnapshotDto>>,
+    select: (input: GitSelectPrimaryRemoteInput): Promise<IpcResult<DesktopGitSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_REMOTE_SELECT, input) as Promise<IpcResult<DesktopGitSnapshotDto>>,
+    create: (input: GitBranchCreateInput): Promise<IpcResult<DesktopGitSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_BRANCH_CREATE, input) as Promise<IpcResult<DesktopGitSnapshotDto>>,
+    switch: (input: GitBranchSwitchInput): Promise<IpcResult<DesktopGitSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_BRANCH_SWITCH, input) as Promise<IpcResult<DesktopGitSnapshotDto>>,
+    merge: (input: GitBranchMergeInput): Promise<IpcResult<DesktopGitSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_BRANCH_MERGE, input) as Promise<IpcResult<DesktopGitSnapshotDto>>,
+    delete: (input: GitBranchDeleteInput): Promise<IpcResult<DesktopGitSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_BRANCH_DELETE, input) as Promise<IpcResult<DesktopGitSnapshotDto>>,
+    fetch: (input: GitFetchInput): Promise<IpcResult<DesktopGitSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_FETCH, input) as Promise<IpcResult<DesktopGitSnapshotDto>>,
+    sync: (input: GitSyncInput): Promise<IpcResult<DesktopGitSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_SYNC, input) as Promise<IpcResult<DesktopGitSnapshotDto>>,
+    push: (input: GitPushInput): Promise<IpcResult<DesktopGitSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_PUSH, input) as Promise<IpcResult<DesktopGitSnapshotDto>>,
+    clone: (input: GitCloneInput): Promise<IpcResult<DesktopGitCloneResultDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_CLONE, input) as Promise<IpcResult<DesktopGitCloneResultDto>>,
   },
   team: {
     status: (input?: TeamStatusInput): Promise<IpcResult<DesktopTeamMissionDto | null>> =>
