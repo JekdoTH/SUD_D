@@ -27,12 +27,13 @@ const PERSONAL_ALPHA_WORKSPACE_TOOLS = [
   'workspace.write_text_file',
 ] as const;
 const GIT_SAFETY_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint', 'git.commit'] as const;
+const GIT_WORKFLOW_TOOLS = ['git.inspect', 'git.init', 'git.remote.configure', 'git.remote.select', 'git.branch.create', 'git.branch.switch', 'git.branch.merge', 'git.branch.delete', 'git.fetch', 'git.sync', 'git.push', 'git.clone'] as const;
 const TEAM_TOOLS = ['team.start', 'team.status', 'team.submit', 'team.stop'] as const;
 const CODE_READ_TOOLS = ['code.overview', 'code.find_symbol', 'code.find_references', 'code.search', 'code.diagnostics'] as const;
 const CODE_WRITE_TOOLS = ['code.replace_symbol', 'code.insert_before', 'code.insert_after', 'code.rename'] as const;
 const VERIFY_TOOLS = ['verify.run'] as const;
 const WORK_MEMORY_TOOLS = ['work.resume', 'work.checkpoint'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS, ...WORK_MEMORY_TOOLS] as const;
+const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS, ...GIT_WORKFLOW_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS, ...WORK_MEMORY_TOOLS] as const;
 
 interface TunnelLaunchPlan {
   readonly executablePath: string;

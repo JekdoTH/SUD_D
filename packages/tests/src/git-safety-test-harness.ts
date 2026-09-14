@@ -22,7 +22,7 @@ import {
 } from '@sud-d/application';
 import type { ToolKernelResult } from '@sud-d/domain';
 
-export const GIT_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint', 'git.commit'] as const;
+export const GIT_TOOLS = ['git.detect', 'git.status', 'git.diff', 'git.checkpoint', 'git.commit', 'git.inspect', 'git.init', 'git.remote.configure', 'git.remote.select', 'git.branch.create', 'git.branch.switch', 'git.branch.merge', 'git.branch.delete', 'git.fetch', 'git.sync', 'git.push', 'git.clone'] as const;
 export const WORKSPACE_TOOLS = [
   'workspace.list',
   'workspace.stat',

@@ -133,7 +133,7 @@ export function createGitWorkspaceService(deps: GitWorkspaceServiceDependencies)
 
   const networkState = (expectedSnapshotId: string): Result<GitWorkspaceSnapshotState, AppError> => requireFreshSnapshot(expectedSnapshotId);
 
-  return Object.freeze({
+  const service: GitWorkspaceService = {
     snapshot,
     initialize(expectedSnapshotId) {
       const current = requireFreshSnapshot(expectedSnapshotId); if (!current.ok) return current;
@@ -216,7 +216,8 @@ export function createGitWorkspaceService(deps: GitWorkspaceServiceDependencies)
       const eligible = requireNetworkApprovalEligibility(operation, state.value.snapshot); if (!eligible.ok) return eligible;
       return ok({ operation, expectedSnapshotId: command.value.expectedSnapshotId, remoteName: eligible.value.name, safeRepository: eligible.value.safeRepository, transport: eligible.value.transport });
     },
-  });
+  };
+  return Object.freeze(service);
 }
 
 function buildSnapshot(workspace: Workspace, inspection: GitWorkspaceInspection, deps: GitWorkspaceServiceDependencies): Result<GitWorkspaceSnapshot, AppError> {
@@ -254,7 +255,7 @@ function buildSnapshot(workspace: Workspace, inspection: GitWorkspaceInspection,
   const available = (value: boolean, reason: string): GitOperationAvailability => value ? { available: true } : { available: false, reason };
   return ok({
     workspace: { id: workspace.id, displayName: workspace.displayName }, snapshotId, repository, repositoryState: inspection.detect.state,
-    clean, changedFiles, truncated: status?.truncated ?? false, ...(currentBranch ? { currentBranch } : {}), detached: inspection.detect.detached,
+    clean, changedFiles, truncated: status?.truncated ?? false, ...(currentBranch ? { currentBranch } : {}), detached: inspection.detect.detached ?? false,
     branches: inspection.branches, defaultBranch, primaryRemote: primary, ...(inspection.upstreamBranch ? { upstreamBranch: inspection.upstreamBranch } : {}),
     relation, ...(ahead === undefined ? {} : { ahead }), ...(behind === undefined ? {} : { behind }), authStatus: 'unknown',
     operations: {

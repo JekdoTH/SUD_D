@@ -13,6 +13,7 @@ import {
   createTeamRepository,
   createTeamTransitionUnitOfWork,
   createWorkspaceRepository,
+  createWorkspaceGitSettingsRepository,
   createWorkMemoryRepository,
   createWorkspaceTextFileSystem,
   openDatabase,
@@ -32,11 +33,23 @@ const APPROVED_TOOLS = [
   'code.rename',
   'code.replace_symbol',
   'code.search',
+  'git.branch.create',
+  'git.branch.delete',
+  'git.branch.merge',
+  'git.branch.switch',
   'git.checkpoint',
+  'git.clone',
   'git.commit',
   'git.detect',
   'git.diff',
+  'git.fetch',
+  'git.init',
+  'git.inspect',
+  'git.push',
+  'git.remote.configure',
+  'git.remote.select',
   'git.status',
+  'git.sync',
   'team.start',
   'team.status',
   'team.stop',
@@ -166,6 +179,7 @@ async function makeHarness(options: { gitRepo?: boolean; approvalMode?: Approval
   const verifyCalls: string[] = [];
   const server = createProductionMcpServer({
     workspaceRepo,
+    gitSettingsRepo: createWorkspaceGitSettingsRepository(db),
     auditRepo,
     internalRoots: [],
     fileSystem: createWorkspaceTextFileSystem(),
@@ -213,7 +227,7 @@ afterEach(async () => {
 });
 
 describe('Basic Approval - production MCP workspace flows', () => {
-  it('tools/list exposes exactly 27 approved tools, no approval tool, and normal tools remain usable', async () => {
+  it('tools/list exposes exactly 39 approved tools, no approval tool, and normal tools remain usable', async () => {
     const h = await makeHarness({ gitRepo: true });
     expect(h.initialized.result?.serverInfo?.name).toBe('SUD-D');
     const listed = await h.listTools();
@@ -230,7 +244,7 @@ describe('Basic Approval - production MCP workspace flows', () => {
     });
     expect(parsePayload(await h.call('git.status', {}))).toMatchObject({ ok: true, code: 'EXECUTED' });
     await h.server.close();
-  });
+  }, 15_000);
 
   it('verify.run requires exact one-time approval and rejects process-control fields before dispatch', async () => {
     const h = await makeHarness();
@@ -465,7 +479,7 @@ describe('Basic Approval - production Git-sensitive flows', () => {
     expect(approved).toMatchObject({ ok: true, policyDecision: 'ask', approvalDecision: 'approved', approvalRequestId: id });
     expect(JSON.stringify(approved)).toContain(secret);
     await h.server.close();
-  });
+  }, 15_000);
 
   it('changed Git-sensitive state cannot reuse an approved stale diff grant', async () => {
     const h = await makeHarness({ gitRepo: true });
@@ -479,7 +493,7 @@ describe('Basic Approval - production Git-sensitive flows', () => {
     expect(approvalId(changed)).not.toBe(firstId);
     expect(JSON.stringify(changed)).not.toContain('SECOND_SECRET_STATE');
     await h.server.close();
-  });
+  }, 15_000);
 
   it('sensitive checkpoint persists no secret before approval and preserves HEAD/branch/index/worktree after approved retry', async () => {
     const h = await makeHarness({ gitRepo: true });

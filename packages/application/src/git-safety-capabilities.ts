@@ -16,6 +16,7 @@ import {
   type WorkspaceRepository,
 } from '@sud-d/infrastructure';
 import { defineToolCapability, type RegisteredToolCapability } from './tool-kernel.js';
+import { createGitWorkflowCapabilities, type GitCapabilityDependencies } from './git-workflow-capabilities.js';
 
 export const GIT_SAFETY_CAPABILITY_NAMES = Object.freeze([
   'git.detect',
@@ -256,6 +257,18 @@ function resolveWorkspaceSecurity(
   const workspace = getActiveWorkspace(dependencies.workspaceRepo);
   if (!workspace.ok) return workspace;
   return ok({ sensitivity, context: 'workspace', workspaceId: workspace.value.id });
+}
+
+export function createAllGitCapabilities(
+  dependencies: GitCapabilityDependencies,
+): readonly RegisteredToolCapability[] {
+  return Object.freeze([
+    ...createGitSafetyCapabilities({
+      workspaceRepo: dependencies.workspaceRepo,
+      gitSafety: dependencies.gitSafety,
+    }),
+    ...createGitWorkflowCapabilities(dependencies),
+  ]);
 }
 
 function getActiveWorkspace(workspaceRepo: WorkspaceRepository): Result<Workspace, AppError> {

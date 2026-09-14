@@ -15,6 +15,7 @@ import {
   createTeamRepository,
   createTeamTransitionUnitOfWork,
   createWorkspaceRepository,
+  createWorkspaceGitSettingsRepository,
   createWorkspaceTextFileSystem,
   createWorkMemoryRepository,
   openDatabase,
@@ -32,7 +33,10 @@ const APPROVED_TOOLS = [
   'code.diagnostics', 'code.find_references', 'code.find_symbol',
   'code.insert_after', 'code.insert_before', 'code.overview',
   'code.rename', 'code.replace_symbol', 'code.search',
-  'git.checkpoint', 'git.commit', 'git.detect', 'git.diff', 'git.status',
+  'git.branch.create', 'git.branch.delete', 'git.branch.merge', 'git.branch.switch',
+  'git.checkpoint', 'git.clone', 'git.commit', 'git.detect', 'git.diff',
+  'git.fetch', 'git.init', 'git.inspect', 'git.push', 'git.remote.configure',
+  'git.remote.select', 'git.status', 'git.sync',
   'team.start', 'team.status', 'team.stop', 'team.submit',
   'verify.run',
   'work.checkpoint', 'work.resume',
@@ -186,6 +190,7 @@ describe('Team Mode Personal Alpha Home-PC production acceptance', () => {
     let semanticWriteCalls = 0;
     const makeServer = () => createProductionMcpServer({
       workspaceRepo,
+      gitSettingsRepo: createWorkspaceGitSettingsRepository(db),
       auditRepo,
       internalRoots: [],
       fileSystem: createWorkspaceTextFileSystem(),
@@ -206,7 +211,7 @@ describe('Team Mode Personal Alpha Home-PC production acceptance', () => {
       const listed = await a.list();
       const names = (listed.result?.tools ?? []).map((tool) => tool.name).filter((name): name is string => typeof name === 'string').sort();
       expect(names).toEqual(APPROVED_TOOLS);
-      expect(names).toHaveLength(27);
+      expect(names).toHaveLength(39);
       expect(names.filter((name) => name.startsWith('team.'))).toEqual(['team.start', 'team.status', 'team.stop', 'team.submit']);
 
       const preResume = payload(await a.call('team.start', { goal: 'must not dispatch' }));

@@ -55,6 +55,8 @@ describe('Work Resume central Tool Kernel guard', () => {
 
     for (const capability of [
       'workspace.read_text', 'git.status', 'code.overview', 'verify.run', 'team.status', 'work.checkpoint',
+      'git.inspect', 'git.init', 'git.remote.configure', 'git.remote.select', 'git.branch.create', 'git.branch.switch',
+      'git.branch.merge', 'git.branch.delete', 'git.fetch', 'git.sync', 'git.push',
     ]) {
       await expect(invoke(capability)).resolves.toMatchObject({
         ok: false,
@@ -64,7 +66,7 @@ describe('Work Resume central Tool Kernel guard', () => {
       });
     }
     expect(dispatches).toEqual([]);
-    expect(audits).toHaveLength(6);
+    expect(audits).toHaveLength(17);
     expect(audits.every((event) => event.resultCode === 'WORK_RESUME_REQUIRED')).toBe(true);
     expect(JSON.stringify(audits)).not.toMatch(/input|payload|content|stdout|stderr|secret/i);
 
@@ -78,6 +80,21 @@ describe('Work Resume central Tool Kernel guard', () => {
     repo.current = workspace('workspace-b');
     await expect(invoke('git.status')).resolves.toMatchObject({ ok: false, code: 'WORK_RESUME_REQUIRED' });
     expect(dispatches).toEqual(['work.resume', 'git.status']);
+  });
+
+  it('forwards git.clone without requiring an active Workspace resume', async () => {
+    const repo = mutableRepo(workspace('workspace-a'));
+    repo.list = () => [];
+    const workMemory: WorkMemoryService = {
+      resume: () => { throw new Error('not used'); },
+      checkpoint: () => { throw new Error('not used'); },
+      requireResumed: () => { throw new Error('git.clone must not consult resume state'); },
+    };
+    const seen: string[] = [];
+    const inner: ToolKernel = { async invoke(request) { seen.push(request.capability); return { ok: true, outcome: 'executed', code: 'EXECUTED', policyDecision: 'ask', value: request.capability }; } };
+    const guarded = createWorkResumeGuardedToolKernel({ kernel: inner, workspaceRepo: repo, workMemory, audit: { append: () => undefined } });
+    await expect(guarded.invoke({ invocationId: 'clone', session: { id: 's', type: 'mcp-stdio' }, capability: 'git.clone', input: {} })).resolves.toMatchObject({ ok: true, code: 'EXECUTED' });
+    expect(seen).toEqual(['git.clone']);
   });
 
   it('delegates non-project or unknown capabilities so the inner Kernel remains authoritative', async () => {

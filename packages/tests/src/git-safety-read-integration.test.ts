@@ -7,6 +7,7 @@ import {
   createTeamRepository,
   createTeamTransitionUnitOfWork,
   createWorkspaceTextFileSystem,
+  createWorkspaceGitSettingsRepository,
   createWorkMemoryRepository,
   type GitDetectResult,
   type GitDiffResult,
@@ -121,10 +122,11 @@ describe('Git Safety - status and production MCP surface', () => {
     expect(second.statusId).not.toBe(first.statusId);
   });
 
-  it('production tools/list exposes exactly six Workspace, five Git, four Team, five semantic reads, four semantic writes, Restricted Verify, and two Work Memory tools', async () => {
+  it('production tools/list exposes exactly six Workspace, seventeen Git, four Team, five semantic reads, four semantic writes, Restricted Verify, and two Work Memory tools', async () => {
     const h = await makeHarness();
     const server = createProductionMcpServer({
       workspaceRepo: h.workspaceRepo,
+      gitSettingsRepo: createWorkspaceGitSettingsRepository(h.db),
       auditRepo: h.auditRepo,
       internalRoots: [],
       fileSystem: createWorkspaceTextFileSystem(),
@@ -154,6 +156,7 @@ describe('Git Safety - status and production MCP surface', () => {
     const h = await makeHarness();
     const server = createProductionMcpServer({
       workspaceRepo: h.workspaceRepo,
+      gitSettingsRepo: createWorkspaceGitSettingsRepository(h.db),
       auditRepo: h.auditRepo,
       internalRoots: [],
       fileSystem: createWorkspaceTextFileSystem(),

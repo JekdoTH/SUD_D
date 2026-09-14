@@ -7,7 +7,9 @@ import {
   createApprovalCoordinator,
   createCodingSemanticReadCapabilities,
   createCodingSemanticWriteCapabilities,
-  createGitSafetyCapabilities,
+  createAllGitCapabilities,
+  createGitWorkspaceService,
+  createWorkspaceService,
   createRestrictedVerifyCapabilities,
   createWorkMemoryCapabilities,
   createWorkMemoryService,
@@ -45,6 +47,7 @@ import {
   createTeamRepository,
   createTeamTransitionUnitOfWork,
   createWorkspaceRepository,
+  createWorkspaceGitSettingsRepository,
   createWorkMemoryRepository,
   createWorkspaceTextFileSystem,
   getDataRoot,
@@ -54,6 +57,7 @@ import {
   type TeamRepository,
   type TeamTransitionUnitOfWork,
   type WorkspaceRepository,
+  type WorkspaceGitSettingsRepository,
   type WorkspaceTextFileSystem,
   type WorkMemoryRepository,
 } from '@sud-d/infrastructure';
@@ -96,6 +100,20 @@ const gitCheckpointInputSchema = z.object({
 const gitCommitInputSchema = z.object({
   expectedStatusId: z.string().regex(/^[0-9a-f]{64}$/),
   message: z.string().min(1).max(160).refine((value) => !/[\r\n\0]/.test(value)),
+}).strict();
+const gitSnapshotIdSchema = z.string().regex(/^[0-9a-f]{64}$/);
+const gitRemoteNameSchema = z.string().min(1).max(100).regex(/^[A-Za-z0-9._-]+$/);
+const gitBranchNameSchema = z.string().min(1).max(240).regex(/^[A-Za-z0-9._\/-]+$/).refine((value) => !/[\r\n\0]/.test(value));
+const gitRemoteUrlSchema = z.string().min(1).max(2048).refine((value) => !/[\r\n\0]/.test(value));
+const gitInspectInputSchema = z.object({}).strict();
+const gitExpectedSnapshotInputSchema = z.object({ expectedSnapshotId: gitSnapshotIdSchema }).strict();
+const gitRemoteConfigureInputSchema = z.object({ expectedSnapshotId: gitSnapshotIdSchema, remoteName: gitRemoteNameSchema, remoteUrl: gitRemoteUrlSchema }).strict();
+const gitRemoteSelectInputSchema = z.object({ expectedSnapshotId: gitSnapshotIdSchema, remoteName: gitRemoteNameSchema }).strict();
+const gitBranchInputSchema = z.object({ expectedSnapshotId: gitSnapshotIdSchema, branchName: gitBranchNameSchema }).strict();
+const gitCloneInputSchema = z.object({
+  repositoryUrl: gitRemoteUrlSchema,
+  destinationPath: z.string().min(1).max(32_767).refine((value) => !/[\r\n\0]/.test(value)),
+  displayName: z.string().min(1).max(200).refine((value) => value.trim().length > 0 && !/[\r\n\0]/.test(value)),
 }).strict();
 
 const teamGoalSchema = z.string().min(1).max(2_000).refine((value) => !value.includes('\0'));
@@ -220,6 +238,7 @@ export interface ProductionMcpServerDependencies {
   readonly internalRoots: readonly InternalRoot[];
   readonly fileSystem: WorkspaceTextFileSystem;
   readonly gitSafety?: GitSafetyAdapter;
+  readonly gitSettingsRepo: WorkspaceGitSettingsRepository;
   readonly teamRepo: TeamRepository;
   readonly teamTransitionUow: TeamTransitionUnitOfWork;
   readonly semanticRead: CodingSemanticReadPort;
@@ -236,6 +255,18 @@ export function createProductionMcpServer(
   const legacy = createTeamLegacyReconciler({ teamRepo: dependencies.teamRepo }).reconcile();
   if (!legacy.ok) throw new Error('SUD-D Team legacy reconciliation failed');
   const workMemory = createWorkMemoryService({ repository: dependencies.workMemoryRepo, gitSafety });
+  const workspaceService = createWorkspaceService(
+    dependencies.workspaceRepo,
+    dependencies.auditRepo,
+    [...dependencies.internalRoots],
+  );
+  const gitWorkspace = createGitWorkspaceService({
+    workspaceRepo: dependencies.workspaceRepo,
+    gitSettings: dependencies.gitSettingsRepo,
+    gitSafety,
+    workspaceService,
+    internalRoots: dependencies.internalRoots,
+  });
   const teamService = createTeamService({
     teamRepo: dependencies.teamRepo,
     workspaceRepo: dependencies.workspaceRepo,
@@ -266,9 +297,10 @@ export function createProductionMcpServer(
       internalRoots: dependencies.internalRoots,
       fileSystem: dependencies.fileSystem,
     }),
-    ...createGitSafetyCapabilities({
+    ...createAllGitCapabilities({
       workspaceRepo: dependencies.workspaceRepo,
       gitSafety,
+      gitWorkspace,
     }),
     ...createCodingSemanticReadCapabilities({
       workspaceRepo: dependencies.workspaceRepo,
@@ -359,6 +391,7 @@ export function createDefaultProductionMcpServer(): McpServer {
     auditRepo,
     internalRoots: [{ canonicalPath: canonicalDataRoot.value, label: 'SUD-D data root' }],
     fileSystem: createWorkspaceTextFileSystem(),
+    gitSettingsRepo: createWorkspaceGitSettingsRepository(db),
     teamRepo,
     teamTransitionUow: createTeamTransitionUnitOfWork(db),
     semanticRead: {
@@ -476,6 +509,27 @@ function registerGitSafetyTools(server: McpServer, kernel: ToolKernel): void {
     },
     async (input) => invokeKernel(kernel, 'git.commit', input),
   );
+  const workflowTools = [
+    ['git.inspect', 'Inspect Git workspace', 'Inspect bounded branch, remote, and sync state for the active Workspace.', gitInspectInputSchema],
+    ['git.init', 'Initialize Git workspace', 'Initialize Git exactly at the active Workspace root.', gitExpectedSnapshotInputSchema],
+    ['git.remote.configure', 'Configure Git remote', 'Configure one validated GitHub remote for the active Workspace.', gitRemoteConfigureInputSchema],
+    ['git.remote.select', 'Select Primary Remote', 'Persist one configured remote as the Workspace Primary Remote.', gitRemoteSelectInputSchema],
+    ['git.branch.create', 'Create Git branch', 'Create one bounded local branch without switching to it.', gitBranchInputSchema],
+    ['git.branch.switch', 'Switch Git branch', 'Switch the clean active Workspace to an existing safe branch.', gitBranchInputSchema],
+    ['git.branch.merge', 'Merge Git branch', 'Merge a local branch with bounded conflict preflight and no rebase/reset.', gitBranchInputSchema],
+    ['git.branch.delete', 'Delete Git branch', 'Safely delete a merged local branch without force.', gitBranchInputSchema],
+    ['git.fetch', 'Fetch GitHub state', 'Fetch and refresh the validated Primary Remote state from GitHub.', gitExpectedSnapshotInputSchema],
+    ['git.sync', 'Sync from GitHub', 'Fast-forward the clean current branch only when GitHub is safely ahead.', gitExpectedSnapshotInputSchema],
+    ['git.push', 'Push to GitHub', 'Push fast-forward-safe local history and verify the remote SHA.', gitExpectedSnapshotInputSchema],
+    ['git.clone', 'Clone GitHub repository', 'Clone a validated GitHub repository into a safe bootstrap destination and register it as a Workspace.', gitCloneInputSchema],
+  ] as const;
+  for (const [name, title, description, inputSchema] of workflowTools) {
+    server.registerTool(
+      name,
+      { title, description, inputSchema },
+      async (input: unknown) => invokeKernel(kernel, name, input),
+    );
+  }
 }
 
 function registerTeamTools(server: McpServer, kernel: ToolKernel): void {

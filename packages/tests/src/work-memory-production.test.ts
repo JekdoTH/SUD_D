@@ -12,6 +12,7 @@ import {
   createTeamRepository,
   createTeamTransitionUnitOfWork,
   createWorkMemoryRepository,
+  createWorkspaceGitSettingsRepository,
   createWorkspaceRepository,
   createWorkspaceTextFileSystem,
   openDatabase,
@@ -86,14 +87,14 @@ function approvalId(value: Record<string, unknown>): string {
 }
 
 describe('Work Memory production MCP bootstrap', () => {
-  it('exposes 27 tools and resets bootstrap for a new server while persisted Resume Context survives', async () => {
+  it('exposes 39 tools and resets bootstrap for a new server while persisted Resume Context survives', async () => {
     const root=fs.mkdtempSync(path.join(os.tmpdir(),'sud-d-work-prod-')); roots.push(root); const wsRoot=path.join(root,'workspace'); fs.mkdirSync(wsRoot);
     const db=openDatabase(path.join(root,'state.db')); dbs.push(db); const workspaceRepo=createWorkspaceRepository(db); const ws=workspaceRepo.save('A',canonical(wsRoot)); workspaceRepo.setActive(ws.id); const auditRepo=createAuditRepository(db); const workMemoryRepo=createWorkMemoryRepository(db);
-    const make=()=>createProductionMcpServer({ workspaceRepo,auditRepo,internalRoots:[],fileSystem:createWorkspaceTextFileSystem(),gitSafety,teamRepo:createTeamRepository(db),teamTransitionUow:createTeamTransitionUnitOfWork(db),semanticRead:{read:async()=>({content:[]})},semanticWrite:{write:async()=>({content:[]})},restrictedVerify:{run:async(_c,r)=>({action:r.action,passed:true,exitCode:0,output:'',truncated:false,durationMs:1})},workMemoryRepo });
+    const make=()=>createProductionMcpServer({ workspaceRepo,gitSettingsRepo:createWorkspaceGitSettingsRepository(db),auditRepo,internalRoots:[],fileSystem:createWorkspaceTextFileSystem(),gitSafety,teamRepo:createTeamRepository(db),teamTransitionUow:createTeamTransitionUnitOfWork(db),semanticRead:{read:async()=>({content:[]})},semanticWrite:{write:async()=>({content:[]})},restrictedVerify:{run:async(_c,r)=>({action:r.action,passed:true,exitCode:0,output:'',truncated:false,durationMs:1})},workMemoryRepo });
 
     const serverA=make(); const a=await connect(serverA);
     expect(a.initialized.result?.instructions).toContain('work.resume');
-    const listed=await a.list(); const names=(listed.result?.tools??[]).map((t)=>t.name).filter((v):v is string=>typeof v==='string').sort(); expect(names).toHaveLength(27); expect(names).toContain('work.resume'); expect(names).toContain('work.checkpoint');
+    const listed=await a.list(); const names=(listed.result?.tools??[]).map((t)=>t.name).filter((v):v is string=>typeof v==='string').sort(); expect(names).toHaveLength(39); expect(names).toContain('work.resume'); expect(names).toContain('work.checkpoint');
     expect(payload(await a.call('git.status',{}))).toMatchObject({ok:false,code:'WORK_RESUME_REQUIRED'});
     expect(payload(await a.call('work.resume',{}))).toMatchObject({ok:true,code:'EXECUTED',value:{workspaceId:ws.id}});
     expect(payload(await a.call('git.status',{}))).toMatchObject({ok:true,code:'EXECUTED'});
@@ -117,7 +118,7 @@ describe('Work Memory production MCP bootstrap', () => {
     const auditRepo=createAuditRepository(db); const workMemoryRepo=createWorkMemoryRepository(db); const approvalRepo=createApprovalRepository(db);
     const approval=createApprovalCoordinator({ repository: approvalRepo, runtimeInstanceId:'work-memory-acceptance', hmacKey:Buffer.alloc(32,61) });
     const approvalService=createApprovalService(approvalRepo,auditRepo); const verifyCalls:string[]=[];
-    const make=(gitSafetyOverride: GitSafetyAdapter=createGitSafetyAdapter())=>createProductionMcpServer({ workspaceRepo,auditRepo,internalRoots:[],fileSystem:createWorkspaceTextFileSystem(),gitSafety:gitSafetyOverride,teamRepo:createTeamRepository(db),teamTransitionUow:createTeamTransitionUnitOfWork(db),
+    const make=(gitSafetyOverride: GitSafetyAdapter=createGitSafetyAdapter())=>createProductionMcpServer({ workspaceRepo,gitSettingsRepo:createWorkspaceGitSettingsRepository(db),auditRepo,internalRoots:[],fileSystem:createWorkspaceTextFileSystem(),gitSafety:gitSafetyOverride,teamRepo:createTeamRepository(db),teamTransitionUow:createTeamTransitionUnitOfWork(db),
       semanticRead:{read:async()=>({content:[{type:'text',text:'RAW_SERENA_OUTPUT_SENTINEL'}]})}, semanticWrite:{write:async()=>({content:[]})},
       restrictedVerify:{run:async(_c,r)=>{verifyCalls.push(r.action); return {action:r.action,passed:true,exitCode:0,output:'RAW_VERIFY_OUTPUT_SENTINEL',truncated:false,durationMs:1};}}, workMemoryRepo, approval });
     const checkpoint={goal:'Ship Work Memory',task:{title:'Resume safely',status:'in_progress'},completed:['domain','repository'],decisions:['bounded local state'],blockers:['none'],nextAction:'Restart session',artifacts:['README.md'],verification:['focused passes']};
