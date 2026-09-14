@@ -362,6 +362,14 @@ const MIGRATIONS: string[] = [
   );
   INSERT INTO approval_mode_settings(singleton_id, mode, updated_at)
     VALUES(1, 'approve_for_me', CURRENT_TIMESTAMP);
+  `,
+  // Migration 008 — non-secret Workspace Primary Remote selection only
+  `
+  CREATE TABLE workspace_git_settings (
+    workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+    primary_remote_name TEXT,
+    updated_at TEXT NOT NULL
+  );
   `
 ];
 

@@ -330,7 +330,7 @@ describe('M0.2 โ€” database migration', () => {
     expect(
       (upgraded.prepare('SELECT version FROM schema_migrations ORDER BY version').all() as { version: number }[])
         .map((row) => row.version),
-    ).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(
       upgraded.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'connection_profiles'").get(),
     ).toBeTruthy();
@@ -353,7 +353,7 @@ describe('M0.2 โ€” database migration', () => {
     expect(
       (reopened.prepare('SELECT version FROM schema_migrations ORDER BY version').all() as { version: number }[])
         .map((row) => row.version),
-    ).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(
       reopened.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = 2").get(),
     ).toEqual({ count: 1 });
