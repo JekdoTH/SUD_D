@@ -1,6 +1,10 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { createGitCommandRunner, type GitCommandRunnerOptions } from '../../infrastructure/src/git-command-runner.js';
+import { createGitSafetyAdapter } from '@sud-d/infrastructure';
+import { createGitCommandRunner, type GitCommandRunner, type GitCommandRunnerOptions } from '../../infrastructure/src/git-command-runner.js';
 
 type SpawnStub = NonNullable<GitCommandRunnerOptions['spawnSync']>;
 import { parseGitHubRemote } from '../../infrastructure/src/git-github-remote.js';
@@ -125,5 +129,49 @@ describe('Git Bootstrap - trusted Git command runner modes', () => {
     expect(env.GCM_INTERACTIVE).toBe('Never');
     expect(env.GIT_CONFIG_GLOBAL).toBeUndefined();
     expect(env.SUD_D_ATTACKER_ENV).toBeUndefined();
+  });
+});
+
+
+describe('Git Bootstrap - safe GitHub network failures', () => {
+  it.each([
+    ['Authentication failed for https://token-secret@github.com/acme/widgets.git', 'GIT_AUTH_FAILED'],
+    ['fatal: unable to access GitHub: connection timed out SECRET_STDERR_SENTINEL', 'GIT_REMOTE_UNREACHABLE'],
+  ] as const)('normalizes network failure without leaking stderr: %s', (stderr, expectedCode) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sudd-git-network-error-'));
+    const destination = path.join(root, 'clone');
+    const runner: GitCommandRunner = {
+      runLocal() {
+        throw new Error('local Git must not run after clone network failure');
+      },
+      runGitHubNetwork() {
+        return {
+          ok: true,
+          value: {
+            stdout: Buffer.from('RAW_STDOUT_SENTINEL'),
+            stderr: Buffer.from(stderr),
+            status: 128,
+            overflowed: false,
+          },
+        };
+      },
+    };
+
+    const result = createGitSafetyAdapter({ commandRunner: runner }).cloneFromGitHub({
+      remoteUrl: 'https://github.com/acme/widgets.git',
+      destinationPath: destination,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: expectedCode,
+        metadata: { remoteName: 'clone', repository: 'acme/widgets' },
+      },
+    });
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('token-secret');
+    expect(serialized).not.toContain('SECRET_STDERR_SENTINEL');
+    expect(serialized).not.toContain('RAW_STDOUT_SENTINEL');
   });
 });

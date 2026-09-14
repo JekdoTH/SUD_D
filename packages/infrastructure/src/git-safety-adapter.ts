@@ -19,7 +19,7 @@ import {
   type GitCommandResult,
   type GitCommandRunner,
 } from './git-command-runner.js';
-import { parseGitHubRemote } from './git-github-remote.js';
+import { parseGitHubRemote, type GitHubRemoteIdentity } from './git-github-remote.js';
 
 export const GIT_SAFETY_LIMITS = Object.freeze({
   maxStatusEntries: 500,
@@ -139,7 +139,41 @@ export interface GitMergeResult extends GitBranchMutationResult {
   readonly mode: 'already_merged' | 'fast_forward' | 'merge_commit';
 }
 
+export interface GitNetworkMutationInput {
+  readonly expectedStatusId: string;
+  readonly remoteName: string;
+  readonly branchName: string;
+  readonly upstreamBranch?: string;
+}
+
+export interface GitFetchResult {
+  readonly remoteName: string;
+  readonly defaultBranch?: string;
+}
+
+export interface GitSyncResult {
+  readonly relation: GitRemoteRelation;
+  readonly changed: boolean;
+  readonly headSha: string;
+}
+
+export interface GitPushResult {
+  readonly headSha: string;
+  readonly remoteSha: string;
+  readonly upstreamSet: boolean;
+}
+
+export interface GitCloneResult {
+  readonly destinationPath: string;
+  readonly headSha: string;
+  readonly branch?: string;
+}
+
 export interface GitSafetyAdapter {
+  fetchRemote(workspaceCanonicalRoot: string, remoteName: string): Result<GitFetchResult, AppError>;
+  syncFromGitHub(workspaceCanonicalRoot: string, input: GitNetworkMutationInput): Result<GitSyncResult, AppError>;
+  pushToGitHub(workspaceCanonicalRoot: string, input: GitNetworkMutationInput): Result<GitPushResult, AppError>;
+  cloneFromGitHub(input: { readonly remoteUrl: string; readonly destinationPath: string }): Result<GitCloneResult, AppError>;
   inspectWorkspaceGit(workspaceCanonicalRoot: string): Result<GitWorkspaceInspection, AppError>;
   initialize(workspaceCanonicalRoot: string): Result<GitWorkspaceInspection, AppError>;
   configureRemote(
@@ -237,6 +271,18 @@ export function createGitSafetyAdapter(
 ): GitSafetyAdapter {
   const commandRunner = options.commandRunner ?? createGitCommandRunner();
   return Object.freeze({
+    fetchRemote(workspaceCanonicalRoot: string, remoteName: string) {
+      return fetchRemote(workspaceCanonicalRoot, remoteName, commandRunner);
+    },
+    syncFromGitHub(workspaceCanonicalRoot: string, input: GitNetworkMutationInput) {
+      return syncFromGitHub(workspaceCanonicalRoot, input, commandRunner);
+    },
+    pushToGitHub(workspaceCanonicalRoot: string, input: GitNetworkMutationInput) {
+      return pushToGitHub(workspaceCanonicalRoot, input, commandRunner);
+    },
+    cloneFromGitHub(input: { readonly remoteUrl: string; readonly destinationPath: string }) {
+      return cloneFromGitHub(input, commandRunner);
+    },
     inspectWorkspaceGit(workspaceCanonicalRoot: string) {
       return inspectWorkspaceGit(workspaceCanonicalRoot, commandRunner);
     },
@@ -997,6 +1043,531 @@ function configureRemote(
   } finally {
     cleanupGitRuntime(runtime.value);
   }
+}
+
+function resolveSupportedRemote(
+  workspaceCanonicalRoot: string,
+  remoteName: string,
+  commandRunner: GitCommandRunner,
+): Result<GitHubRemoteIdentity, AppError> {
+  if (!isValidRemoteName(remoteName)) {
+    return err(appError('VALIDATION_FAILED', 'Git remote name is invalid'));
+  }
+  const detected = detectRepository(workspaceCanonicalRoot, commandRunner);
+  if (!detected.ok) return detected;
+  if (!detected.value.isRepository || !detected.value.isSupported) {
+    return err(appError('GIT_STATE_UNSAFE', 'GitHub operation requires a supported repository'));
+  }
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const url = runGit(workspaceCanonicalRoot, runtime.value, ['remote', 'get-url', remoteName]);
+    if (!isSuccessfulGitCommand(url)) {
+      return err(appError('GIT_REMOTE_MISSING', 'Git remote is missing', { remoteName }));
+    }
+    const parsed = parseGitHubRemote(decode(url.value.stdout).trim());
+    if (!parsed.ok) return parsed;
+    return parsed;
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function normalizedNetworkFailure(
+  result: Result<GitCommandResult, AppError>,
+  remoteName: string,
+  remote: GitHubRemoteIdentity,
+): Result<never, AppError> {
+  if (!result.ok) return result;
+  if (result.value.overflowed) {
+    return err(appError('RESOURCE_TOO_LARGE', 'GitHub operation output exceeded the trusted limit', {
+      remoteName,
+      repository: remote.safeRepository,
+    }));
+  }
+  const stderr = decode(result.value.stderr).toLowerCase();
+  const authFailure = /authentication failed|could not read username|permission denied|publickey|access denied|repository not found/.test(stderr);
+  return err(appError(
+    authFailure ? 'GIT_AUTH_FAILED' : 'GIT_REMOTE_UNREACHABLE',
+    authFailure ? 'GitHub authentication failed' : 'GitHub remote could not be reached',
+    { remoteName, repository: remote.safeRepository },
+  ));
+}
+
+function parseRemoteHeadSymref(output: Buffer): string | undefined {
+  for (const line of decode(output).split(/\r?\n/)) {
+    const match = /^ref:\s+refs\/heads\/([^\s]+)\s+HEAD$/.exec(line.trim());
+    if (!match?.[1]) continue;
+    const branch = match[1];
+    if (branch.length > 255 || branch.startsWith('-') || /[\r\n\0]/.test(branch)) return undefined;
+    return branch;
+  }
+  return undefined;
+}
+
+function cloneFromGitHub(
+  input: { readonly remoteUrl: string; readonly destinationPath: string },
+  commandRunner: GitCommandRunner,
+): Result<GitCloneResult, AppError> {
+  const remote = parseGitHubRemote(input.remoteUrl);
+  if (!remote.ok) return remote;
+  if (
+    !path.isAbsolute(input.destinationPath)
+    || input.destinationPath.length > 32_767
+    || /[\r\n\0]/.test(input.destinationPath)
+  ) {
+    return err(appError('GIT_CLONE_DESTINATION_UNSAFE', 'Git clone destination is invalid'));
+  }
+
+  const parent = canonicalExisting(path.dirname(input.destinationPath));
+  if (!parent.ok) {
+    return err(appError('GIT_CLONE_DESTINATION_UNSAFE', 'Git clone destination parent is unavailable'));
+  }
+
+  const cloned = commandRunner.runGitHubNetwork(parent.value, [
+    'clone',
+    '--no-recurse-submodules',
+    remote.value.canonicalUrl,
+    input.destinationPath,
+  ], { timeoutMs: 120_000 });
+  if (!cloned.ok || cloned.value.overflowed || cloned.value.status !== 0) {
+    return normalizedNetworkFailure(cloned, 'clone', remote.value);
+  }
+
+  const destination = canonicalExisting(input.destinationPath);
+  if (!destination.ok) {
+    return err(appError('GIT_STATE_UNSAFE', 'Cloned Git repository could not be verified'));
+  }
+  const detected = detectRepository(destination.value, commandRunner);
+  if (!detected.ok) return detected;
+  if (
+    !detected.value.isRepository
+    || !detected.value.isSupported
+    || detected.value.state !== 'normal'
+    || !detected.value.headSha
+  ) {
+    return err(appError('GIT_STATE_UNSAFE', 'Cloned Git repository is not in a supported state'));
+  }
+
+  return ok({
+    destinationPath: destination.value,
+    headSha: detected.value.headSha,
+    ...(detected.value.branch ? { branch: detected.value.branch } : {}),
+  });
+}
+
+function fetchRemote(
+  workspaceCanonicalRoot: string,
+  remoteName: string,
+  commandRunner: GitCommandRunner,
+): Result<GitFetchResult, AppError> {
+  const remote = resolveSupportedRemote(workspaceCanonicalRoot, remoteName, commandRunner);
+  if (!remote.ok) return remote;
+  const refspec = `+refs/heads/*:refs/remotes/${remoteName}/*`;
+  const fetched = commandRunner.runGitHubNetwork(workspaceCanonicalRoot, [
+    'fetch',
+    '--no-tags',
+    '--prune',
+    remote.value.canonicalUrl,
+    refspec,
+  ], { timeoutMs: 30_000 });
+  if (!fetched.ok || fetched.value.overflowed || fetched.value.status !== 0) {
+    return normalizedNetworkFailure(fetched, remoteName, remote.value);
+  }
+
+  const remoteHead = commandRunner.runGitHubNetwork(workspaceCanonicalRoot, [
+    'ls-remote',
+    '--symref',
+    remote.value.canonicalUrl,
+    'HEAD',
+  ], { timeoutMs: 30_000 });
+  if (!remoteHead.ok || remoteHead.value.overflowed || remoteHead.value.status !== 0) {
+    return normalizedNetworkFailure(remoteHead, remoteName, remote.value);
+  }
+  const defaultBranch = parseRemoteHeadSymref(remoteHead.value.stdout);
+  if (!defaultBranch) return ok({ remoteName });
+
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const remoteRef = `refs/remotes/${remoteName}/${defaultBranch}`;
+    const exists = runGit(workspaceCanonicalRoot, runtime.value, ['show-ref', '--verify', '--quiet', remoteRef]);
+    if (!exists.ok || exists.value.overflowed) {
+      return err(appError('GIT_STATE_UNSAFE', 'Fetched Git default branch could not be verified'));
+    }
+    if (exists.value.status !== 0) return ok({ remoteName });
+    const setHead = runGit(workspaceCanonicalRoot, runtime.value, [
+      'symbolic-ref',
+      `refs/remotes/${remoteName}/HEAD`,
+      remoteRef,
+    ]);
+    if (!isSuccessfulGitCommand(setHead)) {
+      return err(appError('GIT_STATE_UNSAFE', 'Fetched Git default branch could not be recorded'));
+    }
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+  return ok({ remoteName, defaultBranch });
+}
+
+function requireNetworkMutationState(
+  workspaceCanonicalRoot: string,
+  input: GitNetworkMutationInput,
+  commandRunner: GitCommandRunner,
+): Result<GitStatusResult, AppError> {
+  const status = requireFreshCleanStatus(workspaceCanonicalRoot, input.expectedStatusId, commandRunner);
+  if (!status.ok) return status;
+  if (!status.value.branch || status.value.detached) {
+    return err(appError('GIT_STATE_UNSAFE', 'GitHub operation requires an attached local branch'));
+  }
+  if (status.value.branch !== input.branchName) {
+    return err(appError('GIT_STATUS_STALE', 'Git branch changed before GitHub operation'));
+  }
+  return status;
+}
+
+function fastForwardFromFetchedUpstream(
+  workspaceCanonicalRoot: string,
+  input: GitNetworkMutationInput,
+  upstreamBranch: string,
+  commandRunner: GitCommandRunner,
+): Result<GitSyncResult, AppError> {
+  if (!upstreamBranch.startsWith(`${input.remoteName}/`) || upstreamBranch.length > 512 || /[\r\n\0]/.test(upstreamBranch)) {
+    return err(appError('GIT_STATE_UNSAFE', 'Git upstream state is unavailable'));
+  }
+  const before = requireNetworkMutationState(workspaceCanonicalRoot, input, commandRunner);
+  if (!before.ok) return before;
+  const remoteRef = `refs/remotes/${upstreamBranch}`;
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const remoteTip = runGit(workspaceCanonicalRoot, runtime.value, ['rev-parse', '--verify', remoteRef]);
+    if (!isSuccessfulGitCommand(remoteTip)) {
+      return err(appError('GIT_STATE_UNSAFE', 'Fetched upstream branch is unavailable'));
+    }
+    const remoteSha = decode(remoteTip.value.stdout).trim();
+    const merged = runGit(workspaceCanonicalRoot, runtime.value, ['merge', '--ff-only', remoteRef]);
+    if (!isSuccessfulGitCommand(merged)) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'GitHub Sync could not fast-forward safely'));
+    }
+    const after = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries, commandRunner);
+    if (!after.ok) return after;
+    if (
+      after.value.headSha !== remoteSha
+      || after.value.branch !== input.branchName
+      || after.value.state !== 'normal'
+      || !after.value.clean
+    ) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'GitHub Sync final state could not be verified'));
+    }
+    return ok({ relation: 'remote_ahead', changed: true, headSha: after.value.headSha });
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function syncFromGitHub(
+  workspaceCanonicalRoot: string,
+  input: GitNetworkMutationInput,
+  commandRunner: GitCommandRunner,
+): Result<GitSyncResult, AppError> {
+  const before = requireNetworkMutationState(workspaceCanonicalRoot, input, commandRunner);
+  if (!before.ok) return before;
+  const remote = resolveSupportedRemote(workspaceCanonicalRoot, input.remoteName, commandRunner);
+  if (!remote.ok) return remote;
+
+  const fetched = fetchRemote(workspaceCanonicalRoot, input.remoteName, commandRunner);
+  if (!fetched.ok) return fetched;
+
+  const afterFetch = requireNetworkMutationState(workspaceCanonicalRoot, input, commandRunner);
+  if (!afterFetch.ok) return afterFetch;
+  if (afterFetch.value.headSha !== before.value.headSha) {
+    return err(appError('GIT_STATUS_STALE', 'Git state changed during GitHub Sync'));
+  }
+
+  const relation = classifyRemoteRelation(workspaceCanonicalRoot, input.remoteName, input.branchName, commandRunner);
+  if (!relation.ok) return relation;
+  if (
+    input.upstreamBranch
+    && relation.value.upstreamBranch
+    && input.upstreamBranch !== relation.value.upstreamBranch
+  ) {
+    return err(appError('GIT_STATUS_STALE', 'Git upstream changed during GitHub Sync'));
+  }
+
+  switch (relation.value.kind) {
+    case 'up_to_date':
+    case 'local_ahead':
+      return ok({ relation: relation.value.kind, changed: false, headSha: before.value.headSha });
+    case 'remote_ahead':
+      if (!relation.value.upstreamBranch) {
+        return err(appError('GIT_STATE_UNSAFE', 'GitHub upstream is unavailable'));
+      }
+      return fastForwardFromFetchedUpstream(
+        workspaceCanonicalRoot,
+        input,
+        relation.value.upstreamBranch,
+        commandRunner,
+      );
+    case 'diverged':
+      return err(appError('GIT_DIVERGED', 'Local and GitHub history diverged'));
+    case 'no_upstream':
+      return err(appError('GIT_UPSTREAM_MISSING', 'Current branch has no upstream'));
+    default:
+      return err(appError('GIT_STATE_UNSAFE', 'GitHub relation is unavailable'));
+  }
+}
+
+function readRemoteTrackingTip(
+  workspaceCanonicalRoot: string,
+  remoteName: string,
+  branchName: string,
+  commandRunner: GitCommandRunner,
+): Result<string | undefined, AppError> {
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const ref = `refs/remotes/${remoteName}/${branchName}`;
+    const tip = runGit(workspaceCanonicalRoot, runtime.value, ['rev-parse', '--verify', ref]);
+    if (!tip.ok || tip.value.overflowed) {
+      return err(appError('GIT_STATE_UNSAFE', 'Fetched remote branch state could not be read'));
+    }
+    if (tip.value.status !== 0) return ok(undefined);
+    const sha = decode(tip.value.stdout).trim();
+    if (!/^[0-9a-f]{40,64}$/i.test(sha)) {
+      return err(appError('GIT_STATE_UNSAFE', 'Fetched remote branch state is malformed'));
+    }
+    return ok(sha);
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function classifyTips(
+  workspaceCanonicalRoot: string,
+  localSha: string,
+  remoteSha: string,
+  commandRunner: GitCommandRunner,
+): Result<'up_to_date' | 'local_ahead' | 'remote_ahead' | 'diverged', AppError> {
+  if (localSha === remoteSha) return ok('up_to_date');
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const remoteAncestor = runGit(workspaceCanonicalRoot, runtime.value, [
+      'merge-base', '--is-ancestor', remoteSha, localSha,
+    ]);
+    if (!remoteAncestor.ok || remoteAncestor.value.overflowed) {
+      return err(appError('GIT_STATE_UNSAFE', 'Git ancestry could not be verified'));
+    }
+    if (remoteAncestor.value.status === 0) return ok('local_ahead');
+    if (remoteAncestor.value.status !== 1) {
+      return err(appError('GIT_STATE_UNSAFE', 'Git ancestry could not be verified'));
+    }
+    const localAncestor = runGit(workspaceCanonicalRoot, runtime.value, [
+      'merge-base', '--is-ancestor', localSha, remoteSha,
+    ]);
+    if (!localAncestor.ok || localAncestor.value.overflowed) {
+      return err(appError('GIT_STATE_UNSAFE', 'Git ancestry could not be verified'));
+    }
+    if (localAncestor.value.status === 0) return ok('remote_ahead');
+    if (localAncestor.value.status !== 1) {
+      return err(appError('GIT_STATE_UNSAFE', 'Git ancestry could not be verified'));
+    }
+    return ok('diverged');
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function verifyRemoteBranchSha(
+  workspaceCanonicalRoot: string,
+  remoteName: string,
+  branchName: string,
+  remote: GitHubRemoteIdentity,
+  commandRunner: GitCommandRunner,
+): Result<string, AppError> {
+  const verified = commandRunner.runGitHubNetwork(workspaceCanonicalRoot, [
+    'ls-remote',
+    '--heads',
+    remote.canonicalUrl,
+    `refs/heads/${branchName}`,
+  ], { timeoutMs: 30_000 });
+  if (!verified.ok || verified.value.overflowed || verified.value.status !== 0) {
+    return normalizedNetworkFailure(verified, remoteName, remote);
+  }
+  const lines = decode(verified.value.stdout).split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+  const expectedRef = `refs/heads/${branchName}`;
+  for (const line of lines) {
+    const match = /^([0-9a-f]{40,64})\s+(.+)$/.exec(line);
+    if (match?.[1] && match[2] === expectedRef) return ok(match[1]);
+  }
+  return err(appError('GIT_REMOTE_UNREACHABLE', 'GitHub branch SHA could not be verified', {
+    remoteName,
+    repository: remote.safeRepository,
+  }));
+}
+
+function recordVerifiedRemoteTip(
+  workspaceCanonicalRoot: string,
+  remoteName: string,
+  branchName: string,
+  sha: string,
+  setUpstream: boolean,
+  commandRunner: GitCommandRunner,
+): Result<void, AppError> {
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const updated = runGit(workspaceCanonicalRoot, runtime.value, [
+      'update-ref',
+      `refs/remotes/${remoteName}/${branchName}`,
+      sha,
+    ]);
+    if (!isSuccessfulGitCommand(updated)) {
+      return err(appError('GIT_STATE_UNSAFE', 'Verified GitHub branch state could not be recorded'));
+    }
+    if (setUpstream) {
+      const tracked = runGit(workspaceCanonicalRoot, runtime.value, [
+        'branch',
+        `--set-upstream-to=${remoteName}/${branchName}`,
+        branchName,
+      ]);
+      if (!isSuccessfulGitCommand(tracked)) {
+        return err(appError('GIT_STATE_UNSAFE', 'Git upstream could not be recorded after verified Push'));
+      }
+    }
+    return ok(undefined);
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function pushToGitHub(
+  workspaceCanonicalRoot: string,
+  input: GitNetworkMutationInput,
+  commandRunner: GitCommandRunner,
+): Result<GitPushResult, AppError> {
+  const before = requireNetworkMutationState(workspaceCanonicalRoot, input, commandRunner);
+  if (!before.ok) return before;
+  const remote = resolveSupportedRemote(workspaceCanonicalRoot, input.remoteName, commandRunner);
+  if (!remote.ok) return remote;
+
+  const fetched = fetchRemote(workspaceCanonicalRoot, input.remoteName, commandRunner);
+  if (!fetched.ok) return fetched;
+  const afterFetch = requireNetworkMutationState(workspaceCanonicalRoot, input, commandRunner);
+  if (!afterFetch.ok) return afterFetch;
+  if (afterFetch.value.headSha !== before.value.headSha) {
+    return err(appError('GIT_STATUS_STALE', 'Git state changed during GitHub Push'));
+  }
+
+  const relation = classifyRemoteRelation(workspaceCanonicalRoot, input.remoteName, input.branchName, commandRunner);
+  if (!relation.ok) return relation;
+  if (
+    input.upstreamBranch
+    && relation.value.upstreamBranch
+    && input.upstreamBranch !== relation.value.upstreamBranch
+  ) {
+    return err(appError('GIT_STATUS_STALE', 'Git upstream changed during GitHub Push'));
+  }
+  if (input.upstreamBranch && relation.value.kind === 'no_upstream') {
+    return err(appError('GIT_STATUS_STALE', 'Git upstream changed during GitHub Push'));
+  }
+
+  let setUpstream = false;
+  let shouldPush = false;
+  if (relation.value.kind === 'up_to_date') {
+    const remoteSha = verifyRemoteBranchSha(
+      workspaceCanonicalRoot,
+      input.remoteName,
+      input.branchName,
+      remote.value,
+      commandRunner,
+    );
+    if (!remoteSha.ok) return remoteSha;
+    if (remoteSha.value !== before.value.headSha) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'GitHub branch changed during Push verification'));
+    }
+    return ok({ headSha: before.value.headSha, remoteSha: remoteSha.value, upstreamSet: false });
+  }
+  if (relation.value.kind === 'local_ahead') {
+    shouldPush = true;
+  } else if (relation.value.kind === 'remote_ahead') {
+    return err(appError('GIT_REMOTE_AHEAD', 'GitHub branch is ahead; Sync before Push'));
+  } else if (relation.value.kind === 'diverged') {
+    return err(appError('GIT_DIVERGED', 'Local and GitHub history diverged'));
+  } else if (relation.value.kind === 'no_upstream') {
+    const remoteTip = readRemoteTrackingTip(
+      workspaceCanonicalRoot,
+      input.remoteName,
+      input.branchName,
+      commandRunner,
+    );
+    if (!remoteTip.ok) return remoteTip;
+    if (remoteTip.value) {
+      const directRelation = classifyTips(
+        workspaceCanonicalRoot,
+        before.value.headSha,
+        remoteTip.value,
+        commandRunner,
+      );
+      if (!directRelation.ok) return directRelation;
+      if (directRelation.value === 'remote_ahead') {
+        return err(appError('GIT_REMOTE_AHEAD', 'GitHub branch is ahead; Sync before Push'));
+      }
+      if (directRelation.value === 'diverged') {
+        return err(appError('GIT_DIVERGED', 'Local and GitHub history diverged'));
+      }
+    }
+    setUpstream = true;
+    shouldPush = true;
+  } else {
+    return err(appError('GIT_STATE_UNSAFE', 'GitHub relation is unavailable'));
+  }
+
+  if (!shouldPush) {
+    return err(appError('GIT_STATE_UNSAFE', 'GitHub Push state is unavailable'));
+  }
+  const revalidated = requireNetworkMutationState(workspaceCanonicalRoot, input, commandRunner);
+  if (!revalidated.ok) return revalidated;
+  if (revalidated.value.headSha !== before.value.headSha) {
+    return err(appError('GIT_STATUS_STALE', 'Git state changed before GitHub Push'));
+  }
+
+  const pushed = commandRunner.runGitHubNetwork(workspaceCanonicalRoot, [
+    'push',
+    remote.value.canonicalUrl,
+    `refs/heads/${input.branchName}:refs/heads/${input.branchName}`,
+  ], { timeoutMs: 30_000 });
+  if (!pushed.ok || pushed.value.overflowed || pushed.value.status !== 0) {
+    return normalizedNetworkFailure(pushed, input.remoteName, remote.value);
+  }
+
+  const remoteSha = verifyRemoteBranchSha(
+    workspaceCanonicalRoot,
+    input.remoteName,
+    input.branchName,
+    remote.value,
+    commandRunner,
+  );
+  if (!remoteSha.ok) return remoteSha;
+  if (remoteSha.value !== before.value.headSha) {
+    return err(appError('GIT_OPERATION_CONFLICT', 'GitHub Push SHA verification failed'));
+  }
+
+  const recorded = recordVerifiedRemoteTip(
+    workspaceCanonicalRoot,
+    input.remoteName,
+    input.branchName,
+    remoteSha.value,
+    setUpstream,
+    commandRunner,
+  );
+  if (!recorded.ok) return recorded;
+  return ok({
+    headSha: before.value.headSha,
+    remoteSha: remoteSha.value,
+    upstreamSet: setUpstream,
+  });
 }
 
 function isValidRemoteName(value: string): boolean {

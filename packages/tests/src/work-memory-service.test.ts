@@ -43,6 +43,10 @@ function gitAdapter(state: { head: string; status: string; detects: number; stat
     switchBranch: () => { throw new Error('unexpected git workflow'); },
     mergeBranch: () => { throw new Error('unexpected git workflow'); },
     deleteBranch: () => { throw new Error('unexpected git workflow'); },
+    fetchRemote: () => { throw new Error('unexpected git network workflow'); },
+    syncFromGitHub: () => { throw new Error('unexpected git network workflow'); },
+    pushToGitHub: () => { throw new Error('unexpected git network workflow'); },
+    cloneFromGitHub: () => { throw new Error('unexpected git network workflow'); },
     detect() { state.detects += 1; return ok({ isRepository: true, isSupported: true, headSha: state.head, branch: 'master', detached: false, state: 'normal' }); },
     status() {
       state.statuses += 1;
