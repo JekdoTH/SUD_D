@@ -34,6 +34,15 @@ function memoryRepo(): WorkMemoryRepository & { readonly saves: WorkResumeContex
 
 function gitAdapter(state: { head: string; status: string; detects: number; statuses: number }): GitSafetyAdapter {
   return {
+    inspectWorkspaceGit: () => { throw new Error('unexpected git workflow'); },
+    initialize: () => { throw new Error('unexpected git workflow'); },
+    configureRemote: () => { throw new Error('unexpected git workflow'); },
+    resolveDefaultBranch: () => { throw new Error('unexpected git workflow'); },
+    relation: () => { throw new Error('unexpected git workflow'); },
+    createBranch: () => { throw new Error('unexpected git workflow'); },
+    switchBranch: () => { throw new Error('unexpected git workflow'); },
+    mergeBranch: () => { throw new Error('unexpected git workflow'); },
+    deleteBranch: () => { throw new Error('unexpected git workflow'); },
     detect() { state.detects += 1; return ok({ isRepository: true, isSupported: true, headSha: state.head, branch: 'master', detached: false, state: 'normal' }); },
     status() {
       state.statuses += 1;

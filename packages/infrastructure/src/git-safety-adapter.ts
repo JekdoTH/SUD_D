@@ -9,6 +9,8 @@ import {
   err,
   ok,
   type AppError,
+  type GitRemoteRelation,
+  type GitRemoteTransport,
   type Result,
 } from '@sud-d/domain';
 import { resolveExistingResource } from './path-adapter.js';
@@ -17,6 +19,7 @@ import {
   type GitCommandResult,
   type GitCommandRunner,
 } from './git-command-runner.js';
+import { parseGitHubRemote } from './git-github-remote.js';
 
 export const GIT_SAFETY_LIMITS = Object.freeze({
   maxStatusEntries: 500,
@@ -103,7 +106,76 @@ export interface GitVerificationResult {
   readonly output: string;
 }
 
+export interface GitRemoteSummary {
+  readonly name: string;
+  readonly supported: boolean;
+  readonly safeRepository?: string;
+  readonly transport?: GitRemoteTransport;
+}
+
+export interface GitWorkspaceInspection {
+  readonly detect: GitDetectResult;
+  readonly status?: GitStatusResult;
+  readonly branches: readonly { readonly name: string; readonly current: boolean; readonly checkedOutElsewhere: boolean }[];
+  readonly remotes: readonly GitRemoteSummary[];
+  readonly trackingRemote?: string;
+  readonly upstreamBranch?: string;
+}
+
+export interface GitRelationResult {
+  readonly kind: GitRemoteRelation;
+  readonly ahead?: number;
+  readonly behind?: number;
+  readonly upstreamBranch?: string;
+}
+
+export interface GitBranchMutationResult {
+  readonly headSha: string;
+  readonly branch: string;
+  readonly changed: boolean;
+}
+
+export interface GitMergeResult extends GitBranchMutationResult {
+  readonly mode: 'already_merged' | 'fast_forward' | 'merge_commit';
+}
+
 export interface GitSafetyAdapter {
+  inspectWorkspaceGit(workspaceCanonicalRoot: string): Result<GitWorkspaceInspection, AppError>;
+  initialize(workspaceCanonicalRoot: string): Result<GitWorkspaceInspection, AppError>;
+  configureRemote(
+    workspaceCanonicalRoot: string,
+    input: { readonly name: string; readonly url: string },
+  ): Result<GitRemoteSummary, AppError>;
+  resolveDefaultBranch(
+    workspaceCanonicalRoot: string,
+    remoteName: string,
+  ): Result<string | undefined, AppError>;
+  relation(
+    workspaceCanonicalRoot: string,
+    remoteName: string,
+    branchName: string,
+  ): Result<GitRelationResult, AppError>;
+  createBranch(
+    workspaceCanonicalRoot: string,
+    expectedStatusId: string,
+    branchName: string,
+  ): Result<GitBranchMutationResult, AppError>;
+  switchBranch(
+    workspaceCanonicalRoot: string,
+    expectedStatusId: string,
+    branchName: string,
+  ): Result<GitBranchMutationResult, AppError>;
+  mergeBranch(
+    workspaceCanonicalRoot: string,
+    expectedStatusId: string,
+    sourceBranch: string,
+  ): Result<GitMergeResult, AppError>;
+  deleteBranch(
+    workspaceCanonicalRoot: string,
+    expectedStatusId: string,
+    branchName: string,
+    defaultBranch: string,
+  ): Result<GitBranchMutationResult, AppError>;
   detect(workspaceCanonicalRoot: string): Result<GitDetectResult, AppError>;
   status(workspaceCanonicalRoot: string, limit?: number): Result<GitStatusResult, AppError>;
   diff(
@@ -165,6 +237,33 @@ export function createGitSafetyAdapter(
 ): GitSafetyAdapter {
   const commandRunner = options.commandRunner ?? createGitCommandRunner();
   return Object.freeze({
+    inspectWorkspaceGit(workspaceCanonicalRoot: string) {
+      return inspectWorkspaceGit(workspaceCanonicalRoot, commandRunner);
+    },
+    initialize(workspaceCanonicalRoot: string) {
+      return initializeRepository(workspaceCanonicalRoot, commandRunner);
+    },
+    configureRemote(workspaceCanonicalRoot: string, input: { readonly name: string; readonly url: string }) {
+      return configureRemote(workspaceCanonicalRoot, input, commandRunner);
+    },
+    resolveDefaultBranch(workspaceCanonicalRoot: string, remoteName: string) {
+      return resolveRemoteDefaultBranch(workspaceCanonicalRoot, remoteName, commandRunner);
+    },
+    relation(workspaceCanonicalRoot: string, remoteName: string, branchName: string) {
+      return classifyRemoteRelation(workspaceCanonicalRoot, remoteName, branchName, commandRunner);
+    },
+    createBranch(workspaceCanonicalRoot: string, expectedStatusId: string, branchName: string) {
+      return createLocalBranch(workspaceCanonicalRoot, expectedStatusId, branchName, commandRunner);
+    },
+    switchBranch(workspaceCanonicalRoot: string, expectedStatusId: string, branchName: string) {
+      return switchLocalBranch(workspaceCanonicalRoot, expectedStatusId, branchName, commandRunner);
+    },
+    mergeBranch(workspaceCanonicalRoot: string, expectedStatusId: string, sourceBranch: string) {
+      return mergeLocalBranch(workspaceCanonicalRoot, expectedStatusId, sourceBranch, commandRunner);
+    },
+    deleteBranch(workspaceCanonicalRoot: string, expectedStatusId: string, branchName: string, defaultBranch: string) {
+      return deleteLocalBranch(workspaceCanonicalRoot, expectedStatusId, branchName, defaultBranch, commandRunner);
+    },
     detect(workspaceCanonicalRoot: string) {
       return detectRepository(workspaceCanonicalRoot, commandRunner);
     },
@@ -196,6 +295,715 @@ export function createGitSafetyAdapter(
       return runSecretScan(workspaceCanonicalRoot, commandRunner);
     },
   });
+}
+
+function inspectWorkspaceGit(
+  workspaceCanonicalRoot: string,
+  commandRunner: GitCommandRunner,
+): Result<GitWorkspaceInspection, AppError> {
+  const detected = detectRepository(workspaceCanonicalRoot, commandRunner);
+  if (!detected.ok) return detected;
+  if (!detected.value.isRepository) {
+    return ok({ detect: detected.value, branches: [], remotes: [] });
+  }
+
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const branchResult = runGit(workspaceCanonicalRoot, runtime.value, [
+      'for-each-ref',
+      '--format=%(refname:short)',
+      'refs/heads',
+    ]);
+    if (!isSuccessfulGitCommand(branchResult)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to inspect local Git branches'));
+    }
+    const branchNames = decode(branchResult.value.stdout)
+      .split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (branchNames.length > GIT_SAFETY_LIMITS.maxStatusEntries) {
+      return err(appError('RESOURCE_TOO_LARGE', 'Git branch count exceeds the trusted limit'));
+    }
+
+    const worktreeResult = runGit(workspaceCanonicalRoot, runtime.value, ['worktree', 'list', '--porcelain', '-z']);
+    if (!isSuccessfulGitCommand(worktreeResult)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to inspect Git worktree branch occupancy'));
+    }
+    const occupied = new Set<string>();
+    for (const token of decode(worktreeResult.value.stdout).split('\0')) {
+      if (!token.startsWith('branch refs/heads/')) continue;
+      const name = token.slice('branch refs/heads/'.length);
+      if (name) occupied.add(name);
+    }
+    const branches = branchNames.map((name) => ({
+      name,
+      current: detected.value.branch === name,
+      checkedOutElsewhere: occupied.has(name) && detected.value.branch !== name,
+    }));
+
+    const remoteResult = runGit(workspaceCanonicalRoot, runtime.value, ['remote']);
+    if (!isSuccessfulGitCommand(remoteResult)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to inspect Git remotes'));
+    }
+    const remoteNames = decode(remoteResult.value.stdout)
+      .split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (remoteNames.length > 64) {
+      return err(appError('RESOURCE_TOO_LARGE', 'Git remote count exceeds the trusted limit'));
+    }
+    const remotes: GitRemoteSummary[] = [];
+    for (const name of remoteNames) {
+      if (!isValidRemoteName(name)) {
+        return err(appError('GIT_STATE_UNSAFE', 'Git remote name is unsupported'));
+      }
+      const urlResult = runGit(workspaceCanonicalRoot, runtime.value, ['remote', 'get-url', name]);
+      if (!isSuccessfulGitCommand(urlResult)) {
+        return err(appError('INTERNAL_ERROR', 'Failed to inspect Git remote'));
+      }
+      const parsed = parseGitHubRemote(decode(urlResult.value.stdout).trim());
+      if (!parsed.ok) {
+        remotes.push({ name, supported: false });
+      } else {
+        remotes.push({
+          name,
+          supported: true,
+          safeRepository: parsed.value.safeRepository,
+          transport: parsed.value.transport,
+        });
+      }
+    }
+
+    let status: GitStatusResult | undefined;
+    if (detected.value.isSupported && detected.value.headSha) {
+      const statusResult = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries, commandRunner);
+      if (!statusResult.ok) return statusResult;
+      status = statusResult.value;
+    }
+
+    let trackingRemote: string | undefined;
+    let upstreamBranch: string | undefined;
+    if (detected.value.branch) {
+      const upstream = runGit(workspaceCanonicalRoot, runtime.value, [
+        'for-each-ref',
+        '--format=%(upstream:remotename)%00%(upstream:short)',
+        `refs/heads/${detected.value.branch}`,
+      ]);
+      if (isSuccessfulGitCommand(upstream)) {
+        const [remote, branch] = decode(upstream.value.stdout).trim().split('\0');
+        if (remote && isValidRemoteName(remote)) trackingRemote = remote;
+        if (branch && branch.length <= 512 && !/[\r\n\0]/.test(branch)) upstreamBranch = branch;
+      }
+    }
+
+    return ok({
+      detect: detected.value,
+      ...(status ? { status } : {}),
+      branches,
+      remotes,
+      ...(trackingRemote ? { trackingRemote } : {}),
+      ...(upstreamBranch ? { upstreamBranch } : {}),
+    });
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function initializeRepository(
+  workspaceCanonicalRoot: string,
+  commandRunner: GitCommandRunner,
+): Result<GitWorkspaceInspection, AppError> {
+  const before = detectRepository(workspaceCanonicalRoot, commandRunner);
+  if (!before.ok) return before;
+  if (before.value.isRepository) return inspectWorkspaceGit(workspaceCanonicalRoot, commandRunner);
+
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const initialized = runGit(workspaceCanonicalRoot, runtime.value, ['init', '--quiet']);
+    if (!isSuccessfulGitCommand(initialized)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to initialize Git repository'));
+    }
+    const top = runGit(workspaceCanonicalRoot, runtime.value, ['rev-parse', '--show-toplevel']);
+    if (!isSuccessfulGitCommand(top)) {
+      return err(appError('GIT_STATE_UNSAFE', 'Initialized Git repository root could not be verified'));
+    }
+    const resolvedTop = canonicalExisting(decode(top.value.stdout).trim());
+    if (!resolvedTop.ok || !samePath(resolvedTop.value, workspaceCanonicalRoot)) {
+      return err(appError('GIT_STATE_UNSAFE', 'Initialized Git repository root does not match the Workspace'));
+    }
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+  return inspectWorkspaceGit(workspaceCanonicalRoot, commandRunner);
+}
+
+function requireFreshCleanStatus(
+  workspaceCanonicalRoot: string,
+  expectedStatusId: string,
+  commandRunner: GitCommandRunner,
+): Result<GitStatusResult, AppError> {
+  const before = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries, commandRunner);
+  if (!before.ok) return before;
+  if (before.value.statusId !== expectedStatusId) {
+    return err(appError('GIT_STATUS_STALE', 'Git status changed'));
+  }
+  if (!before.value.clean) {
+    return err(appError('GIT_WORKTREE_DIRTY', 'Commit or remove local changes before this action'));
+  }
+  if (before.value.state !== 'normal') {
+    return err(appError('GIT_STATE_UNSAFE', 'Git repository state is not safe for this action'));
+  }
+  return before;
+}
+
+function validateBranchName(
+  workspaceCanonicalRoot: string,
+  branchName: string,
+  commandRunner: GitCommandRunner,
+): Result<string, AppError> {
+  if (
+    branchName.length < 1
+    || branchName.length > 255
+    || branchName.startsWith('-')
+    || /[\r\n\0]/.test(branchName)
+  ) {
+    return err(appError('VALIDATION_FAILED', 'Git branch name is invalid'));
+  }
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const checked = runGit(workspaceCanonicalRoot, runtime.value, ['check-ref-format', '--branch', branchName]);
+    if (!checked.ok || checked.value.status !== 0 || checked.value.overflowed) {
+      return err(appError('VALIDATION_FAILED', 'Git branch name is invalid'));
+    }
+    return ok(branchName);
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function createLocalBranch(
+  workspaceCanonicalRoot: string,
+  expectedStatusId: string,
+  branchName: string,
+  commandRunner: GitCommandRunner,
+): Result<GitBranchMutationResult, AppError> {
+  const validated = validateBranchName(workspaceCanonicalRoot, branchName, commandRunner);
+  if (!validated.ok) return validated;
+  const before = requireFreshCleanStatus(workspaceCanonicalRoot, expectedStatusId, commandRunner);
+  if (!before.ok) return before;
+
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const exists = runGit(workspaceCanonicalRoot, runtime.value, ['show-ref', '--verify', '--quiet', `refs/heads/${validated.value}`]);
+    if (!exists.ok) return exists;
+    if (exists.value.status === 0) {
+      return err(appError('RESOURCE_ALREADY_EXISTS', 'Local Git branch already exists'));
+    }
+    const created = runGit(workspaceCanonicalRoot, runtime.value, ['branch', validated.value]);
+    if (!isSuccessfulGitCommand(created)) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Local Git branch could not be created'));
+    }
+    const tip = runGit(workspaceCanonicalRoot, runtime.value, ['rev-parse', '--verify', `refs/heads/${validated.value}`]);
+    if (!isSuccessfulGitCommand(tip)) {
+      return err(appError('INTERNAL_ERROR', 'Created Git branch could not be verified'));
+    }
+    return ok({
+      headSha: decode(tip.value.stdout).trim(),
+      branch: validated.value,
+      changed: true,
+    });
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function switchLocalBranch(
+  workspaceCanonicalRoot: string,
+  expectedStatusId: string,
+  branchName: string,
+  commandRunner: GitCommandRunner,
+): Result<GitBranchMutationResult, AppError> {
+  const validated = validateBranchName(workspaceCanonicalRoot, branchName, commandRunner);
+  if (!validated.ok) return validated;
+  const before = requireFreshCleanStatus(workspaceCanonicalRoot, expectedStatusId, commandRunner);
+  if (!before.ok) return before;
+  if (before.value.branch === validated.value) {
+    return ok({ headSha: before.value.headSha, branch: validated.value, changed: false });
+  }
+
+  const inspected = inspectWorkspaceGit(workspaceCanonicalRoot, commandRunner);
+  if (!inspected.ok) return inspected;
+  const target = inspected.value.branches.find((branch) => branch.name === validated.value);
+  if (!target) return err(appError('RESOURCE_NOT_FOUND', 'Local Git branch does not exist'));
+  if (target.checkedOutElsewhere) {
+    return err(appError('GIT_BRANCH_IN_USE', 'Local Git branch is checked out in another worktree'));
+  }
+
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const switched = runGit(workspaceCanonicalRoot, runtime.value, ['switch', validated.value]);
+    if (!isSuccessfulGitCommand(switched)) {
+      const refreshed = inspectWorkspaceGit(workspaceCanonicalRoot, commandRunner);
+      if (refreshed.ok && refreshed.value.branches.some((branch) => branch.name === validated.value && branch.checkedOutElsewhere)) {
+        return err(appError('GIT_BRANCH_IN_USE', 'Local Git branch is checked out in another worktree'));
+      }
+      return err(appError('GIT_OPERATION_CONFLICT', 'Local Git branch could not be switched safely'));
+    }
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+
+  const after = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries, commandRunner);
+  if (!after.ok) return after;
+  if (after.value.branch !== validated.value || after.value.state !== 'normal' || !after.value.clean) {
+    return err(appError('GIT_OPERATION_CONFLICT', 'Git branch switch final state could not be verified'));
+  }
+  return ok({ headSha: after.value.headSha, branch: validated.value, changed: true });
+}
+
+function mergeLocalBranch(
+  workspaceCanonicalRoot: string,
+  expectedStatusId: string,
+  sourceBranch: string,
+  commandRunner: GitCommandRunner,
+): Result<GitMergeResult, AppError> {
+  const validated = validateBranchName(workspaceCanonicalRoot, sourceBranch, commandRunner);
+  if (!validated.ok) return validated;
+  const before = requireFreshCleanStatus(workspaceCanonicalRoot, expectedStatusId, commandRunner);
+  if (!before.ok) return before;
+  if (!before.value.branch || before.value.detached) {
+    return err(appError('GIT_STATE_UNSAFE', 'Git merge requires an attached local branch'));
+  }
+
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const source = runGit(workspaceCanonicalRoot, runtime.value, [
+      'rev-parse',
+      '--verify',
+      `refs/heads/${validated.value}`,
+    ]);
+    if (!isSuccessfulGitCommand(source)) {
+      return err(appError('RESOURCE_NOT_FOUND', 'Merge source branch does not exist'));
+    }
+    const sourceSha = decode(source.value.stdout).trim();
+
+    const alreadyContained = runGit(workspaceCanonicalRoot, runtime.value, [
+      'merge-base',
+      '--is-ancestor',
+      sourceSha,
+      before.value.headSha,
+    ]);
+    if (!alreadyContained.ok || alreadyContained.value.overflowed) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Git merge ancestry could not be verified'));
+    }
+    if (alreadyContained.value.status === 0) {
+      return ok({
+        headSha: before.value.headSha,
+        branch: before.value.branch,
+        changed: false,
+        mode: 'already_merged',
+      });
+    }
+    if (alreadyContained.value.status !== 1) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Git merge ancestry could not be verified'));
+    }
+
+    const fastForward = runGit(workspaceCanonicalRoot, runtime.value, [
+      'merge-base',
+      '--is-ancestor',
+      before.value.headSha,
+      sourceSha,
+    ]);
+    if (!fastForward.ok || fastForward.value.overflowed) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Git merge ancestry could not be verified'));
+    }
+
+    if (fastForward.value.status === 0) {
+      const revalidated = requireFreshCleanStatus(workspaceCanonicalRoot, expectedStatusId, commandRunner);
+      if (!revalidated.ok) return revalidated;
+      if (revalidated.value.headSha !== before.value.headSha || revalidated.value.branch !== before.value.branch) {
+        return err(appError('GIT_STATUS_STALE', 'Git state changed before merge'));
+      }
+      const merged = runGit(workspaceCanonicalRoot, runtime.value, ['merge', '--ff-only', sourceSha]);
+      if (!isSuccessfulGitCommand(merged)) {
+        return err(appError('GIT_OPERATION_CONFLICT', 'Git fast-forward merge could not be completed safely'));
+      }
+      const after = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries, commandRunner);
+      if (!after.ok) return after;
+      if (
+        after.value.headSha !== sourceSha
+        || after.value.branch !== before.value.branch
+        || after.value.state !== 'normal'
+        || !after.value.clean
+      ) {
+        return err(appError('GIT_OPERATION_CONFLICT', 'Git fast-forward merge final state could not be verified'));
+      }
+      return ok({
+        headSha: after.value.headSha,
+        branch: before.value.branch,
+        changed: true,
+        mode: 'fast_forward',
+      });
+    }
+    if (fastForward.value.status !== 1) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Git merge ancestry could not be verified'));
+    }
+
+    const preflight = runGit(workspaceCanonicalRoot, runtime.value, [
+      'merge-tree',
+      '--write-tree',
+      before.value.headSha,
+      sourceSha,
+    ]);
+    if (!preflight.ok || preflight.value.overflowed || preflight.value.status !== 0) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Git merge conflict preflight did not prove a clean merge'));
+    }
+    const treeSha = decode(preflight.value.stdout).split(/\r?\n/, 1)[0]?.trim();
+    if (!treeSha || !/^[0-9a-f]{40,64}$/i.test(treeSha)) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Git merge conflict preflight was inconclusive'));
+    }
+
+    const revalidated = requireFreshCleanStatus(workspaceCanonicalRoot, expectedStatusId, commandRunner);
+    if (!revalidated.ok) return revalidated;
+    if (revalidated.value.headSha !== before.value.headSha || revalidated.value.branch !== before.value.branch) {
+      return err(appError('GIT_STATUS_STALE', 'Git state changed before merge'));
+    }
+
+    const merged = runGit(workspaceCanonicalRoot, runtime.value, ['merge', '--no-edit', '--no-ff', sourceSha]);
+    if (!isSuccessfulGitCommand(merged)) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Git merge could not be completed safely'));
+    }
+    const after = readStatus(workspaceCanonicalRoot, GIT_SAFETY_LIMITS.maxStatusEntries, commandRunner);
+    if (!after.ok) return after;
+    if (
+      after.value.headSha === before.value.headSha
+      || after.value.branch !== before.value.branch
+      || after.value.state !== 'normal'
+      || !after.value.clean
+    ) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Git merge final state could not be verified'));
+    }
+    return ok({
+      headSha: after.value.headSha,
+      branch: before.value.branch,
+      changed: true,
+      mode: 'merge_commit',
+    });
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function deleteLocalBranch(
+  workspaceCanonicalRoot: string,
+  expectedStatusId: string,
+  branchName: string,
+  defaultBranch: string,
+  commandRunner: GitCommandRunner,
+): Result<GitBranchMutationResult, AppError> {
+  const target = validateBranchName(workspaceCanonicalRoot, branchName, commandRunner);
+  if (!target.ok) return target;
+  const primary = validateBranchName(workspaceCanonicalRoot, defaultBranch, commandRunner);
+  if (!primary.ok) return err(appError('GIT_DEFAULT_BRANCH_UNKNOWN', 'Default Git branch is unavailable'));
+
+  const before = requireFreshCleanStatus(workspaceCanonicalRoot, expectedStatusId, commandRunner);
+  if (!before.ok) return before;
+  if (!before.value.branch || before.value.detached) {
+    return err(appError('GIT_STATE_UNSAFE', 'Git branch deletion requires an attached local branch'));
+  }
+  if (target.value === before.value.branch) {
+    return err(appError('GIT_BRANCH_IN_USE', 'Current Git branch cannot be deleted'));
+  }
+  if (target.value === primary.value) {
+    return err(appError('GIT_BRANCH_IN_USE', 'Default Git branch cannot be deleted'));
+  }
+
+  const inspected = inspectWorkspaceGit(workspaceCanonicalRoot, commandRunner);
+  if (!inspected.ok) return inspected;
+  const targetSummary = inspected.value.branches.find((branch) => branch.name === target.value);
+  if (!targetSummary) return err(appError('RESOURCE_NOT_FOUND', 'Local Git branch does not exist'));
+  if (targetSummary.checkedOutElsewhere) {
+    return err(appError('GIT_BRANCH_IN_USE', 'Local Git branch is checked out in another worktree'));
+  }
+  if (!inspected.value.branches.some((branch) => branch.name === primary.value)) {
+    return err(appError('GIT_DEFAULT_BRANCH_UNKNOWN', 'Default Git branch is unavailable'));
+  }
+
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const targetTip = runGit(workspaceCanonicalRoot, runtime.value, ['rev-parse', '--verify', `refs/heads/${target.value}`]);
+    const defaultTip = runGit(workspaceCanonicalRoot, runtime.value, ['rev-parse', '--verify', `refs/heads/${primary.value}`]);
+    if (!isSuccessfulGitCommand(targetTip) || !isSuccessfulGitCommand(defaultTip)) {
+      return err(appError('GIT_DEFAULT_BRANCH_UNKNOWN', 'Default Git branch state could not be verified'));
+    }
+    const targetSha = decode(targetTip.value.stdout).trim();
+    const defaultSha = decode(defaultTip.value.stdout).trim();
+    const merged = runGit(workspaceCanonicalRoot, runtime.value, [
+      'merge-base',
+      '--is-ancestor',
+      targetSha,
+      defaultSha,
+    ]);
+    if (!merged.ok || merged.value.overflowed || merged.value.status !== 0) {
+      return err(appError('GIT_BRANCH_UNMERGED', 'Local Git branch is not fully merged into the default branch'));
+    }
+
+    const revalidated = requireFreshCleanStatus(workspaceCanonicalRoot, expectedStatusId, commandRunner);
+    if (!revalidated.ok) return revalidated;
+    if (revalidated.value.headSha !== before.value.headSha || revalidated.value.branch !== before.value.branch) {
+      return err(appError('GIT_STATUS_STALE', 'Git state changed before branch deletion'));
+    }
+
+    const deleted = runGit(workspaceCanonicalRoot, runtime.value, ['branch', '-d', target.value]);
+    if (!isSuccessfulGitCommand(deleted)) {
+      return err(appError('GIT_OPERATION_CONFLICT', 'Local Git branch could not be deleted safely'));
+    }
+    const remains = runGit(workspaceCanonicalRoot, runtime.value, ['show-ref', '--verify', '--quiet', `refs/heads/${target.value}`]);
+    if (!remains.ok || remains.value.overflowed || remains.value.status === 0) {
+      return err(appError('INTERNAL_ERROR', 'Deleted Git branch final state could not be verified'));
+    }
+    return ok({
+      headSha: before.value.headSha,
+      branch: target.value,
+      changed: true,
+    });
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function resolveRemoteDefaultBranch(
+  workspaceCanonicalRoot: string,
+  remoteName: string,
+  commandRunner: GitCommandRunner,
+): Result<string | undefined, AppError> {
+  if (!isValidRemoteName(remoteName)) {
+    return err(appError('VALIDATION_FAILED', 'Git remote name is invalid'));
+  }
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const remotes = runGit(workspaceCanonicalRoot, runtime.value, ['remote']);
+    if (!isSuccessfulGitCommand(remotes)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to inspect Git remotes'));
+    }
+    if (!decode(remotes.value.stdout).split(/\r?\n/).map((value) => value.trim()).includes(remoteName)) {
+      return err(appError('GIT_REMOTE_MISSING', 'Git remote is missing'));
+    }
+    const symbolic = runGit(workspaceCanonicalRoot, runtime.value, [
+      'symbolic-ref',
+      '--quiet',
+      '--short',
+      `refs/remotes/${remoteName}/HEAD`,
+    ]);
+    if (!symbolic.ok || symbolic.value.overflowed) {
+      return err(appError('GIT_DEFAULT_BRANCH_UNKNOWN', 'Default Git branch could not be resolved'));
+    }
+    if (symbolic.value.status !== 0) return ok(undefined);
+    const short = decode(symbolic.value.stdout).trim();
+    const prefix = `${remoteName}/`;
+    if (!short.startsWith(prefix) || short.length <= prefix.length) return ok(undefined);
+    const branch = short.slice(prefix.length);
+    if (
+      branch.length > 255
+      || branch.startsWith('-')
+      || /[\r\n\0]/.test(branch)
+    ) {
+      return ok(undefined);
+    }
+    const checked = runGit(workspaceCanonicalRoot, runtime.value, ['check-ref-format', '--branch', branch]);
+    if (!isSuccessfulGitCommand(checked)) return ok(undefined);
+    return ok(branch);
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function classifyRemoteRelation(
+  workspaceCanonicalRoot: string,
+  remoteName: string,
+  branchName: string,
+  commandRunner: GitCommandRunner,
+): Result<GitRelationResult, AppError> {
+  if (!isValidRemoteName(remoteName)) {
+    return err(appError('VALIDATION_FAILED', 'Git remote name is invalid'));
+  }
+  const validatedBranch = validateBranchName(workspaceCanonicalRoot, branchName, commandRunner);
+  if (!validatedBranch.ok) return validatedBranch;
+
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const local = runGit(workspaceCanonicalRoot, runtime.value, ['rev-parse', '--verify', `refs/heads/${validatedBranch.value}`]);
+    if (!isSuccessfulGitCommand(local)) {
+      return err(appError('RESOURCE_NOT_FOUND', 'Local Git branch does not exist'));
+    }
+    const upstreamResult = runGit(workspaceCanonicalRoot, runtime.value, [
+      'for-each-ref',
+      '--format=%(upstream:short)',
+      `refs/heads/${validatedBranch.value}`,
+    ]);
+    if (!isSuccessfulGitCommand(upstreamResult)) {
+      return ok({ kind: 'unavailable' });
+    }
+    const upstreamBranch = decode(upstreamResult.value.stdout).trim();
+    if (!upstreamBranch || !upstreamBranch.startsWith(`${remoteName}/`)) {
+      return ok({ kind: 'no_upstream' });
+    }
+    if (upstreamBranch.length > 512 || /[\r\n\0]/.test(upstreamBranch)) {
+      return ok({ kind: 'unavailable' });
+    }
+
+    const remoteRef = `refs/remotes/${upstreamBranch}`;
+    const remote = runGit(workspaceCanonicalRoot, runtime.value, ['rev-parse', '--verify', remoteRef]);
+    if (!isSuccessfulGitCommand(remote)) {
+      return ok({ kind: 'unavailable', upstreamBranch });
+    }
+    const localSha = decode(local.value.stdout).trim();
+    const remoteSha = decode(remote.value.stdout).trim();
+    if (localSha === remoteSha) {
+      return ok({ kind: 'up_to_date', ahead: 0, behind: 0, upstreamBranch });
+    }
+
+    const counts = runGit(workspaceCanonicalRoot, runtime.value, [
+      'rev-list',
+      '--left-right',
+      '--count',
+      `${localSha}...${remoteSha}`,
+    ]);
+    let ahead: number | undefined;
+    let behind: number | undefined;
+    if (isSuccessfulGitCommand(counts)) {
+      const match = /^(\d+)\s+(\d+)$/.exec(decode(counts.value.stdout).trim());
+      if (match) {
+        const parsedAhead = Number(match[1]);
+        const parsedBehind = Number(match[2]);
+        if (Number.isSafeInteger(parsedAhead) && Number.isSafeInteger(parsedBehind)) {
+          ahead = parsedAhead;
+          behind = parsedBehind;
+        }
+      }
+    }
+
+    const remoteAncestor = runGit(workspaceCanonicalRoot, runtime.value, [
+      'merge-base',
+      '--is-ancestor',
+      remoteSha,
+      localSha,
+    ]);
+    if (!remoteAncestor.ok || remoteAncestor.value.overflowed) {
+      return ok({ kind: 'unavailable', upstreamBranch });
+    }
+    if (remoteAncestor.value.status === 0) {
+      return ok({
+        kind: 'local_ahead',
+        ...(ahead === undefined ? {} : { ahead }),
+        ...(behind === undefined ? {} : { behind }),
+        upstreamBranch,
+      });
+    }
+    if (remoteAncestor.value.status !== 1) return ok({ kind: 'unavailable', upstreamBranch });
+
+    const localAncestor = runGit(workspaceCanonicalRoot, runtime.value, [
+      'merge-base',
+      '--is-ancestor',
+      localSha,
+      remoteSha,
+    ]);
+    if (!localAncestor.ok || localAncestor.value.overflowed) {
+      return ok({ kind: 'unavailable', upstreamBranch });
+    }
+    if (localAncestor.value.status === 0) {
+      return ok({
+        kind: 'remote_ahead',
+        ...(ahead === undefined ? {} : { ahead }),
+        ...(behind === undefined ? {} : { behind }),
+        upstreamBranch,
+      });
+    }
+    if (localAncestor.value.status !== 1) return ok({ kind: 'unavailable', upstreamBranch });
+
+    return ok({
+      kind: 'diverged',
+      ...(ahead === undefined ? {} : { ahead }),
+      ...(behind === undefined ? {} : { behind }),
+      upstreamBranch,
+    });
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function configureRemote(
+  workspaceCanonicalRoot: string,
+  input: { readonly name: string; readonly url: string },
+  commandRunner: GitCommandRunner,
+): Result<GitRemoteSummary, AppError> {
+  if (!isValidRemoteName(input.name)) {
+    return err(appError('VALIDATION_FAILED', 'Git remote name is invalid'));
+  }
+  const parsed = parseGitHubRemote(input.url);
+  if (!parsed.ok) return parsed;
+
+  const runtime = makeGitRuntime(commandRunner);
+  if (!runtime.ok) return runtime;
+  try {
+    const top = runGit(workspaceCanonicalRoot, runtime.value, ['rev-parse', '--show-toplevel']);
+    if (!isSuccessfulGitCommand(top)) {
+      return err(appError('GIT_STATE_UNSAFE', 'Git remote configuration requires a repository at the Workspace root'));
+    }
+    const resolvedTop = canonicalExisting(decode(top.value.stdout).trim());
+    if (!resolvedTop.ok || !samePath(resolvedTop.value, workspaceCanonicalRoot)) {
+      return err(appError('GIT_STATE_UNSAFE', 'Git repository root does not match the Workspace'));
+    }
+
+    const remotes = runGit(workspaceCanonicalRoot, runtime.value, ['remote']);
+    if (!isSuccessfulGitCommand(remotes)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to inspect Git remotes'));
+    }
+    const exists = decode(remotes.value.stdout).split(/\r?\n/).map((value) => value.trim()).includes(input.name);
+    const changed = runGit(
+      workspaceCanonicalRoot,
+      runtime.value,
+      exists
+        ? ['remote', 'set-url', input.name, parsed.value.canonicalUrl]
+        : ['remote', 'add', input.name, parsed.value.canonicalUrl],
+    );
+    if (!isSuccessfulGitCommand(changed)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to configure Git remote'));
+    }
+
+    const verified = runGit(workspaceCanonicalRoot, runtime.value, ['remote', 'get-url', input.name]);
+    if (!isSuccessfulGitCommand(verified)) {
+      return err(appError('INTERNAL_ERROR', 'Failed to verify Git remote configuration'));
+    }
+    const verifiedIdentity = parseGitHubRemote(decode(verified.value.stdout).trim());
+    if (!verifiedIdentity.ok) {
+      return err(appError('GIT_REMOTE_UNSUPPORTED', 'Configured Git remote is unsupported'));
+    }
+    return ok({
+      name: input.name,
+      supported: true,
+      safeRepository: verifiedIdentity.value.safeRepository,
+      transport: verifiedIdentity.value.transport,
+    });
+  } finally {
+    cleanupGitRuntime(runtime.value);
+  }
+}
+
+function isValidRemoteName(value: string): boolean {
+  return /^[A-Za-z0-9._-]{1,128}$/.test(value)
+    && value !== '.'
+    && value !== '..'
+    && !value.startsWith('-');
 }
 
 function resolveGitMetadataLayout(workspaceCanonicalRoot: string): Result<GitMetadataLayout, AppError> {

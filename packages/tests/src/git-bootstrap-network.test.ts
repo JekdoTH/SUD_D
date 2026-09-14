@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { createGitCommandRunner } from '../../infrastructure/src/git-command-runner.js';
+import { createGitCommandRunner, type GitCommandRunnerOptions } from '../../infrastructure/src/git-command-runner.js';
+
+type SpawnStub = NonNullable<GitCommandRunnerOptions['spawnSync']>;
 import { parseGitHubRemote } from '../../infrastructure/src/git-github-remote.js';
 
 describe('Git Bootstrap - GitHub remote parsing', () => {
@@ -39,10 +41,10 @@ describe('Git Bootstrap - trusted Git command runner modes', () => {
     const calls: Array<{ command: string; args: readonly string[]; options: Record<string, unknown> }> = [];
     const runner = createGitCommandRunner({
       resolveGitExecutable: () => ({ ok: true, value: 'C:\\Program Files\\Git\\cmd\\git.exe' }),
-      spawnSync: (command: string, args: readonly string[], options: Record<string, unknown>) => {
+      spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
         calls.push({ command, args, options });
         return { stdout: Buffer.from('ok'), stderr: Buffer.alloc(0), status: 0 };
-      },
+      }) as unknown as SpawnStub,
     }) as {
       runLocal(cwd: string, args: readonly string[], options?: { trustedEnv?: Readonly<Record<string, string>> }): { ok: boolean };
     };
@@ -94,10 +96,10 @@ describe('Git Bootstrap - trusted Git command runner modes', () => {
     const runner = createGitCommandRunner({
       hostEnv,
       resolveGitExecutable: () => ({ ok: true, value: 'C:\\Program Files\\Git\\cmd\\git.exe' }),
-      spawnSync: (_command: string, args: readonly string[], options: Record<string, unknown>) => {
+      spawnSync: ((_command: string, args: readonly string[], options: Record<string, unknown>) => {
         calls.push({ args, options });
         return { stdout: Buffer.from('ok'), stderr: Buffer.alloc(0), status: 0 };
-      },
+      }) as unknown as SpawnStub,
     }) as {
       runGitHubNetwork(
         cwd: string,

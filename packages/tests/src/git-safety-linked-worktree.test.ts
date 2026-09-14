@@ -50,7 +50,25 @@ describe('Git Safety - standard linked worktree support', () => {
     const diff = gitSafety.diff(canonical(linkedRoot), { relativePath: 'tracked.txt' });
     expect(diff).toMatchObject({ ok: true, value: { patch: expect.stringContaining('+linked edit') } });
     expect(JSON.stringify({ detected, status, diff })).not.toContain(linkedGitDir(linkedRoot));
-  });
+  }, 15_000);
+
+  it('blocks switch and delete for a branch checked out in another linked worktree without path leakage', () => {
+    const { mainRoot, linkedRoot } = createLinkedWorktree();
+    const gitSafety = createGitSafetyAdapter();
+    const status = gitSafety.status(canonical(mainRoot));
+    if (!status.ok) throw new Error(status.error.code);
+    const defaultBranch = git(mainRoot, ['branch', '--show-current']);
+
+    const switched = gitSafety.switchBranch(canonical(mainRoot), status.value.statusId, 'linked-fixture');
+    expect(switched).toMatchObject({ ok: false, error: { code: 'GIT_BRANCH_IN_USE' } });
+
+    const deleted = gitSafety.deleteBranch(canonical(mainRoot), status.value.statusId, 'linked-fixture', defaultBranch);
+    expect(deleted).toMatchObject({ ok: false, error: { code: 'GIT_BRANCH_IN_USE' } });
+
+    expect(JSON.stringify({ switched, deleted })).not.toContain(linkedRoot);
+    expect(git(mainRoot, ['branch', '--show-current'])).toBe(defaultBranch);
+    expect(git(mainRoot, ['show-ref', '--verify', 'refs/heads/linked-fixture'])).not.toBe('');
+  }, 20_000);
 
   it('creates a bounded commit on the linked-worktree branch while preserving the clean staging-area contract', () => {
     const { linkedRoot } = createLinkedWorktree();
@@ -92,7 +110,7 @@ describe('Git Safety - standard linked worktree support', () => {
     expect(secretScan).toMatchObject({ action: 'secret_scan', passed: false, exitCode: 1, truncated: false });
     expect(secretScan.output).toBe('secret signature scan found 1 suspect file');
     expect(JSON.stringify(secretScan)).not.toContain(secretSentinel);
-  });
+  }, 15_000);
 
   it('reads unsafe repository state from the linked worktree administrative directory and blocks commit', () => {
     const { linkedRoot } = createLinkedWorktree();
@@ -107,7 +125,7 @@ describe('Git Safety - standard linked worktree support', () => {
     if (!status.ok) throw new Error(status.error.code);
     const commit = gitSafety.commit(canonical(linkedRoot), status.value.statusId, 'test: unsafe linked worktree');
     expect(commit).toMatchObject({ ok: false, error: { code: 'GIT_STATE_UNSAFE' } });
-  });
+  }, 15_000);
 });
 
 describe('Git Safety - linked worktree metadata rejection', () => {

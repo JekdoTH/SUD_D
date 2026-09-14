@@ -32,6 +32,15 @@ afterEach(() => {
 });
 function canonical(value: string): string { const result = canonicalizePath(value); if (!result.ok) throw new Error('canonicalize'); return result.value; }
 const gitSafety: GitSafetyAdapter = {
+  inspectWorkspaceGit: () => { throw new Error('unexpected git workflow'); },
+  initialize: () => { throw new Error('unexpected git workflow'); },
+  configureRemote: () => { throw new Error('unexpected git workflow'); },
+  resolveDefaultBranch: () => { throw new Error('unexpected git workflow'); },
+  relation: () => { throw new Error('unexpected git workflow'); },
+  createBranch: () => { throw new Error('unexpected git workflow'); },
+  switchBranch: () => { throw new Error('unexpected git workflow'); },
+  mergeBranch: () => { throw new Error('unexpected git workflow'); },
+  deleteBranch: () => { throw new Error('unexpected git workflow'); },
   detect: () => ok({ isRepository: true, isSupported: true, headSha: 'a'.repeat(40), branch: 'master', detached: false, state: 'normal' }),
   status: () => ok({ headSha: 'a'.repeat(40), branch: 'master', detached: false, clean: true, entries: [], truncated: false, state: 'normal', statusId: 'b'.repeat(64) }),
   diff: () => ok({ patch: '', bytes: 0, truncated: false, omittedSensitivePaths: [] }),
