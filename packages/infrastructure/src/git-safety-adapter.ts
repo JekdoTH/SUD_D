@@ -113,6 +113,17 @@ export interface GitRemoteSummary {
   readonly transport?: GitRemoteTransport;
 }
 
+export interface GitHubNetworkRemoteIdentity {
+  readonly safeRepository: string;
+  readonly transport: GitRemoteTransport;
+}
+
+export function validateGitHubNetworkRemote(raw: string): Result<GitHubNetworkRemoteIdentity, AppError> {
+  const parsed = parseGitHubRemote(raw);
+  if (!parsed.ok) return err(parsed.error);
+  return ok({ safeRepository: parsed.value.safeRepository, transport: parsed.value.transport });
+}
+
 export interface GitWorkspaceInspection {
   readonly detect: GitDetectResult;
   readonly status?: GitStatusResult;
