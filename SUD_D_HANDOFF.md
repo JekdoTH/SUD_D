@@ -1,30 +1,37 @@
 # SUD_D Handoff
 
-## Approval Mode Placement + Durable Decision Sync — Branch Closure (2026-09-14)
+## Git Bootstrap + Branch + Remote Sync Design — Awaiting Product Owner Review (2026-09-14)
 
-**Status: IMPLEMENTED AND VERIFIED on `fix/approval-mode-connection-placement`; this follow-up must not merge or push `master`.**
+**Status: PRODUCT OWNER DESIGN DECISION FORMALIZED ON `docs/git-bootstrap-branch-remote-sync-design`; implementation has not started.**
 
-Current durable state:
+Current state:
 
-- Post-Stabilization UI Closure is integrated to `master` at `c6686cc7453c22099b31661c2b6518717ef4ea2e`.
-- Product Owner live Home smoke passed: UI plus actual SUD_D Home connection/read-only `work.resume`, `git.status`, checkpoint read, and `team.status`.
-- This follow-up moves `Default Approval Mode` from Overview to Connection, immediately after Workspace / Runtime API Key / Secure Tunnel and before Advanced details. Overview returns to operational-status focus; the existing enum-only `window.sudD.approval.getMode()` / `setMode(...)` seam, fresh `approve_for_me` default, persistence, atomic audit, and Policy/Approval hard boundaries are unchanged.
-- The approved personal-first delivery preference is synced to `AGENTS.md` / `SUD_D_ADVISOR.md`, and `SUD_D_ROADMAP.md` now records **Git Bootstrap + Branch/Worktree + Remote Sync** as the next approved major milestone.
-- That Git milestone starts only after this branch-only follow-up is closed and the Product Owner completes final manual visual acceptance. No Git milestone implementation or Playwright runtime work begins in this task.
-
-Verification for this follow-up:
-
-- focused Approval Desktop renderer seam: **12/12 PASS**
-- typecheck: **PASS**
-- production build: **PASS**
-- `git diff --check`: **PASS**
-- isolated production Electron smoke at practical desktop size: **PASS** with no horizontal overflow, three Connection Approval Mode controls, fresh `Approve for me`, real mode round-trip, correct placement, and no Overview mode control
-
-Preservation / closure boundary:
-
+- Approval Mode placement follow-up passed Product Owner visual acceptance and was fast-forward integrated to `master`.
+- pre-docs baseline: `master == origin/master == 42d4f3017be4773ca8276470e523baff1157711d`
+- current docs branch: `docs/git-bootstrap-branch-remote-sync-design`
+- formal design spec: `docs/superpowers/specs/2026-09-14-git-bootstrap-branch-remote-sync-design.md`
+- Product Owner-approved milestone name: **Git Bootstrap + Branch + Remote Sync**
 - `.serena/` remains local-only/untracked
 - preserve `stash@{0}: On master: pre-bootstrap Home 2026-09-13 preserve local handoff`
-- close by committing and pushing only `fix/approval-mode-connection-placement`, then STOP
+
+Approved design summary:
+
+- extend the existing deep Git/Tool Kernel foundation rather than adding a parallel Git engine;
+- keep user-facing worktree lifecycle and GitHub-repository creation deferred while preserving linked-worktree compatibility;
+- Primary Remote and Primary / Default Branch are resolved from trusted state rather than hard-coded names;
+- GitHub HTTPS/SSH Sync and Push are core, with machine-owned credentials and fixed-purpose network Policy/Approval/Audit;
+- generic shell, auto-stash/rebase/reset, force operations, credential persistence, and non-GitHub network Git remain out of scope.
+
+Docs verification:
+
+- spec self-review: **PASS** — no placeholders, scope leakage, hard-coded Primary Remote/default branch, or contradictory safety behavior
+- staged docs scope: **PASS** — exactly spec + Roadmap + Handoff; no production source/config changed
+- `git diff --check`: **PASS**
+- added-line high-signal secret scan: **PASS**
+- Roadmap/Handoff consistency with the spec: **PASS**
+- full application tests/build were not run because this task is documentation-only and changes no runtime/generated configuration
+
+Next action: **Product Owner reviews the written design spec.** If approved, create a separate implementation plan before any runtime/UI implementation. Do not start the Git implementation from this docs task.
 
 Long-term plan: see `SUD_D_ROADMAP.md`.
 

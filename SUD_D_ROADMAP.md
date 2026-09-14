@@ -216,23 +216,21 @@ Post-M0.8 Secure Runtime API Key Setup and Connection UI/UX Simplification are c
 
 SUD_D is currently personal-first: one primary Windows user with approximately one occasional tester. The approved near-term priority is to reach a useful **Personal Alpha and Team Mode MVP as quickly as practical** while keeping the core security boundary intact.
 
-### Next Approved Major Milestone — Git Bootstrap + Branch/Worktree + Remote Sync
+### Next Approved Major Milestone — Git Bootstrap + Branch + Remote Sync
 
-After the current Approval Mode placement follow-up and Product Owner manual visual acceptance, the next approved major milestone is **Git Bootstrap + Branch/Worktree + Remote Sync**. Its approved direction is:
+The Product Owner-approved design is [Git Bootstrap + Branch + Remote Sync Design](docs/superpowers/specs/2026-09-14-git-bootstrap-branch-remote-sync-design.md). Implementation waits for Product Owner review of that written spec and a separate implementation plan.
 
-- repository detect / init / clone / remote configuration
-- create or connect a GitHub repository; new GitHub repositories default to **Private**, with Public only by explicit choice
-- branch list / create / switch / safe delete / merge
-- linked worktree list / create / remove
-- remote status / fetch / safe sync / push
-- Home-PC ↔ GitHub ↔ Work-PC workflow with divergence/conflict detection
-- no automatic force-push, rebase, or destructive reset
-- local Git and Network Git remain separate authority classes
-- Network Git must use reviewed fixed-purpose Kernel / Policy / Approval / Audit capabilities and must not silently weaken default Network DENY
-- no generic shell or renderer-controlled executable / argv / cwd / env
-- credentials and tokens never enter the renderer, ordinary SQLite, logs, audit, or non-secret DTOs
+Durable scope:
 
-This records approved direction only; it does not authorize Git implementation from this follow-up task.
+- repository bootstrap, local branch workflow, **Sync from GitHub**, and **Push to GitHub** remain core;
+- GitHub HTTPS and SSH are the only v1 network Git transports/host scope;
+- Primary Remote is resolved from trusted repository state/user choice and is not hard-coded to `origin`;
+- Primary / Default Branch is resolved from trusted Git state and is not hard-coded to `master` or `main`;
+- existing linked-worktree compatibility remains, while user-facing worktree create/list/remove lifecycle is deferred;
+- creating a GitHub repository from SUD_D remains deferred;
+- Network Git remains fixed-purpose behind Kernel / Policy / Approval / Audit; generic Network DENY, credential secrecy, and no-shell/no-force/no-auto-rebase rules remain intact.
+
+Detailed behavior, error states, authentication, safety rules, UI, and verification live in the design spec rather than this roadmap.
 
 The near-term execution order is intentionally capability-driven rather than strictly following the historical milestone numbers:
 
