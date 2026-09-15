@@ -42,7 +42,7 @@ function deps() {
       networkCalls.push({ operation, input });
       return ok({ sensitivity: 'normal' as const, context: 'github_network' as const, ...(operation === 'clone' ? {} : { workspaceId: ws.id }) });
     },
-    networkApprovalBinding(operation: string, input: unknown) {
+    networkApprovalBinding(operation: string, _input: unknown) {
       if (operation === 'clone') return ok({ operation: 'clone', safeRepository: 'acme/widgets', transport: 'https', destinationLabel: 'clone-target' });
       return ok({ operation, expectedSnapshotId: SNAPSHOT, remoteName: 'upstream', safeRepository: 'acme/widgets', transport: 'https' });
     },

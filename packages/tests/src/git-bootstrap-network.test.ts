@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
 import { createGitSafetyAdapter } from '@sud-d/infrastructure';
@@ -8,6 +9,7 @@ import { createGitCommandRunner, type GitCommandRunner, type GitCommandRunnerOpt
 
 type SpawnStub = NonNullable<GitCommandRunnerOptions['spawnSync']>;
 import { parseGitHubRemote } from '../../infrastructure/src/git-github-remote.js';
+import { git, tempDir } from './git-safety-test-harness.js';
 
 describe('Git Bootstrap - GitHub remote parsing', () => {
   it.each([
@@ -102,7 +104,10 @@ describe('Git Bootstrap - trusted Git command runner modes', () => {
       resolveGitExecutable: () => ({ ok: true, value: 'C:\\Program Files\\Git\\cmd\\git.exe' }),
       spawnSync: ((_command: string, args: readonly string[], options: Record<string, unknown>) => {
         calls.push({ args, options });
-        return { stdout: Buffer.from('ok'), stderr: Buffer.alloc(0), status: 0 };
+        if (args.includes('config')) {
+          return { stdout: Buffer.from('global\tuser.name\n'), stderr: Buffer.alloc(0), status: 0 } as never;
+        }
+        return { stdout: Buffer.from('ok'), stderr: Buffer.alloc(0), status: 0 } as never;
       }) as unknown as SpawnStub,
     }) as {
       runGitHubNetwork(
@@ -113,13 +118,21 @@ describe('Git Bootstrap - trusted Git command runner modes', () => {
     };
 
     expect(runner.runGitHubNetwork('C:\\repo', ['fetch', 'upstream'], {
-      trustedEnv: { PATH: 'C:\\attacker', GIT_CONFIG_GLOBAL: 'C:\\attacker\\gitconfig' },
+      trustedEnv: {
+          PATH: 'C:\\attacker',
+          GIT_CONFIG_GLOBAL: 'C:\\attacker\\gitconfig',
+          GIT_COMMON_DIR: 'C:\\attacker\\.git',
+        },
     })).toMatchObject({ ok: true });
-    expect(calls).toHaveLength(1);
-    const call = calls[0]!;
+    const call = calls.find((entry) => entry.args.includes('fetch'));
+    expect(call).toBeDefined();
+    if (!call) return;
     expect(call.args).toContain('protocol.allow=never');
     expect(call.args).toContain('protocol.https.allow=always');
     expect(call.args).toContain('protocol.ssh.allow=always');
+    expect(call.args).toContain('fetch.recurseSubmodules=false');
+    expect(call.args).toContain('push.recurseSubmodules=no');
+    expect(call.args).toContain('submodule.recurse=false');
     expect(call.args).not.toContain('credential.helper=');
     const env = call.options['env'] as Record<string, string>;
     expect(env.PATH).toBe(hostEnv.PATH);
@@ -128,7 +141,340 @@ describe('Git Bootstrap - trusted Git command runner modes', () => {
     expect(env.GIT_TERMINAL_PROMPT).toBe('0');
     expect(env.GCM_INTERACTIVE).toBe('Never');
     expect(env.GIT_CONFIG_GLOBAL).toBeUndefined();
+    expect(env.GIT_COMMON_DIR).toBeUndefined();
     expect(env.SUD_D_ATTACKER_ENV).toBeUndefined();
+  });
+
+  it('fails closed before network when repository config rewrites a validated GitHub URL', () => {
+    const root = tempDir('sudd-git-network-rewrite-');
+    git(root, ['init', '-q']);
+    const forbiddenUrl = 'https://127.0.0.1:9/SECRET_CONFIG_REDIRECT/';
+    git(root, ['config', `url.${forbiddenUrl}.insteadOf`, 'https://github.com/']);
+
+    const calls: string[][] = [];
+    const runner = createGitCommandRunner({
+      spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
+        calls.push([...args]);
+        return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
+      }) as unknown as SpawnStub,
+    });
+
+    const result = runner.runGitHubNetwork(root, [
+      'ls-remote',
+      'https://github.com/acme/widgets.git',
+    ], { timeoutMs: 3_000 });
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'GIT_STATE_UNSAFE' } });
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('127.0.0.1');
+    expect(serialized).not.toContain('SECRET_CONFIG_REDIRECT');
+    expect(calls.some((args) => args.includes('ls-remote'))).toBe(false);
+  });
+
+  it('isolates network Git from repository config added after preflight', () => {
+    const root = tempDir('sudd-git-network-config-race-');
+    git(root, ['init', '-q']);
+    let injected = false;
+    const runner = createGitCommandRunner({
+      spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
+        if (!injected && args.includes('ls-remote')) {
+          git(root, [
+            'config',
+            'url.https://127.0.0.1:9/SECRET_RACE_REDIRECT/.insteadOf',
+            'https://github.com/acme/widgets.git',
+          ]);
+          injected = true;
+        }
+        return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
+      }) as unknown as SpawnStub,
+    });
+
+    const result = runner.runGitHubNetwork(root, [
+      'ls-remote',
+      '--get-url',
+      'https://github.com/acme/widgets.git',
+    ], { timeoutMs: 3_000 });
+
+    expect(injected).toBe(true);
+    expect(result).toMatchObject({ ok: true, value: { status: 0, overflowed: false } });
+    if (!result.ok) return;
+    expect(result.value.stdout.toString('utf8').trim()).toBe('https://github.com/acme/widgets.git');
+    expect(result.value.stdout.toString('utf8')).not.toContain('SECRET_RACE_REDIRECT');
+  });
+
+  it('does not read repository config during a repository-backed network spawn', () => {
+    const root = tempDir('sudd-git-network-race-');
+    git(root, ['init', '-q']);
+    const commonDir = path.join(root, '.git');
+    const forbiddenUrl = 'https://127.0.0.1:9/SECRET_RACE_REDIRECT/';
+    let injected = false;
+
+    const runner = createGitCommandRunner({
+      spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
+        if (!injected && args.includes('ls-remote')) {
+          injected = true;
+          git(root, ['config', `url.${forbiddenUrl}.insteadOf`, 'https://github.com/']);
+        }
+        return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
+      }) as unknown as SpawnStub,
+    });
+
+    const result = runner.runGitHubNetwork(root, [
+      'ls-remote',
+      '--get-url',
+      'https://github.com/acme/widgets.git',
+    ], { timeoutMs: 3_000, repositoryCommonDir: commonDir });
+
+    expect(injected).toBe(true);
+    expect(result).toMatchObject({ ok: true, value: { status: 0, overflowed: false } });
+    if (!result.ok) return;
+    const stdout = result.value.stdout.toString('utf8').trim();
+    expect(stdout).toBe('https://github.com/acme/widgets.git');
+    expect(stdout).not.toContain('127.0.0.1');
+    expect(JSON.stringify(result)).not.toContain('SECRET_RACE_REDIRECT');
+  });
+
+  it('fails closed before Push when repository config rewrites a validated GitHub Push URL', () => {
+    const root = tempDir('sudd-git-network-push-rewrite-');
+    git(root, ['init', '-q']);
+    const forbiddenUrl = 'https://127.0.0.1:9/SECRET_PUSH_REDIRECT/';
+    git(root, ['config', `url.${forbiddenUrl}.pushInsteadOf`, 'https://github.com/']);
+
+    const calls: string[][] = [];
+    const runner = createGitCommandRunner({
+      spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
+        calls.push([...args]);
+        return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
+      }) as unknown as SpawnStub,
+    });
+
+    const result = runner.runGitHubNetwork(root, [
+      'push',
+      'https://github.com/acme/widgets.git',
+      'HEAD:refs/heads/test',
+    ], { timeoutMs: 3_000 });
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'GIT_STATE_UNSAFE' } });
+    expect(JSON.stringify(result)).not.toContain('SECRET_PUSH_REDIRECT');
+    expect(calls.some((args) => args.includes('push'))).toBe(false);
+  });
+
+  it.each([
+    ['SSH command', 'core.sshCommand', 'cmd.exe /d /c echo SECRET_SSH_COMMAND'],
+    ['askpass command', 'core.askPass', 'C:\\SECRET_ASKPASS\\askpass.exe'],
+    ['Git proxy command', 'core.gitProxy', 'SECRET_GIT_PROXY'],
+    ['credential helper', 'credential.helper', '!echo SECRET_HELPER'],
+    ['HTTP proxy', 'http.proxy', 'http://127.0.0.1:9/SECRET_PROXY'],
+    ['HTTP host resolution', 'http.curloptResolve', 'github.com:443:127.0.0.1'],
+    ['HTTP auth header', 'http.extraHeader', 'Authorization: SECRET_HEADER'],
+    ['protocol expansion', 'protocol.ext.allow', 'always'],
+    ['per-remote proxy', 'remote.upstream.proxy', 'http://127.0.0.1:9/SECRET_REMOTE_PROXY'],
+    ['config include', 'include.path', 'C:\\SECRET_INCLUDE\\network.gitconfig'],
+    ['conditional config include', 'includeIf.gitdir:C:/SECRET/.path', 'C:\\SECRET_INCLUDE_IF\\network.gitconfig'],
+    ['SSH variant', 'ssh.variant', 'plink'],
+  ])('fails closed before network for repository-controlled %s config', (_label, key, value) => {
+    const root = tempDir('sudd-git-network-config-');
+    git(root, ['init', '-q']);
+    git(root, ['config', key, value]);
+
+    const calls: string[][] = [];
+    const runner = createGitCommandRunner({
+      spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
+        calls.push([...args]);
+        if (args.includes('config')) {
+          return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
+        }
+        return { stdout: Buffer.from('NETWORK_CALLED'), stderr: Buffer.alloc(0), status: 0 } as never;
+      }) as unknown as SpawnStub,
+    });
+
+    const result = runner.runGitHubNetwork(root, ['ls-remote', 'https://github.com/acme/widgets.git']);
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'GIT_STATE_UNSAFE' } });
+    expect(JSON.stringify(result)).not.toContain('SECRET_');
+    expect(calls.some((args) => args.includes('ls-remote'))).toBe(false);
+  });
+
+  it('fails closed before network for unsafe per-worktree Git config', () => {
+    const root = tempDir('sudd-git-network-worktree-config-');
+    git(root, ['init', '-q']);
+    git(root, ['config', 'extensions.worktreeConfig', 'true']);
+    git(root, ['config', '--worktree', 'core.sshCommand', 'cmd.exe /d /c echo SECRET_WORKTREE_SSH']);
+
+    const calls: string[][] = [];
+    const runner = createGitCommandRunner({
+      spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
+        calls.push([...args]);
+        if (args.includes('config')) {
+          return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
+        }
+        return { stdout: Buffer.from('NETWORK_CALLED'), stderr: Buffer.alloc(0), status: 0 } as never;
+      }) as unknown as SpawnStub,
+    });
+
+    const result = runner.runGitHubNetwork(root, ['ls-remote', 'git@github.com:acme/widgets.git']);
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'GIT_STATE_UNSAFE' } });
+    expect(JSON.stringify(result)).not.toContain('SECRET_WORKTREE_SSH');
+    expect(calls.some((args) => args.includes('ls-remote'))).toBe(false);
+  });
+
+  it('fails closed before network when repository config cannot be parsed safely', () => {
+    const root = tempDir('sudd-git-network-malformed-config-');
+    git(root, ['init', '-q']);
+    fs.appendFileSync(path.join(root, '.git', 'config'), '\n[broken\n', 'utf8');
+
+    const calls: string[][] = [];
+    const runner = createGitCommandRunner({
+      spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
+        calls.push([...args]);
+        if (args.includes('config')) {
+          return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
+        }
+        return { stdout: Buffer.from('NETWORK_CALLED'), stderr: Buffer.alloc(0), status: 0 } as never;
+      }) as unknown as SpawnStub,
+    });
+
+    const result = runner.runGitHubNetwork(root, ['ls-remote', 'https://github.com/acme/widgets.git']);
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'GIT_STATE_UNSAFE' } });
+    expect(calls.some((args) => args.includes('ls-remote'))).toBe(false);
+  });
+
+  it('fails closed before clone when host global config rewrites a validated GitHub URL', () => {
+    const parent = tempDir('sudd-git-network-global-rewrite-');
+    const hostHome = path.join(parent, 'host-home');
+    fs.mkdirSync(hostHome, { recursive: true });
+    const globalConfig = path.join(hostHome, '.gitconfig');
+    const includedConfig = path.join(hostHome, 'included.gitconfig');
+    fs.writeFileSync(includedConfig, '[url "https://127.0.0.1:9/SECRET_GLOBAL_REDIRECT/"]\n    insteadOf = https://github.com/\n', 'utf8');
+    fs.writeFileSync(globalConfig, `[include]\n    path = ${includedConfig.replace(/\\/g, '/')}\n`, 'utf8');
+
+    const calls: string[][] = [];
+    const runner = createGitCommandRunner({
+      hostEnv: {
+        ...process.env,
+        HOME: hostHome,
+        USERPROFILE: hostHome,
+        APPDATA: hostHome,
+        LOCALAPPDATA: hostHome,
+      },
+      spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
+        calls.push([...args]);
+        if (args.includes('config')) {
+          return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
+        }
+        return { stdout: Buffer.from('NETWORK_CALLED'), stderr: Buffer.alloc(0), status: 0 } as never;
+      }) as unknown as SpawnStub,
+    });
+
+    const result = runner.runGitHubNetwork(parent, [
+      'clone',
+      '--no-recurse-submodules',
+      'https://github.com/acme/widgets.git',
+      path.join(parent, 'widgets'),
+    ]);
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'GIT_STATE_UNSAFE' } });
+    expect(JSON.stringify(result)).not.toContain('SECRET_GLOBAL_REDIRECT');
+    expect(calls.some((args) => args.includes('clone'))).toBe(false);
+  });
+
+  it('fails closed when host global conditional config rewrites GitHub for the target repository', () => {
+    const root = tempDir('sudd-git-network-global-conditional-');
+    git(root, ['init', '-q']);
+    const hostHome = path.join(root, 'host-home');
+    fs.mkdirSync(hostHome, { recursive: true });
+    const includedConfig = path.join(hostHome, 'workspace-network.gitconfig');
+    fs.writeFileSync(includedConfig, '[url "https://127.0.0.1:9/SECRET_CONDITIONAL_REDIRECT/"]\n    insteadOf = https://github.com/\n', 'utf8');
+    const gitDirPattern = path.join(root, '.git').replace(/\\/g, '/');
+    fs.writeFileSync(
+      path.join(hostHome, '.gitconfig'),
+      `[includeIf "gitdir/i:${gitDirPattern}"]\n    path = ${includedConfig.replace(/\\/g, '/')}\n`,
+      'utf8',
+    );
+
+    const calls: string[][] = [];
+    const runner = createGitCommandRunner({
+      hostEnv: {
+        ...process.env,
+        HOME: hostHome,
+        USERPROFILE: hostHome,
+        APPDATA: hostHome,
+        LOCALAPPDATA: hostHome,
+      },
+      spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
+        calls.push([...args]);
+        if (args.includes('config')) {
+          return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
+        }
+        return { stdout: Buffer.from('NETWORK_CALLED'), stderr: Buffer.alloc(0), status: 0 } as never;
+      }) as unknown as SpawnStub,
+    });
+
+    const result = runner.runGitHubNetwork(root, ['ls-remote', 'https://github.com/acme/widgets.git']);
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'GIT_STATE_UNSAFE' } });
+    expect(JSON.stringify(result)).not.toContain('SECRET_CONDITIONAL_REDIRECT');
+    expect(calls.some((args) => args.includes('ls-remote'))).toBe(false);
+  });
+
+  it('preserves host-owned credential helper and SSH command configuration', () => {
+    const parent = tempDir('sudd-git-network-host-auth-');
+    const hostHome = path.join(parent, 'host-home');
+    fs.mkdirSync(hostHome, { recursive: true });
+    const includedConfig = path.join(hostHome, 'auth.gitconfig');
+    fs.writeFileSync(includedConfig, '[credential]\n    helper = manager-core\n[core]\n    sshCommand = ssh -F C:/trusted/ssh-config\n', 'utf8');
+    fs.writeFileSync(path.join(hostHome, '.gitconfig'), `[include]\n    path = ${includedConfig.replace(/\\/g, '/')}\n`, 'utf8');
+
+    const calls: string[][] = [];
+    const runner = createGitCommandRunner({
+      hostEnv: {
+        ...process.env,
+        HOME: hostHome,
+        USERPROFILE: hostHome,
+        APPDATA: hostHome,
+        LOCALAPPDATA: hostHome,
+        SSH_AUTH_SOCK: 'pipe://trusted-agent',
+      },
+      spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
+        calls.push([...args]);
+        if (args.includes('config')) {
+          return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
+        }
+        return { stdout: Buffer.from('NETWORK_CALLED'), stderr: Buffer.alloc(0), status: 0 } as never;
+      }) as unknown as SpawnStub,
+    });
+
+    const result = runner.runGitHubNetwork(parent, ['ls-remote', 'git@github.com:acme/widgets.git']);
+
+    expect(result).toMatchObject({ ok: true, value: { status: 0, overflowed: false } });
+    expect(calls.some((args) => args.includes('ls-remote'))).toBe(true);
+  });
+
+  it('allows a clone-like network command from a genuine non-repository parent', () => {
+    const parent = tempDir('sudd-git-network-nonrepo-');
+    const calls: string[][] = [];
+    const runner = createGitCommandRunner({
+      spawnSync: ((_command: string, args: readonly string[]) => {
+        calls.push([...args]);
+        if (args.includes('config')) {
+          return { stdout: Buffer.from('global\tuser.name\n'), stderr: Buffer.alloc(0), status: 0 } as never;
+        }
+        return { stdout: Buffer.from('NETWORK_CALLED'), stderr: Buffer.alloc(0), status: 0 } as never;
+      }) as unknown as SpawnStub,
+      resolveGitExecutable: () => ({ ok: true, value: 'C:\\Program Files\\Git\\cmd\\git.exe' }),
+    });
+
+    const result = runner.runGitHubNetwork(parent, [
+      'clone',
+      '--no-recurse-submodules',
+      'https://github.com/acme/widgets.git',
+      path.join(parent, 'widgets'),
+    ]);
+
+    expect(result).toMatchObject({ ok: true, value: { status: 0, overflowed: false } });
+    expect(calls.some((args) => args.includes('clone'))).toBe(true);
   });
 });
 

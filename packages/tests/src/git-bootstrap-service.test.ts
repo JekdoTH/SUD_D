@@ -11,7 +11,7 @@ import type {
   WorkspaceGitSettingsRepository,
   WorkspaceRepository,
 } from '@sud-d/infrastructure';
-import type { WorkspaceService } from '@sud-d/application';
+import type { GitWorkspaceService, WorkspaceService } from '@sud-d/application';
 
 function workspace(root = 'C:\\Work\\Widgets'): Workspace {
   return {
@@ -98,7 +98,7 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
     const f = fixture();
     expect(typeof f.create).toBe('function');
     if (typeof f.create !== 'function') return;
-    const service = f.create(f.deps) as { snapshot(): ReturnType<any> };
+    const service = f.create(f.deps) as GitWorkspaceService;
 
     const tracking = service.snapshot();
     expect(tracking).toMatchObject({ ok: true, value: { primaryRemote: { state: 'resolved', name: 'upstream' }, defaultBranch: { state: 'known', branch: 'trunk' }, relation: 'up_to_date' } });
@@ -122,7 +122,7 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
   it('keeps snapshotId sensitive to trusted status, branch, remote, tracking, and persisted Primary Remote state', () => {
     const f = fixture();
     if (typeof f.create !== 'function') throw new Error('missing service');
-    const service = f.create(f.deps) as any;
+    const service = f.create(f.deps) as GitWorkspaceService;
     const ids: string[] = [];
     const capture = () => {
       const result = service.snapshot();
@@ -167,7 +167,7 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
   it('keeps stale persisted Primary Remote ambiguous and disables delete when the default branch is unknown', () => {
     const f = fixture();
     if (typeof f.create !== 'function') throw new Error('missing service');
-    const service = f.create(f.deps) as any;
+    const service = f.create(f.deps) as GitWorkspaceService;
 
     f.setPersisted('stale');
     f.setInspection({ ...f.getInspection(), trackingRemote: undefined, upstreamBranch: undefined });
@@ -188,7 +188,7 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
   it('resolves safe github_network context and binding from the selected Primary Remote', () => {
     const f = fixture();
     if (typeof f.create !== 'function') throw new Error('missing service');
-    const service = f.create(f.deps) as any;
+    const service = f.create(f.deps) as GitWorkspaceService;
     const snap = service.snapshot();
     if (!snap.ok) throw new Error(snap.error.code);
     const input = { expectedSnapshotId: snap.value.snapshotId };
@@ -214,7 +214,7 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
   it('rejects stale mutation snapshots before calling the Git adapter', () => {
     const f = fixture();
     if (typeof f.create !== 'function') throw new Error('missing service');
-    const service = f.create(f.deps) as any;
+    const service = f.create(f.deps) as GitWorkspaceService;
     const snap = service.snapshot();
     if (!snap.ok) throw new Error(snap.error.code);
     f.setPersisted('upstream');
@@ -229,7 +229,7 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
   it('keeps mutation bound to the same inspected state that matched the expected snapshot', () => {
     const f = fixture();
     if (typeof f.create !== 'function') throw new Error('missing service');
-    const service = f.create(f.deps) as any;
+    const service = f.create(f.deps) as GitWorkspaceService;
     const snap = service.snapshot();
     if (!snap.ok) throw new Error(snap.error.code);
 
@@ -263,7 +263,7 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
         statusId: 'c'.repeat(64),
       },
     });
-    const service = f.create(f.deps) as any;
+    const service = f.create(f.deps) as GitWorkspaceService;
     const snap = service.snapshot();
     if (!snap.ok) throw new Error(snap.error.code);
 
@@ -313,7 +313,7 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
     };
     const create = (application as Record<string, unknown>)['createGitWorkspaceService'];
     if (typeof create !== 'function') throw new Error('missing service');
-    const service = create({ workspaceRepo, gitSettings, gitSafety, workspaceService, internalRoots: [{ canonicalPath: fs.realpathSync.native(internalRoot), label: 'Internal' }] }) as any;
+    const service = create({ workspaceRepo, gitSettings, gitSafety, workspaceService, internalRoots: [{ canonicalPath: fs.realpathSync.native(internalRoot), label: 'Internal' }] }) as GitWorkspaceService;
     const destination = path.join(base, 'clone-ok');
 
     expect(service.resolveNetworkSecurity('clone', { repositoryUrl: 'https://token@github.com/acme/widgets.git', destinationPath: destination, displayName: 'Clone' })).toMatchObject({ ok: false, error: { code: 'GIT_REMOTE_UNSUPPORTED' } });
@@ -365,7 +365,7 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
     } as unknown as GitSafetyAdapter;
     const workspaceService = { list: () => ok([ws]), add: () => ({ ok: false, error: { code: 'WORKSPACE_INVALID', message: 'registration failed' } }), select: () => ok(undefined), remove: () => ok(undefined) } as WorkspaceService;
     const create = (application as Record<string, unknown>)['createGitWorkspaceService']; if (typeof create !== 'function') throw new Error('missing service');
-    const service = create({ workspaceRepo, gitSettings, gitSafety, workspaceService, internalRoots: [] }) as any;
+    const service = create({ workspaceRepo, gitSettings, gitSafety, workspaceService, internalRoots: [] }) as GitWorkspaceService;
     const destination = path.join(base, 'clone-partial');
     expect(service.clone({ repositoryUrl: 'https://github.com/acme/widgets.git', destinationPath: destination, displayName: 'Partial' })).toMatchObject({ ok: false, error: { code: 'WORKSPACE_INVALID', metadata: { cloned: true } } });
     expect(fs.existsSync(destination)).toBe(true);

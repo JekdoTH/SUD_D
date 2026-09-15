@@ -1,36 +1,71 @@
 # SUD_D Handoff
 
-## Git Bootstrap + Branch + Remote Sync — Spec Approved, Implementation Plan Ready (2026-09-14)
+## Git Bootstrap + Branch + Remote Sync — Implementation Verified on Feature Branch (2026-09-15)
 
-**Status: PRODUCT OWNER APPROVED THE WRITTEN DESIGN; THE IMPLEMENTATION PLAN IS PREPARED ON `docs/git-bootstrap-branch-remote-sync-design`; runtime/UI implementation has not started.**
+**Status: IMPLEMENTATION, SECURITY HARDENING, FINAL AUTOMATED GATES, STANDARDS/SPEC REVIEW, AND PRODUCTION ELECTRON SMOKE ARE COMPLETE ON `feat/git-bootstrap-branch-remote-sync`. Product Owner real GitHub acceptance remains separate and REMAINING. `master` has not been merged, rebased, fast-forwarded, or pushed by this closure work.**
 
-Current state:
+Current branch/state at handoff update:
 
-- Product Owner approval: `Git design spec PASS`
-- pre-planning design commit: `6706abf91fa9500a45523eafea72867a922127d0`
-- `master == origin/master == 42d4f3017be4773ca8276470e523baff1157711d`
-- current docs branch: `docs/git-bootstrap-branch-remote-sync-design`
+- feature branch: `feat/git-bootstrap-branch-remote-sync`
+- task-start base / current `master` / current `origin/master`: `57c7366aa0e5cd0e21b6a800d857f1fd345a41e3`
+- current pre-closure HEAD before Task 11 commit: `d98b2cf9682d2382eed2471c8b5ab3277858f737`
 - approved design spec: `docs/superpowers/specs/2026-09-14-git-bootstrap-branch-remote-sync-design.md`
 - implementation plan: `docs/superpowers/plans/2026-09-14-git-bootstrap-branch-remote-sync.md`
-- `.serena/` remains local-only/untracked
+- `.serena/` remains local-only/untracked and must not be committed
 - preserve `stash@{0}: On master: pre-bootstrap Home 2026-09-13 preserve local handoff`
 
-Plan boundary:
+Delivered implementation:
 
-- one Security / Data Critical implementation plan covers domain/contracts, Primary Remote persistence, the existing deep Git adapter, fixed-purpose GitHub network execution, shared Tool Kernel capabilities, Desktop IPC/UI, focused security/integration proof, final review/smoke, and Product Owner real GitHub acceptance;
-- the plan preserves the approved `github_network` Approval Mode semantics and all existing hard boundaries;
-- implementation starts only after the approved spec + plan are integrated to `master`, in a separately authorized isolated feature worktree/branch;
-- this planning task changes documentation only and does not create the implementation branch/worktree or modify runtime/UI source.
+- Domain/contracts/application/infrastructure/Desktop now expose a fixed-purpose Git Workspace flow for repository inspection, initialize, Primary Remote configure/select, branch create/switch/merge/safe-delete, fetch, Sync from GitHub, Push to GitHub, and clone.
+- Renderer-visible Git UI is state-first and bounded: it reads snapshots, sends displayed `snapshotId` for mutations, routes Approval Required to Activity, does not auto-retry stale/network operations, and exposes no generic Git/process authority.
+- Primary Remote resolution is dynamic: tracking remote, persisted Workspace Primary Remote, sole remote, or missing/ambiguous. Default branch is resolved from trusted Git/remote state and is never hard-coded to `origin`, `main`, or `master`.
+- Local workflow guards preserve clean-tree, linked-worktree, protected/default branch, conflict, dirty, stale, diverged, and no-upstream fail-closed behavior. Sync and Push never auto-merge, rebase, reset, stash, force-push, auto-commit, or delete remote branches.
+- `github_network` remains a reviewed narrow ASK context; generic `network` remains DENY. Approval Mode may auto-approve only eligible fixed-purpose GitHub operations after Policy/path/state/remote validation.
 
-Planning verification:
+Security hardening result:
 
-- implementation-plan self-review: **PASS** — 11 tasks, no placeholders, approved-spec coverage and introduced type/interface names checked;
-- staged docs scope / `git diff --check` / added-line high-signal secret scan: **PASS**;
-- full product tests/build were not run because this task changes documentation only and no generated/runtime configuration.
+- The original Git config blocker was reproduced: repository-local `url.*.insteadOf` could rewrite a validated GitHub URL to a forbidden host during network Git execution.
+- The later TOCTOU blocker was reproduced: preflight-only config checks could pass, then a changed repo config could still redirect the subsequent network Git spawn.
+- The final repair runs repository-backed network Git from a trusted temporary bare Git context instead of letting the network spawn read repository-local/worktree config. Fetch writes objects into the trusted workspace object store and imports refs through local hermetic Git; Push stages a verified source ref into the trusted context and reads workspace objects through bounded alternates.
+- Unsafe repository/worktree config keys, protected host URL rewrites, protected host `http.curloptResolve`, unsafe includes, proxy/helper/process vectors, and malformed/unknown config scopes fail closed without exposing raw config values or credentials.
+- `GIT_COMMON_DIR` is not accepted through the network trusted environment allowlist. Only the final bounded object-store environment required by trusted fetch/push staging remains.
+- Production-built TOCTOU probe PASS: injection occurred, output stayed `https://github.com/acme/widgets.git`, and no forbidden host was attempted.
 
-Next action: **Product Owner reviews the implementation plan and, when ready, integrates this docs branch to `master` in a separate Git task.** Runtime/UI implementation remains stopped until a separate execution instruction.
+Final verification evidence on the stable runtime source before handoff update:
 
-Long-term plan: see `SUD_D_ROADMAP.md`.
+- integration workflow coverage: **22/22 PASS** via deterministic chunks after the batch runner exceeded Vitest worker/test timing limits
+- exact focused aggregate: **15 target files covered** — 14 non-integration files exit 0 plus integration 22/22 chunked exit 0
+- `git-bootstrap-network.test.ts`: **39/39 PASS**
+- affected security slice: **5 files / 79 tests PASS**
+- lint: **PASS / exit 0**
+- typecheck: **PASS / exit 0**
+- full suite after final env cleanup: **48 files passed / 3 skipped; 630 tests passed / 5 skipped; exit 0**
+- production build: **PASS / exit 0**
+- `git diff --check`: **PASS / exit 0**
+- final Standards review: **PASS**
+- final Spec review: **PASS**
+- isolated production Electron smoke: **PASS** — production package entry launched with isolated app data, Git page rendered Repository / Branches / Remote Sync, Desktop Git preload bridge exposed only fixed Git methods, bounded Git snapshot returned `ready` and `clean` for a temp fixture Workspace, no renderer process/capability/argv/cwd/env authority was present, no horizontal overflow, and no runtime/log errors were observed
+
+Durable local report pointers:
+
+- `.serena/reports/task11-race-repair-focused-aggregate.md`
+- `.serena/reports/task11-final-standards-spec-review.md`
+- `.serena/reports/task11-production-electron-smoke.log`
+
+Product Owner real GitHub acceptance: **REMAINING** unless performed separately by the owner:
+
+- Home PC → work/commit → Push
+- Work PC → Sync → work/commit → Push
+- Home PC → Sync
+- one Standard manual-approval path
+- one eligible automatic-approval path
+
+Closure boundary:
+
+- Commit and push only `feat/git-bootstrap-branch-remote-sync` after final scope/secret/staged inspection.
+- Do not merge, rebase, fast-forward, or push `master` in this task.
+- Do not delete the feature branch or start the next milestone from this task.
+- Next step after push is a separate Product Owner acceptance / master-integration decision.
 
 ## Personal Alpha Stabilization — Closure at STOP Condition (2026-09-13)
 

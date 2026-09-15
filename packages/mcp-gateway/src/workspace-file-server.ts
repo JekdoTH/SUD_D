@@ -103,7 +103,7 @@ const gitCommitInputSchema = z.object({
 }).strict();
 const gitSnapshotIdSchema = z.string().regex(/^[0-9a-f]{64}$/);
 const gitRemoteNameSchema = z.string().min(1).max(100).regex(/^[A-Za-z0-9._-]+$/);
-const gitBranchNameSchema = z.string().min(1).max(240).regex(/^[A-Za-z0-9._\/-]+$/).refine((value) => !/[\r\n\0]/.test(value));
+const gitBranchNameSchema = z.string().min(1).max(240).regex(/^[A-Za-z0-9._/-]+$/).refine((value) => !/[\r\n\0]/.test(value));
 const gitRemoteUrlSchema = z.string().min(1).max(2048).refine((value) => !/[\r\n\0]/.test(value));
 const gitInspectInputSchema = z.object({}).strict();
 const gitExpectedSnapshotInputSchema = z.object({ expectedSnapshotId: gitSnapshotIdSchema }).strict();

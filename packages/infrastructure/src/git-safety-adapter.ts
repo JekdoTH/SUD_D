@@ -1105,6 +1105,12 @@ function normalizedNetworkFailure(
   ));
 }
 
+function repositoryNetworkOptions(workspaceCanonicalRoot: string): Result<{ readonly repositoryCommonDir: string }, AppError> {
+  const layout = resolveGitMetadataLayout(workspaceCanonicalRoot);
+  if (!layout.ok) return layout;
+  return ok({ repositoryCommonDir: layout.value.commonGitDir });
+}
+
 function parseRemoteHeadSymref(output: Buffer): string | undefined {
   for (const line of decode(output).split(/\r?\n/)) {
     const match = /^ref:\s+refs\/heads\/([^\s]+)\s+HEAD$/.exec(line.trim());
@@ -1174,6 +1180,8 @@ function fetchRemote(
 ): Result<GitFetchResult, AppError> {
   const remote = resolveSupportedRemote(workspaceCanonicalRoot, remoteName, commandRunner);
   if (!remote.ok) return remote;
+  const networkOptions = repositoryNetworkOptions(workspaceCanonicalRoot);
+  if (!networkOptions.ok) return networkOptions;
   const refspec = `+refs/heads/*:refs/remotes/${remoteName}/*`;
   const fetched = commandRunner.runGitHubNetwork(workspaceCanonicalRoot, [
     'fetch',
@@ -1181,7 +1189,7 @@ function fetchRemote(
     '--prune',
     remote.value.canonicalUrl,
     refspec,
-  ], { timeoutMs: 30_000 });
+  ], { timeoutMs: 30_000, ...networkOptions.value });
   if (!fetched.ok || fetched.value.overflowed || fetched.value.status !== 0) {
     return normalizedNetworkFailure(fetched, remoteName, remote.value);
   }
@@ -1191,7 +1199,7 @@ function fetchRemote(
     '--symref',
     remote.value.canonicalUrl,
     'HEAD',
-  ], { timeoutMs: 30_000 });
+  ], { timeoutMs: 30_000, ...networkOptions.value });
   if (!remoteHead.ok || remoteHead.value.overflowed || remoteHead.value.status !== 0) {
     return normalizedNetworkFailure(remoteHead, remoteName, remote.value);
   }
@@ -1397,12 +1405,14 @@ function verifyRemoteBranchSha(
   remote: GitHubRemoteIdentity,
   commandRunner: GitCommandRunner,
 ): Result<string, AppError> {
+  const networkOptions = repositoryNetworkOptions(workspaceCanonicalRoot);
+  if (!networkOptions.ok) return networkOptions;
   const verified = commandRunner.runGitHubNetwork(workspaceCanonicalRoot, [
     'ls-remote',
     '--heads',
     remote.canonicalUrl,
     `refs/heads/${branchName}`,
-  ], { timeoutMs: 30_000 });
+  ], { timeoutMs: 30_000, ...networkOptions.value });
   if (!verified.ok || verified.value.overflowed || verified.value.status !== 0) {
     return normalizedNetworkFailure(verified, remoteName, remote);
   }
@@ -1544,11 +1554,13 @@ function pushToGitHub(
     return err(appError('GIT_STATUS_STALE', 'Git state changed before GitHub Push'));
   }
 
+  const pushNetworkOptions = repositoryNetworkOptions(workspaceCanonicalRoot);
+  if (!pushNetworkOptions.ok) return pushNetworkOptions;
   const pushed = commandRunner.runGitHubNetwork(workspaceCanonicalRoot, [
     'push',
     remote.value.canonicalUrl,
     `refs/heads/${input.branchName}:refs/heads/${input.branchName}`,
-  ], { timeoutMs: 30_000 });
+  ], { timeoutMs: 30_000, ...pushNetworkOptions.value });
   if (!pushed.ok || pushed.value.overflowed || pushed.value.status !== 0) {
     return normalizedNetworkFailure(pushed, input.remoteName, remote.value);
   }
