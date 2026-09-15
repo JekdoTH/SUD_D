@@ -26,6 +26,7 @@ import {
   validateWorkspaceRoot,
   type GitRepositoryState,
   type GitSafetyAdapter,
+  type GitStatusResult,
   type GitWorkspaceInspection,
   type WorkspaceGitSettingsRepository,
   type WorkspaceRepository,
@@ -89,6 +90,13 @@ interface GitWorkspaceSnapshotState {
   readonly snapshot: GitWorkspaceSnapshot;
 }
 
+type GitNetworkMutationOperation = 'sync' | 'push';
+
+const AUTO_COMMIT_MESSAGES: Readonly<Record<GitNetworkMutationOperation, string>> = Object.freeze({
+  sync: 'Save local changes before GitHub Sync',
+  push: 'Save local changes before GitHub Push',
+});
+
 export function createGitWorkspaceService(deps: GitWorkspaceServiceDependencies): GitWorkspaceService {
   const activeWorkspace = (): Result<Workspace, AppError> => {
     const workspace = deps.workspaceRepo.list().find((item) => item.isActive);
@@ -133,6 +141,22 @@ export function createGitWorkspaceService(deps: GitWorkspaceServiceDependencies)
 
   const networkState = (expectedSnapshotId: string): Result<GitWorkspaceSnapshotState, AppError> => requireFreshSnapshot(expectedSnapshotId);
 
+  const autoCommitBeforeNetworkMutation = (
+    operation: GitNetworkMutationOperation,
+    state: GitWorkspaceSnapshotState,
+  ): Result<GitWorkspaceSnapshotState, AppError> => {
+    if (state.snapshot.clean) return ok(state);
+    const committable = requireAutoCommittableStatus(state.inspection.status);
+    if (!committable.ok) return committable;
+    const committed = deps.gitSafety.commit(
+      state.workspace.canonicalRoot,
+      committable.value.statusId,
+      AUTO_COMMIT_MESSAGES[operation],
+    );
+    if (!committed.ok) return committed;
+    return snapshotState();
+  };
+
   const service: GitWorkspaceService = {
     snapshot,
     initialize(expectedSnapshotId) {
@@ -171,14 +195,16 @@ export function createGitWorkspaceService(deps: GitWorkspaceServiceDependencies)
     },
     sync(input) {
       const state = networkState(input.expectedSnapshotId); if (!state.ok) return state;
-      const prepared = networkMutationInput(state.value); if (!prepared.ok) return prepared;
-      const result = deps.gitSafety.syncFromGitHub(state.value.workspace.canonicalRoot, prepared.value); if (!result.ok) return result;
+      const ready = autoCommitBeforeNetworkMutation('sync', state.value); if (!ready.ok) return ready;
+      const prepared = networkMutationInput(ready.value); if (!prepared.ok) return prepared;
+      const result = deps.gitSafety.syncFromGitHub(ready.value.workspace.canonicalRoot, prepared.value); if (!result.ok) return result;
       return snapshot();
     },
     push(input) {
       const state = networkState(input.expectedSnapshotId); if (!state.ok) return state;
-      const prepared = networkMutationInput(state.value); if (!prepared.ok) return prepared;
-      const result = deps.gitSafety.pushToGitHub(state.value.workspace.canonicalRoot, prepared.value); if (!result.ok) return result;
+      const ready = autoCommitBeforeNetworkMutation('push', state.value); if (!ready.ok) return ready;
+      const prepared = networkMutationInput(ready.value); if (!prepared.ok) return prepared;
+      const result = deps.gitSafety.pushToGitHub(ready.value.workspace.canonicalRoot, prepared.value); if (!result.ok) return result;
       return snapshot();
     },
     clone(input) {
@@ -201,7 +227,7 @@ export function createGitWorkspaceService(deps: GitWorkspaceServiceDependencies)
       }
       const command = asExpectedSnapshotCommand(input); if (!command.ok) return command;
       const state = networkState(command.value.expectedSnapshotId); if (!state.ok) return state;
-      const eligible = requireNetworkApprovalEligibility(operation, state.value.snapshot); if (!eligible.ok) return eligible;
+      const eligible = requireNetworkApprovalEligibility(operation, state.value); if (!eligible.ok) return eligible;
       return ok({ sensitivity: 'normal', context: 'github_network', workspaceId: state.value.workspace.id });
     },
     networkApprovalBinding(operation, input) {
@@ -213,7 +239,7 @@ export function createGitWorkspaceService(deps: GitWorkspaceServiceDependencies)
       }
       const command = asExpectedSnapshotCommand(input); if (!command.ok) return command;
       const state = networkState(command.value.expectedSnapshotId); if (!state.ok) return state;
-      const eligible = requireNetworkApprovalEligibility(operation, state.value.snapshot); if (!eligible.ok) return eligible;
+      const eligible = requireNetworkApprovalEligibility(operation, state.value); if (!eligible.ok) return eligible;
       return ok({ operation, expectedSnapshotId: command.value.expectedSnapshotId, remoteName: eligible.value.name, safeRepository: eligible.value.safeRepository, transport: eligible.value.transport });
     },
   };
@@ -252,6 +278,7 @@ function buildSnapshot(workspace: Workspace, inspection: GitWorkspaceInspection,
     branches: inspection.branches,
   })).digest('hex');
   const ready = repository === 'ready'; const resolvedRemote = primary.state === 'resolved'; const attached = !!currentBranch && !inspection.detect.detached;
+  const networkMutationReady = ready && attached && resolvedRemote && requireAutoCommittableStatus(status).ok;
   const available = (value: boolean, reason: string): GitOperationAvailability => value ? { available: true } : { available: false, reason };
   return ok({
     workspace: { id: workspace.id, displayName: workspace.displayName }, snapshotId, repository, repositoryState: inspection.detect.state,
@@ -266,8 +293,8 @@ function buildSnapshot(workspace: Workspace, inspection: GitWorkspaceInspection,
       mergeBranch: available(ready && clean && attached, 'Requires a clean attached repository'),
       deleteBranch: available(ready && clean && attached && defaultBranch.state === 'known', 'Requires a known default branch and clean repository'),
       fetch: available(ready && resolvedRemote, 'Primary Remote is unavailable'),
-      sync: available(ready && clean && attached && resolvedRemote, 'Requires clean repository and Primary Remote'),
-      push: available(ready && clean && attached && resolvedRemote, 'Requires clean repository and Primary Remote'),
+      sync: available(networkMutationReady, 'Requires an attached repository, Primary Remote, and auto-saveable local changes'),
+      push: available(networkMutationReady, 'Requires an attached repository, Primary Remote, and auto-saveable local changes'),
     },
   });
 }
@@ -281,29 +308,62 @@ function resolvePrimaryRemote(inspection: GitWorkspaceInspection, persistedPrima
   if (!selected.supported) return { state: 'unsupported', name: selected.name };
   return { state: 'resolved', name: selected.name, ...(selected.safeRepository ? { safeRepository: selected.safeRepository } : {}), ...(selected.transport ? { transport: selected.transport } : {}) };
 }
+function requireAutoCommittableStatus(status: GitStatusResult | undefined): Result<GitStatusResult, AppError> {
+  if (!status) return err(appError('GIT_STATE_UNSAFE', 'Git status is unavailable for this action'));
+  if (status.clean) return ok(status);
+  if (status.truncated) return err(appError('RESOURCE_TOO_LARGE', 'Git path count exceeds the trusted limit'));
+  if (status.state !== 'normal') return err(appError('GIT_STATE_UNSAFE', 'GitHub operation requires a normal repository state'));
+  if (status.entries.length === 0) return err(appError('GIT_STATE_UNSAFE', 'Git status is inconsistent'));
+  if (status.entries.some((entry) => entry.sensitive)) {
+    return err(appError('SENSITIVE_RESOURCE', 'Credential-like Git changes require approval before GitHub operations'));
+  }
+  if (status.entries.some((entry) => entry.staged)) {
+    return err(appError('GIT_STATE_UNSAFE', 'GitHub operation cannot auto-save staged changes'));
+  }
+  if (status.entries.some((entry) => entry.gitlink)) {
+    return err(appError('RESOURCE_TYPE_UNSUPPORTED', 'GitHub operation cannot auto-save submodule/gitlink changes'));
+  }
+  if (status.entries.some((entry) => entry.kind === 'conflict')) {
+    return err(appError('GIT_STATE_UNSAFE', 'Unresolved Git conflict blocks GitHub operation'));
+  }
+  return ok(status);
+}
+
 function requireNetworkApprovalEligibility(
   operation: 'fetch' | 'sync' | 'push',
-  snapshot: GitWorkspaceSnapshot,
+  state: GitWorkspaceSnapshotState,
 ): Result<{ readonly name: string; readonly safeRepository: string; readonly transport: GitRemoteTransport }, AppError> {
-  if (snapshot.repository !== 'ready' || snapshot.repositoryState !== 'normal') {
+  const { snapshot } = state;
+  if (snapshot.repository !== 'ready') {
+    return err(appError('GIT_STATE_UNSAFE', 'GitHub operation requires a supported normal repository'));
+  }
+  if (snapshot.repositoryState !== 'normal') {
     return err(appError('GIT_STATE_UNSAFE', 'GitHub operation requires a supported normal repository'));
   }
   if (operation !== 'fetch') {
-    if (!snapshot.clean) return err(appError('GIT_WORKTREE_DIRTY', 'GitHub operation requires a clean working tree'));
-    if (!snapshot.currentBranch || snapshot.detached) {
+    if (!snapshot.currentBranch) {
       return err(appError('GIT_STATE_UNSAFE', 'GitHub operation requires an attached local branch'));
+    }
+    if (snapshot.detached) {
+      return err(appError('GIT_STATE_UNSAFE', 'GitHub operation requires an attached local branch'));
+    }
+    if (!snapshot.clean) {
+      const committable = requireAutoCommittableStatus(state.inspection.status);
+      if (!committable.ok) return committable;
     }
   }
   const remote = snapshot.primaryRemote;
-  if (remote.state !== 'resolved' || !remote.name || !remote.safeRepository || !remote.transport) {
+  if (remote.state !== 'resolved') {
     const missing = resolvedRemoteName(snapshot);
     return missing.ok
       ? err(appError('GIT_REMOTE_MISSING', 'Primary Git remote is unavailable'))
       : missing;
   }
+  if (!remote.name) return err(appError('GIT_REMOTE_MISSING', 'Primary Git remote is unavailable'));
+  if (!remote.safeRepository) return err(appError('GIT_REMOTE_MISSING', 'Primary Git remote is unavailable'));
+  if (!remote.transport) return err(appError('GIT_REMOTE_MISSING', 'Primary Git remote is unavailable'));
   return ok({ name: remote.name, safeRepository: remote.safeRepository, transport: remote.transport });
 }
-
 function resolvedRemoteName(snapshot: GitWorkspaceSnapshot): Result<string, AppError> {
   return snapshot.primaryRemote.state === 'resolved' && snapshot.primaryRemote.name
     ? ok(snapshot.primaryRemote.name)

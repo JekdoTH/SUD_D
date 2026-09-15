@@ -7,7 +7,7 @@ interface GitPageProps {
 }
 
 type ActionMessage =
-  | { readonly tone: 'warning' | 'error'; readonly text: string; readonly showApprovalLink?: boolean }
+  | { readonly tone: 'success' | 'warning' | 'error'; readonly text: string; readonly showApprovalLink?: boolean }
   | null;
 
 const RELATION_COPY: Record<DesktopGitSnapshotDto['relation'], string> = {
@@ -86,6 +86,7 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
       if (result.ok) {
         setSnapshot(result.value);
         setLoadError('');
+        setActionMessage({ tone: 'success', text: gitSuccessMessage(action, result.value) });
         return;
       }
       if (result.error.code === 'GIT_STATUS_STALE') {
@@ -193,6 +194,7 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
   const repositoryReady = snapshot?.repository === 'ready';
   const repositoryNotReady = snapshot?.repository === 'not_repository';
   const relationCopy = snapshot ? RELATION_COPY[snapshot.relation] : 'Remote relation unknown';
+  const autoSaveNotice = snapshot && repositoryReady && !snapshot.clean ? localChangeAutoSaveCopy(snapshot.changedFiles) : '';
 
   return (
     <div className="git-page">
@@ -388,15 +390,17 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
           <div className="git-section-heading">
             <div>
               <h2 id="git-sync-heading" className="card-heading">Remote Sync</h2>
-              <p className="card-description">Network Git runs only after you choose an action. SUD-D does not auto-poll, auto-stash, auto-rebase, or force history.</p>
+              <p className="card-description">SUD-D saves ordinary local changes first, then runs the bounded GitHub flow. It never auto-stashes, rebases, resets, or forces history.</p>
             </div>
             <span className={`git-relation git-relation-${snapshot.relation}`}>{relationCopy}</span>
           </div>
 
+          {autoSaveNotice && <p className="git-auto-save-note">{autoSaveNotice}</p>}
+
           <div className="git-sync-actions">
             <GitNetworkAction
-              title="Sync from GitHub"
-              description="Bring the current branch forward only when the reviewed Git state allows a safe fast-forward path."
+              title="Sync"
+              description="Save ordinary local changes automatically, then bring this branch up to date when GitHub can fast-forward safely."
               available={snapshot.operations.sync.available}
               reason={snapshot.operations.sync.reason}
               busy={busyAction === 'sync'}
@@ -404,8 +408,8 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
               onClick={() => void handleMutationResult('sync', () => window.sudD.git.sync({ expectedSnapshotId: snapshot.snapshotId }))}
             />
             <GitNetworkAction
-              title="Push to GitHub"
-              description="Send existing local commits to the Primary Remote without force-push or automatic commit creation."
+              title="Push"
+              description="Save ordinary local changes automatically, then send local commits to the Primary Remote after SHA verification."
               available={snapshot.operations.push.available}
               reason={snapshot.operations.push.reason}
               busy={busyAction === 'push'}
@@ -529,6 +533,16 @@ function GitNetworkAction({
       </button>
     </div>
   );
+}
+
+function gitSuccessMessage(action: string, snapshot: DesktopGitSnapshotDto): string {
+  if (action === 'sync') return snapshot.relation === 'up_to_date' ? 'Synced' : 'Git state updated';
+  if (action === 'push') return 'Pushed';
+  return 'Git action completed';
+}
+
+function localChangeAutoSaveCopy(count: number): string {
+  return `${count} local change${count === 1 ? '' : 's'} — will be saved automatically before Sync/Push.`;
 }
 
 function titleCase(value: string): string {

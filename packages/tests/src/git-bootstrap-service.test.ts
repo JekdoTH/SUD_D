@@ -8,6 +8,7 @@ import { appError, err, ok, type InternalRoot, type Workspace } from '@sud-d/dom
 import type {
   GitSafetyAdapter,
   GitWorkspaceInspection,
+  GitNetworkMutationInput,
   WorkspaceGitSettingsRepository,
   WorkspaceRepository,
 } from '@sud-d/infrastructure';
@@ -40,6 +41,9 @@ function fixture() {
     upstreamBranch: 'upstream/trunk',
   };
   let createCalls = 0;
+  const commitCalls: Array<{ readonly statusId: string; readonly message: string }> = [];
+  const pushInputs: GitNetworkMutationInput[] = [];
+  const syncInputs: GitNetworkMutationInput[] = [];
   let defaultBranch: string | undefined = 'trunk';
   let inspectReads = 0;
   let afterInspect: ((read: number) => void) | undefined;
@@ -72,6 +76,37 @@ function fixture() {
         ? ok({ headSha: 'a'.repeat(40), branch: 'feature/x', changed: true })
         : err(appError('GIT_STATUS_STALE', 'Git state changed before branch creation'));
     },
+    commit: (_root: string, statusId: string, message: string) => {
+      commitCalls.push({ statusId, message });
+      if (statusId !== inspection.status?.statusId) {
+        return err(appError('GIT_STATUS_STALE', 'Workspace Git status changed before commit'));
+      }
+      const parentHead = inspection.status?.headSha ?? 'a'.repeat(40);
+      const commitSha = 'e'.repeat(40);
+      inspection = {
+        ...inspection,
+        detect: { ...inspection.detect, headSha: commitSha },
+        status: {
+          ...inspection.status!,
+          headSha: commitSha,
+          clean: true,
+          entries: [],
+          truncated: false,
+          state: 'normal',
+          statusId: 'e'.repeat(64),
+        },
+      };
+      return ok({ commitSha, parentHead, branch: inspection.detect.branch ?? 'trunk', committedPathCount: 1 });
+    },
+    syncFromGitHub: (_root: string, input: GitNetworkMutationInput) => {
+      syncInputs.push(input);
+      return ok({ relation: 'up_to_date' as const, changed: false, headSha: inspection.status?.headSha ?? 'e'.repeat(40) });
+    },
+    pushToGitHub: (_root: string, input: GitNetworkMutationInput) => {
+      pushInputs.push(input);
+      const headSha = inspection.status?.headSha ?? 'e'.repeat(40);
+      return ok({ headSha, remoteSha: headSha, upstreamSet: false });
+    },
   } as unknown as GitSafetyAdapter;
   const workspaceService: WorkspaceService = {
     list: () => ok(workspaces),
@@ -90,6 +125,9 @@ function fixture() {
     setDefaultBranch(value: string | undefined) { defaultBranch = value; },
     setAfterInspect(value: ((read: number) => void) | undefined) { afterInspect = value; },
     createCalls: () => createCalls,
+    commitCalls: () => commitCalls,
+    pushInputs: () => pushInputs,
+    syncInputs: () => syncInputs,
   };
 }
 
@@ -251,7 +289,7 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
     expect(f.createCalls()).toBe(1);
   });
 
-  it('stops unsafe Git state before resolving github_network approval security', () => {
+  it('keeps ordinary dirty Push eligible and auto-commits before the network mutation', () => {
     const f = fixture();
     if (typeof f.create !== 'function') throw new Error('missing service');
     f.setInspection({
@@ -267,14 +305,88 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
     const snap = service.snapshot();
     if (!snap.ok) throw new Error(snap.error.code);
 
+    expect(snap.value.operations.push).toEqual({ available: true });
+    expect(service.resolveNetworkSecurity('push', { expectedSnapshotId: snap.value.snapshotId })).toEqual({
+      ok: true,
+      value: { sensitivity: 'normal', context: 'github_network', workspaceId: f.ws.id },
+    });
+    expect(service.networkApprovalBinding('push', { expectedSnapshotId: snap.value.snapshotId })).toMatchObject({
+      ok: true,
+      value: { operation: 'push', expectedSnapshotId: snap.value.snapshotId, remoteName: 'upstream' },
+    });
+
+    const pushed = service.push({ expectedSnapshotId: snap.value.snapshotId });
+
+    expect(pushed).toMatchObject({ ok: true, value: { clean: true, changedFiles: 0 } });
+    expect(f.commitCalls()).toEqual([{ statusId: 'c'.repeat(64), message: 'Save local changes before GitHub Push' }]);
+    expect(f.pushInputs()).toEqual([{
+      expectedStatusId: 'e'.repeat(64),
+      remoteName: 'upstream',
+      branchName: 'trunk',
+      upstreamBranch: 'upstream/trunk',
+    }]);
+  });
+
+  it('keeps ordinary dirty Sync eligible and auto-commits before the network mutation', () => {
+    const f = fixture();
+    if (typeof f.create !== 'function') throw new Error('missing service');
+    f.setInspection({
+      ...f.getInspection(),
+      status: {
+        ...f.getInspection().status!,
+        clean: false,
+        entries: [{ path: 'dirty.txt', kind: 'modified', staged: false, unstaged: true, untracked: false, sensitive: false, gitlink: false }],
+        statusId: 'c'.repeat(64),
+      },
+    });
+    const service = f.create(f.deps) as GitWorkspaceService;
+    const snap = service.snapshot();
+    if (!snap.ok) throw new Error(snap.error.code);
+
+    expect(snap.value.operations.sync).toEqual({ available: true });
     expect(service.resolveNetworkSecurity('sync', { expectedSnapshotId: snap.value.snapshotId })).toMatchObject({
-      ok: false,
-      error: { code: 'GIT_WORKTREE_DIRTY' },
+      ok: true,
+      value: { sensitivity: 'normal', context: 'github_network', workspaceId: f.ws.id },
     });
-    expect(service.networkApprovalBinding('sync', { expectedSnapshotId: snap.value.snapshotId })).toMatchObject({
-      ok: false,
-      error: { code: 'GIT_WORKTREE_DIRTY' },
+
+    const synced = service.sync({ expectedSnapshotId: snap.value.snapshotId });
+
+    expect(synced).toMatchObject({ ok: true, value: { clean: true, changedFiles: 0 } });
+    expect(f.commitCalls()).toEqual([{ statusId: 'c'.repeat(64), message: 'Save local changes before GitHub Sync' }]);
+    expect(f.syncInputs()).toEqual([{
+      expectedStatusId: 'e'.repeat(64),
+      remoteName: 'upstream',
+      branchName: 'trunk',
+      upstreamBranch: 'upstream/trunk',
+    }]);
+  });
+
+  it('keeps sensitive dirty changes out of eligible github_network auto approval', () => {
+    const f = fixture();
+    if (typeof f.create !== 'function') throw new Error('missing service');
+    f.setInspection({
+      ...f.getInspection(),
+      status: {
+        ...f.getInspection().status!,
+        clean: false,
+        entries: [{ path: '.env', kind: 'modified', staged: false, unstaged: true, untracked: false, sensitive: true, gitlink: false }],
+        statusId: 'c'.repeat(64),
+      },
     });
+    const service = f.create(f.deps) as GitWorkspaceService;
+    const snap = service.snapshot();
+    if (!snap.ok) throw new Error(snap.error.code);
+
+    expect(service.resolveNetworkSecurity('push', { expectedSnapshotId: snap.value.snapshotId })).toMatchObject({
+      ok: false,
+      error: { code: 'SENSITIVE_RESOURCE' },
+    });
+    expect(service.networkApprovalBinding('push', { expectedSnapshotId: snap.value.snapshotId })).toMatchObject({
+      ok: false,
+      error: { code: 'SENSITIVE_RESOURCE' },
+    });
+    expect(f.commitCalls()).toEqual([]);
+    expect(f.pushInputs()).toEqual([]);
   });
 
   it('validates clone destination and safe GitHub binding before network execution', () => {

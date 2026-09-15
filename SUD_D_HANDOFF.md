@@ -1,5 +1,58 @@
 # SUD_D Handoff
 
+## Quick Git + Chat-first Sync/Push — Patch Ready for Product Owner Acceptance (2026-09-15)
+
+**Status: IMPLEMENTATION AND FOCUSED/CRITICAL VERIFICATION ARE COMPLETE ON `feat/git-quick-actions-chat-first`. Product Owner real Sync/Push/Chat-first acceptance remains REMAINING. `master` is outside this patch and must remain untouched.**
+
+Patch state:
+
+- branch: `feat/git-quick-actions-chat-first`
+- base/upstream source branch: `origin/feat/git-bootstrap-branch-remote-sync` at `027dcbfb5b53637aed4d5f14b7804f737492d591`
+- `.serena/` remains local-only/untracked and must not be staged or committed
+- this patch does not merge, rebase, fast-forward, or push `master`
+
+Delivered behavior:
+
+- `Sync` and `Push` remain fixed-purpose Git actions; no generic Git/process authority was added to the renderer, preload, IPC, or Tool Kernel surface.
+- ordinary non-sensitive unstaged Workspace changes remain eligible for Sync/Push and are committed through the existing bounded Git commit adapter before the existing GitHub network mutation.
+- default auto-save commit messages are `Save local changes before GitHub Sync` and `Save local changes before GitHub Push`.
+- sensitive, staged, conflicted, gitlink/submodule, truncated, detached, unsupported, and non-normal Git states remain fail-closed before approval/network execution.
+- Git page UX is chat-first/simple: `Sync` / `Push`, explicit auto-save copy for ordinary local changes, and concise success feedback (`Synced` / `Pushed`).
+
+Verification policy for this personal-first patch:
+
+- Product Owner explicitly changed patch verification policy to focused/affected critical paths plus real Product Owner acceptance; a full suite and heavyweight production smoke are not required when those critical paths are green.
+- focused application + Desktop Git tests: **2 files / 16 tests PASS**
+- affected bootstrap/security slice: **6 files / 86 tests PASS**
+- deterministic GitHub integration: **1 file / 22 tests PASS** in isolation
+- lint: **PASS / exit 0**
+- typecheck: **PASS / exit 0**
+- production build: **PASS / exit 0**
+- `git diff --check`: **PASS / exit 0**
+- monolithic full-suite attempts showed unrelated/long-running timeout pressure (including Vitest worker timing behavior); isolated failing paths passed, and Product Owner explicitly waived further full-suite reruns for this patch. The final in-progress rerun was stopped under that policy.
+- heavyweight production Electron smoke was intentionally not rerun because no focused/affected product failure requires it under the Product Owner policy.
+
+Final security/scope inspection before commit:
+
+- tracked patch scope is limited to Git Workspace orchestration, Git page/CSS, focused service/Desktop tests, plus this handoff update
+- no high-signal secret patterns found in added/changed product/test lines
+- no renderer `ipcRenderer` / child-process / spawn / exec / argv / cwd / env authority added
+- no force/reset/rebase/stash/destructive Git path added by this patch
+
+Product Owner real acceptance: **REMAINING**
+
+- exercise real ordinary-dirty `Sync` and confirm automatic bounded save + safe GitHub sync
+- exercise real ordinary-dirty `Push` and confirm automatic bounded save + verified GitHub push
+- confirm Chat-first copy/feedback is understandable in the real Desktop flow
+- confirm approval behavior remains appropriate for the selected Approval Mode
+
+Closure boundary:
+
+- commit and push only `feat/git-quick-actions-chat-first`
+- preserve `.serena/` as local-only
+- STOP after feature-branch push; Product Owner will run real acceptance separately before any later master-integration decision
+
+
 ## Git Bootstrap + Branch + Remote Sync — Implementation Verified on Feature Branch (2026-09-15)
 
 **Status: IMPLEMENTATION, SECURITY HARDENING, FINAL AUTOMATED GATES, STANDARDS/SPEC REVIEW, AND PRODUCTION ELECTRON SMOKE ARE COMPLETE ON `feat/git-bootstrap-branch-remote-sync`. Product Owner real GitHub acceptance remains separate and REMAINING. `master` has not been merged, rebased, fast-forwarded, or pushed by this closure work.**

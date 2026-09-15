@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+﻿import { describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ToolKernel } from '@sud-d/application';
@@ -203,12 +203,17 @@ describe('Git Bootstrap - Desktop Git controller', () => {
       'Remote Sync',
       'Initialize Git',
       'Clone from GitHub',
-      'Sync from GitHub',
-      'Push to GitHub',
+      'Sync',
+      'Push',
+      'Save ordinary local changes automatically',
+      'will be saved automatically before Sync/Push',
+      'Synced',
+      'Pushed',
       'Up to date',
       'Local commits ready to push',
       'Remote commits available',
-      'Diverged — manual resolution required',
+      'Diverged',
+      'manual resolution required',
       'Git state changed. Review the refreshed state before retrying.',
       'Approval required before this GitHub action can run.',
       'Review approval',
