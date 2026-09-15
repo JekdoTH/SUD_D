@@ -109,6 +109,15 @@ Put each fact in one authoritative place:
 
 When a decision affects more than one concern, update only the minimum authoritative documents needed and link rather than restate. Avoid parallel “memory” files that can disagree.
 
+## Continuation Context Routing
+
+Every SUD_D handoff or resume artifact must declare its continuity level before task details:
+
+- **Sol High** — use for active implementation, security repair, Product Owner acceptance, master integration, or any work where exact repo state and prior verification evidence must carry forward without loss.
+- **Sol Medium** — use for governance, advisory, docs, sequencing, or triage work where the next agent needs bounded project context but should not absorb unrelated milestone detail.
+
+Use repo documents, SUD_D Work Memory / Automatic Resume, and explicit handoff/resume artifacts for project continuity. ChatGPT **Personalization > Memory** is not used for SUD_D state, preferences, milestones, decisions, or cross-device continuation. The Product Owner works across multiple tasks, so continuation must stay Workspace/task-scoped and avoid cross-task context bleed.
+
 ## Lightweight Decision Rationale
 
 Record rationale only for decisions whose reason is likely to matter later: architecture, security, major scope/priority choices, deliberate deferrals, or choices that future work may be tempted to reverse.
