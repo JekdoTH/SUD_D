@@ -156,7 +156,10 @@ describe('Git trusted runner Windows line endings', () => {
       fs.writeFileSync(path.join(root, 'tracked.txt'), 'first\nsecond\n', 'utf8');
       execFileSync(gitExecutable, ['-c', 'core.autocrlf=true', 'add', '--', 'tracked.txt'], { cwd: root });
       execFileSync(gitExecutable, ['commit', '-q', '-m', 'fixture'], { cwd: root });
-      fs.writeFileSync(path.join(root, 'tracked.txt'), 'first\r\nsecond\r\n', 'utf8');
+
+      fs.rmSync(path.join(root, 'tracked.txt'));
+      execFileSync(gitExecutable, ['-c', 'core.autocrlf=true', 'checkout', '--', 'tracked.txt'], { cwd: root });
+      expect(fs.readFileSync(path.join(root, 'tracked.txt'), 'utf8')).toBe('first\r\nsecond\r\n');
 
       const cliStatus = execFileSync(gitExecutable, ['-c', 'core.autocrlf=true', 'status', '--porcelain'], {
         cwd: root,
