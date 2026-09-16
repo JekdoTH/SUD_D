@@ -128,8 +128,9 @@ describe('Git page inline approval UX', () => {
     expect(gitPage).toContain('Approve');
     expect(gitPage).toContain('Deny');
     expect(gitPage).toContain('window.sudD.approval.respond({');
-    expect(gitPage).toContain('handleApprovalDecision');
-    expect(gitPage).toContain('pendingApproval.request');
+    expect(gitPage).toContain('const pending = pendingApproval;');
+    expect(gitPage).toContain('approvalRequestId: pending.approvalRequestId');
+    expect(gitPage).toContain('await handleMutationResult(pending.action, pending.request);');
     expect(gitPage).not.toContain("onNavigate('activity')");
     expect(gitPage).not.toContain('Review approval');
   });
