@@ -295,6 +295,27 @@ describe('Git Bootstrap - trusted Git command runner modes', () => {
     expect(calls.some((args) => args.includes('ls-remote'))).toBe(false);
   });
 
+  it('allows repository network preflight when per-worktree config is not enabled', () => {
+    const root = tempDir('sudd-git-network-no-worktree-config-');
+    git(root, ['init', '-q']);
+
+    const calls: string[][] = [];
+    const runner = createGitCommandRunner({
+      spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
+        calls.push([...args]);
+        if (args.includes('config')) {
+          return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
+        }
+        return { stdout: Buffer.from('NETWORK_CALLED'), stderr: Buffer.alloc(0), status: 0 } as never;
+      }) as unknown as SpawnStub,
+    });
+
+    const result = runner.runGitHubNetwork(root, ['ls-remote', 'https://github.com/acme/widgets.git']);
+
+    expect(result).toMatchObject({ ok: true, value: { status: 0, overflowed: false } });
+    expect(calls.some((args) => args.includes('ls-remote'))).toBe(true);
+  });
+
   it('fails closed before network for unsafe per-worktree Git config', () => {
     const root = tempDir('sudd-git-network-worktree-config-');
     git(root, ['init', '-q']);
