@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ToolKernel } from '@sud-d/application';
@@ -220,7 +220,8 @@ describe('Git Bootstrap - Desktop Git controller', () => {
       'Commit & Push',
       'Need a new branch or Git setup? Ask ChatGPT.',
       'Approval required before this GitHub action can run.',
-      'Review approval',
+      'Approve',
+      'Deny',
     ]) {
       expect(gitPage).toContain(copy);
     }
@@ -236,7 +237,10 @@ describe('Git Bootstrap - Desktop Git controller', () => {
       expect(gitPage).not.toContain(advancedCopy);
     }
 
-    expect(gitPage).toContain("onNavigate('activity')");
+    expect(gitPage).not.toContain("onNavigate('activity')");
+    expect(gitPage).not.toContain('Review approval');
+    expect(gitPage).toContain('window.sudD.approval.respond({');
+    expect(gitPage).toContain('pendingApproval.request');
     expect(gitPage).toContain('window.sudD.git.snapshot()');
     expect(gitPage).toContain('window.sudD.git.switch(');
     expect(gitPage).toContain('window.sudD.git.sync(');
