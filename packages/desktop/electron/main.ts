@@ -13,7 +13,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from '@sud-d/infrastructure';
 import { createWorkspaceRepository } from '@sud-d/infrastructure';
-import { createAuditRepository, createApprovalModeRepository, createApprovalRepository, createGitSafetyAdapter, createTeamRepository, createTeamTransitionUnitOfWork, createWorkMemoryRepository, createWorkspaceGitSettingsRepository, resolveApprovalRuntimeIdentity } from '@sud-d/infrastructure';
+import { createAuditRepository, createApprovalModeRepository, createApprovalRepository, createGitSafetyAdapter, createTeamRepository, createTeamTransitionUnitOfWork, createWorkMemoryRepository } from '@sud-d/infrastructure';
 import { getDataRoot, canonicalizePath } from '@sud-d/infrastructure';
 import { checkDataDirectory, checkWorkspaceRoot } from '@sud-d/infrastructure';
 import {
@@ -24,16 +24,11 @@ import {
   isOpenAiSecureTunnelClientAvailable,
 } from '@sud-d/infrastructure';
 import {
-  createAllGitCapabilities,
-  createApprovalCoordinator,
   createApprovalModeService,
   createApprovalService,
   createConnectionConfigService,
-  createGitWorkspaceService,
   createTeamService,
   createConnectionService,
-  createToolCapabilityRegistry,
-  createToolKernel,
   createWorkspaceService,
 } from '@sud-d/application';
 import { createDesktopConnectionController } from './connection-controller.js';
@@ -55,7 +50,7 @@ import {
   registerDesktopApprovalIpcHandlers,
   type ApprovalIpcMain,
 } from './approval-ipc.js';
-import { createDesktopGitController } from './git-controller.js';
+import { createDesktopGitWorkerController } from './git-worker-controller.js';
 import {
   registerDesktopGitIpcHandlers,
   type GitIpcMain,
@@ -98,7 +93,6 @@ const approvalRepo = createApprovalRepository(db);
 const approvalModeRepo = createApprovalModeRepository(db);
 const teamRepo = createTeamRepository(db);
 const gitSafety = createGitSafetyAdapter();
-const gitSettingsRepo = createWorkspaceGitSettingsRepository(db);
 const workMemoryRepo = createWorkMemoryRepository(db);
 const approvalService = createApprovalService(approvalRepo, auditRepo);
 const approvalModeService = createApprovalModeService(approvalModeRepo);
@@ -131,30 +125,7 @@ const overviewStatusController = createDesktopOverviewStatusController({
   workMemoryReader: workMemoryRepo,
 });
 const workspaceService = createWorkspaceService(workspaceRepo, auditRepo, internalRoots);
-const gitWorkspaceService = createGitWorkspaceService({
-  workspaceRepo,
-  gitSettings: gitSettingsRepo,
-  gitSafety,
-  workspaceService,
-  internalRoots,
-});
-const desktopGitApproval = createApprovalCoordinator({
-  repository: approvalRepo,
-  ...resolveApprovalRuntimeIdentity(process.env),
-  mode: () => approvalModeRepo.get(),
-});
-const desktopGitRegistry = createToolCapabilityRegistry(createAllGitCapabilities({
-  workspaceRepo,
-  gitSafety,
-  gitWorkspace: gitWorkspaceService,
-}));
-if (!desktopGitRegistry.ok) throw new Error('SUD-D Desktop Git tool registration failed');
-const desktopGitKernel = createToolKernel({
-  registry: desktopGitRegistry.value,
-  audit: auditRepo,
-  approval: desktopGitApproval,
-});
-const gitController = createDesktopGitController(desktopGitKernel);
+const gitController = createDesktopGitWorkerController();
 const connectionProfileRepo = createConnectionProfileRepository(db);
 const connectionCredentialStore = createWindowsCredentialStore(process.env);
 const connectionConfigService = createConnectionConfigService(
@@ -480,6 +451,10 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on('before-quit', () => {
+  void gitController.dispose();
 });
 
 app.on('window-all-closed', () => {

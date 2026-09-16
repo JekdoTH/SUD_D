@@ -59,8 +59,6 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
 
   useEffect(() => {
     void refreshSnapshot();
-    const timer = window.setInterval(() => void refreshSnapshot(), 5000);
-    return () => window.clearInterval(timer);
   }, [refreshSnapshot]);
 
   const handleMutationResult = useCallback(async (

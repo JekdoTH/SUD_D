@@ -1,25 +1,50 @@
 # SUD_D Handoff
 
-## Simple Git Workflow — Ready for Product Owner Acceptance (2026-09-16)
+## Simple Git Workflow — Responsiveness Fix Ready for Product Owner Acceptance (2026-09-16)
 
-**Status: focused implementation and automated verification are complete on `feat/simple-git-workflow`; Product Owner manual acceptance remains. No merge or remote push has been performed.**
+**Status: implementation, startup repair, Security-tier verification, and local review are complete on `feat/simple-git-workflow`; Product Owner manual acceptance remains. No merge or remote push has been performed.**
 
-Changed:
+Final implementation:
 
-- Git Desktop normal surface now shows active Workspace, current/safe local branch selector, concise status, `Get latest`, and `Commit & Push`.
-- Create/merge/delete branch and remote configuration/selection controls are removed from the normal renderer surface; the existing fixed-purpose backend/tool capabilities remain available to ChatGPT/SUD-D.
-- Existing trusted Git behavior is reused unchanged: deterministic tracking → persisted → sole safe remote resolution, bounded auto-commit for ordinary changes before Sync/Push, same-name no-upstream Push with verified upstream recording, and existing fail-closed Git/network/security boundaries.
-- Approval-required Git actions still route to Activity. Automatic resume after approval is intentionally deferred because the current approval coordinator consumes approval on the next materially identical request; resuming the pending renderer action would require broader approval-action orchestration than this UX task authorizes.
+- Git Desktop normal surface remains personal-first: active Workspace, safe existing local branch selector, concise status, `Get latest`, and `Commit & Push`.
+- The 5-second Git-page polling loop is removed; snapshot refresh now happens on page/action/branch lifecycle instead of recurring idle polling.
+- Desktop Git operations now run through a fixed-operation worker thread. The worker reuses the existing Git Workspace service, Tool Kernel, Policy, Approval, and Git safety adapter unchanged, so synchronous local/network Git execution no longer blocks the Electron main thread.
+- The worker protocol exposes only fixed semantic Git operations; it does not accept executable, argv, cwd, shell, environment, raw Git command, remote URL, or generic network/process controls.
+- A startup regression caused by Vite rewriting `new URL('./git-worker.js', import.meta.url)` to a `data:` URL was repaired by resolving `git-worker.js` as a sibling of the bundled main module using `fileURLToPath(import.meta.url)` plus `path.dirname/path.join`. This works in both development and production build output.
+- Approval-required Git actions still route through the existing approval repository/coordinator semantics; no automatic approval resume or broader authority was added.
 
-Focused verification:
+Verification:
 
-- Desktop Git focused test: **5/5 PASS** after RED→GREEN.
-- Git Workspace service focused regression: **11/11 PASS**.
+- responsiveness regression seam: **PASS** — real worker-thread test proves the main event loop timer fires while the worker is deliberately busy.
+- Desktop Git composition/startup regression: **PASS** — worker resolver contract plus fixed-authority composition assertions are green.
+- affected Git runner/service/Desktop/security tests from the implementation phase: **PASS**.
+- production Electron startup smoke: **PASS** — real `SUD-D Control Center` window opens with no `ERR_INVALID_URL_SCHEME`.
+- development Electron startup smoke: **PASS** — Vite/Electron dev mode opens a real window with the emitted `git-worker.js` entry.
+- real worker smoke: **PASS** — renderer `window.sudD.git.snapshot()` completed through IPC → Electron main → fixed worker → Tool Kernel/Git inspect with `ok: true`.
+- `pnpm lint`: **PASS**.
 - `pnpm typecheck`: **PASS**.
-- `pnpm build`: **PASS**.
-- Impeccable detector: invoked once as required; Serena output exceeded its capture ceiling, so do not claim a clean detector result.
+- `pnpm build`: **PASS**; production output includes `dist-electron/main.js`, `dist-electron/git-worker.js`, and preload.
+- canonical `pnpm test`: **PASS / exit 0** — 49 test files passed, 3 skipped; 634 tests passed, 5 skipped.
+- `git diff --check`: **PASS** before handoff update; rerun required after this documentation change and before commit.
+- final Standards review: **PASS — no blocking findings**.
+- final Spec/security review: **PASS — no blocking findings; no generic process/Git/network authority added**.
 
-Immediate next action: Product Owner manual test of harmless `Commit & Push`, one `Get latest` after a remote change, and branch switching to an existing safe local branch. If accepted, decide separately whether to commit/push/integrate this feature branch under repo rules.
+Product Owner acceptance remains:
+
+1. Launch SUD-D normally and confirm the app opens without a startup crash.
+2. Stay on the Git page for at least 15 seconds and confirm there is no periodic idle stutter.
+3. Make one harmless ordinary local file change; click `Commit & Push`; confirm the working label appears promptly and the Electron window remains movable/repaintable without `(Not Responding)` until completion.
+4. After a harmless remote change exists, click `Get latest`; confirm the working label appears promptly and the window remains responsive until completion.
+5. Switch to an existing safe local branch and confirm the UI remains responsive and the branch changes correctly.
+6. Return to `feat/simple-git-workflow` and confirm status/snapshot refreshes after the action without waiting for polling.
+7. Confirm no advanced remote/Git/process controls have appeared in the normal Git UI.
+
+Closure boundary:
+
+- create one local commit on `feat/simple-git-workflow` after final diff/status inspection.
+- preserve `.serena/` as local-only and preserve unrelated user work.
+- do not push and do not merge before Product Owner acceptance.
+- STOP after the local commit and wait for Product Owner acceptance.
 
 ## Quick Git + Chat-first Sync/Push — Patch Ready for Product Owner Acceptance (2026-09-15)
 

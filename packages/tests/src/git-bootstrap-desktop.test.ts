@@ -164,11 +164,18 @@ describe('Git Bootstrap - Desktop Git controller', () => {
     expect(globalGit).not.toMatch(/\b(capability|argv|cwd|processEnv|env)\b|(?:execute|invoke|run)\s*\(/i);
   });
 
-  it('main composes Desktop Git through the shared Tool Kernel and registers only the fixed Git IPC bridge', () => {
+  it('runs Desktop Git behind a fixed worker while preserving Tool Kernel and Git safety composition', () => {
     const main = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/electron/main.ts'), 'utf8');
-    const controllerSource = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/electron/git-controller.ts'), 'utf8');
+    const worker = fs.existsSync(path.join(process.cwd(), 'packages/desktop/electron/git-worker.ts'))
+      ? fs.readFileSync(path.join(process.cwd(), 'packages/desktop/electron/git-worker.ts'), 'utf8')
+      : '';
+    const workerController = fs.existsSync(path.join(process.cwd(), 'packages/desktop/electron/git-worker-controller.ts'))
+      ? fs.readFileSync(path.join(process.cwd(), 'packages/desktop/electron/git-worker-controller.ts'), 'utf8')
+      : '';
     const ipcSource = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/electron/git-ipc.ts'), 'utf8');
 
+    expect(main).toContain('createDesktopGitWorkerController');
+    expect(main).toContain('registerDesktopGitIpcHandlers');
     for (const required of [
       'createAllGitCapabilities',
       'createGitWorkspaceService',
@@ -177,12 +184,16 @@ describe('Git Bootstrap - Desktop Git controller', () => {
       'createApprovalCoordinator',
       'createWorkspaceGitSettingsRepository',
       'resolveApprovalRuntimeIdentity(process.env)',
+      'createGitSafetyAdapter',
       'createDesktopGitController',
-      'registerDesktopGitIpcHandlers',
     ]) {
-      expect(main).toContain(required);
+      expect(worker).toContain(required);
     }
-    expect(controllerSource).not.toMatch(/GitSafetyAdapter|createGitSafetyAdapter|runLocal|runGitHubNetwork/i);
+    expect(workerController).toContain("path.join(path.dirname(fileURLToPath(moduleUrl)), 'git-worker.js')");
+    expect(workerController).toContain('resolveDesktopGitWorkerEntry(import.meta.url)');
+    expect(workerController).not.toContain("new URL('./git-worker.js', import.meta.url)");
+    expect(workerController).toContain('new Worker(workerEntry)');
+    expect(workerController).not.toMatch(/\b(argv|cwd|processEnv|shell|executable)\b/i);
     expect(ipcSource).not.toMatch(/GitSafetyAdapter|createGitSafetyAdapter|runLocal|runGitHubNetwork/i);
   });
 
@@ -230,7 +241,8 @@ describe('Git Bootstrap - Desktop Git controller', () => {
     expect(gitPage).toContain('window.sudD.git.switch(');
     expect(gitPage).toContain('window.sudD.git.sync(');
     expect(gitPage).toContain('window.sudD.git.push(');
-    expect(gitPage).toContain('5000');
+    expect(gitPage).not.toContain('setInterval');
+    expect(gitPage).not.toContain('5000');
     expect(gitPage).toContain('expectedSnapshotId: snapshot.snapshotId');
     expect(gitPage).not.toMatch(/Primary Remote|upstream branch|fast-forward/i);
     expect(gitPage).not.toMatch(/ipcRenderer|\bargv\b|\bcwd\b|processEnv|\benv\b|child_process/i);

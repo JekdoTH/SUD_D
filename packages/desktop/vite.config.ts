@@ -19,7 +19,10 @@ export default defineConfig({
     react(),
     electron({
       main: {
-        entry: path.join(__dirname, 'electron/main.ts'),
+        entry: {
+          main: path.join(__dirname, 'electron/main.ts'),
+          'git-worker': path.join(__dirname, 'electron/git-worker.ts'),
+        },
         vite: {
           resolve: { alias: workspaceAliases },
           build: {
