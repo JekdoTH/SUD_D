@@ -1,5 +1,26 @@
 # SUD_D Handoff
 
+## Simple Git Workflow — Ready for Product Owner Acceptance (2026-09-16)
+
+**Status: focused implementation and automated verification are complete on `feat/simple-git-workflow`; Product Owner manual acceptance remains. No merge or remote push has been performed.**
+
+Changed:
+
+- Git Desktop normal surface now shows active Workspace, current/safe local branch selector, concise status, `Get latest`, and `Commit & Push`.
+- Create/merge/delete branch and remote configuration/selection controls are removed from the normal renderer surface; the existing fixed-purpose backend/tool capabilities remain available to ChatGPT/SUD-D.
+- Existing trusted Git behavior is reused unchanged: deterministic tracking → persisted → sole safe remote resolution, bounded auto-commit for ordinary changes before Sync/Push, same-name no-upstream Push with verified upstream recording, and existing fail-closed Git/network/security boundaries.
+- Approval-required Git actions still route to Activity. Automatic resume after approval is intentionally deferred because the current approval coordinator consumes approval on the next materially identical request; resuming the pending renderer action would require broader approval-action orchestration than this UX task authorizes.
+
+Focused verification:
+
+- Desktop Git focused test: **5/5 PASS** after RED→GREEN.
+- Git Workspace service focused regression: **11/11 PASS**.
+- `pnpm typecheck`: **PASS**.
+- `pnpm build`: **PASS**.
+- Impeccable detector: invoked once as required; Serena output exceeded its capture ceiling, so do not claim a clean detector result.
+
+Immediate next action: Product Owner manual test of harmless `Commit & Push`, one `Get latest` after a remote change, and branch switching to an existing safe local branch. If accepted, decide separately whether to commit/push/integrate this feature branch under repo rules.
+
 ## Quick Git + Chat-first Sync/Push — Patch Ready for Product Owner Acceptance (2026-09-15)
 
 **Status: IMPLEMENTATION AND FOCUSED/CRITICAL VERIFICATION ARE COMPLETE ON `feat/git-quick-actions-chat-first`. Product Owner real Sync/Push/Chat-first acceptance remains REMAINING. `master` is outside this patch and must remain untouched.**

@@ -186,7 +186,7 @@ describe('Git Bootstrap - Desktop Git controller', () => {
     expect(ipcSource).not.toMatch(/GitSafetyAdapter|createGitSafetyAdapter|runLocal|runGitHubNetwork/i);
   });
 
-  it('defines the Git page as a state-first fixed-purpose renderer surface', () => {
+  it('defines the Git page as a personal-first routine Git workflow', () => {
     const app = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/App.tsx'), 'utf8');
     const icons = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/ui-icons.tsx'), 'utf8');
     const gitPage = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/GitPage.tsx'), 'utf8');
@@ -198,34 +198,41 @@ describe('Git Bootstrap - Desktop Git controller', () => {
     expect(icons).toContain("case 'git':");
 
     for (const copy of [
-      'Repository',
-      'Branches',
-      'Remote Sync',
-      'Initialize Git',
-      'Clone from GitHub',
-      'Sync',
-      'Push',
-      'Save ordinary local changes automatically',
-      'will be saved automatically before Sync/Push',
-      'Synced',
-      'Pushed',
+      'Workspace',
+      'Branch',
+      'GitHub connected',
       'Up to date',
-      'Local commits ready to push',
-      'Remote commits available',
-      'Diverged',
-      'manual resolution required',
-      'Git state changed. Review the refreshed state before retrying.',
+      'Local changes',
+      'Changes on GitHub',
+      'Needs attention',
+      'Get latest',
+      'Commit & Push',
+      'Need a new branch or Git setup? Ask ChatGPT.',
       'Approval required before this GitHub action can run.',
       'Review approval',
     ]) {
       expect(gitPage).toContain(copy);
     }
 
+    for (const advancedCopy of [
+      'Create branch',
+      'Merge branch',
+      'Safe delete local branch',
+      'Configure Primary Remote',
+      'Select Primary Remote',
+      'Remote Sync',
+    ]) {
+      expect(gitPage).not.toContain(advancedCopy);
+    }
+
     expect(gitPage).toContain("onNavigate('activity')");
     expect(gitPage).toContain('window.sudD.git.snapshot()');
-    expect(gitPage).toContain('window.sudD.dialog.openDirectory()');
+    expect(gitPage).toContain('window.sudD.git.switch(');
+    expect(gitPage).toContain('window.sudD.git.sync(');
+    expect(gitPage).toContain('window.sudD.git.push(');
     expect(gitPage).toContain('5000');
     expect(gitPage).toContain('expectedSnapshotId: snapshot.snapshotId');
+    expect(gitPage).not.toMatch(/Primary Remote|upstream branch|fast-forward/i);
     expect(gitPage).not.toMatch(/ipcRenderer|\bargv\b|\bcwd\b|processEnv|\benv\b|child_process/i);
     expect(gitPage).not.toMatch(/password|username|token|private.?key/i);
     expect(gitPage).not.toMatch(/Approve for me|Full Access|approved automatically/i);
