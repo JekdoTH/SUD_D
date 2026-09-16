@@ -289,6 +289,24 @@ function restrictedVerifyActivityPresentation(event: AuditEvent): {
   }
   return { title: `Project ${safeAction} failed`, category: 'workspace', tone: 'error' };
 }
+const SAFE_GIT_CAUSE_CODES = new Set([
+  'GIT_STATE_UNSAFE',
+  'GIT_STATUS_STALE',
+  'GIT_OPERATION_CONFLICT',
+  'GIT_WORKTREE_DIRTY',
+  'GIT_REMOTE_MISSING',
+  'GIT_REMOTE_AMBIGUOUS',
+  'GIT_REMOTE_UNSUPPORTED',
+  'GIT_DEFAULT_BRANCH_UNKNOWN',
+  'GIT_UPSTREAM_MISSING',
+  'GIT_REMOTE_AHEAD',
+  'GIT_DIVERGED',
+  'GIT_AUTH_FAILED',
+  'GIT_REMOTE_UNREACHABLE',
+  'GIT_CLONE_DESTINATION_UNSAFE',
+  'GIT_BRANCH_IN_USE',
+  'GIT_BRANCH_UNMERGED',
+]);
 const SAFE_OPERATIONS = new Set(['start', 'stop', 'restart']);
 const SAFE_STATES = new Set([
   'stopped',
@@ -329,6 +347,10 @@ function activityDetails(event: AuditEvent): DesktopActivityDetailDto[] {
   const role = event.metadata['role'];
   if (typeof role === 'string' && SAFE_TEAM_ROLES.has(role)) {
     details.push({ label: 'Role', value: role });
+  }
+  const causeCode = event.metadata['causeCode'];
+  if (typeof causeCode === 'string' && SAFE_GIT_CAUSE_CODES.has(causeCode)) {
+    details.push({ label: 'Cause', value: causeCode });
   }
   const taskSequence = event.metadata['taskSequence'];
   if (typeof taskSequence === 'number' && Number.isInteger(taskSequence) && taskSequence >= 1 && taskSequence <= 20) {

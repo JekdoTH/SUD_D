@@ -412,6 +412,7 @@ export function createToolKernel(options: CreateToolKernelOptions): ToolKernel {
           executionPolicyDecision,
           approvalDecision,
           approvalRequestId,
+          execution.error.code,
         ))) {
           return failure('AUDIT_OUTCOME_FAILED', 'executed', executionPolicyDecision, undefined, approvalDecision, approvalRequestId);
         }
@@ -504,6 +505,7 @@ async function appendExecutionOutcomeAudit(
   policyDecision: 'allow' | 'ask',
   approvalDecision?: ApprovalDecisionKind,
   approvalRequestId?: string,
+  causeCode?: AppError['code'],
 ): Promise<boolean> {
   return appendAudit(audit, createAuditEvent({
     request,
@@ -512,6 +514,7 @@ async function appendExecutionOutcomeAudit(
     policyDecision,
     approvalDecision,
     approvalRequestId,
+    causeCode,
     security,
     startedAt,
     phase: 'outcome',
@@ -526,6 +529,7 @@ interface CreateAuditEventOptions {
   readonly policyDecision?: ToolKernelFailure['policyDecision'];
   readonly approvalDecision?: ApprovalDecisionKind;
   readonly approvalRequestId?: string;
+  readonly causeCode?: AppError['code'];
   readonly security?: ResolvedToolSecurityContext;
   readonly startedAt: number;
   readonly phase: 'pre_execution' | 'outcome';
@@ -549,6 +553,7 @@ function createAuditEvent(options: CreateAuditEventOptions): Omit<AuditEvent, 'i
       outcome: options.outcome,
       ...(options.approvalDecision ? { approvalDecision: options.approvalDecision } : {}),
       ...(options.approvalRequestId ? { approvalRequestId: options.approvalRequestId } : {}),
+      ...(options.causeCode ? { causeCode: options.causeCode } : {}),
     },
   };
 }
