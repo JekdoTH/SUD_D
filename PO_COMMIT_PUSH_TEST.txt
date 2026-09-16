@@ -1,0 +1,4 @@
+SUD-D Product Owner Commit & Push smoke-test file.
+
+This file is intentionally harmless and contains no secrets or runtime configuration. 
+It is safe to delete after Product Owner acceptance. 
