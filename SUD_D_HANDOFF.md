@@ -1,8 +1,8 @@
 # SUD_D Handoff
 
-## Simple Git Workflow — Responsiveness Fix Ready for Product Owner Acceptance (2026-09-16)
+## Simple Git Workflow — Product Owner Acceptance Passed (2026-09-16)
 
-**Status: implementation, startup repair, Security-tier verification, and local review are complete on `feat/simple-git-workflow`; Product Owner manual acceptance remains. No merge or remote push has been performed.**
+**Status: implementation, startup repair, Security-tier verification, and Product Owner acceptance are complete on `feat/simple-git-workflow`. Product Owner approved cleanup of the acceptance artifact plus fast-forward integration into `master`.**
 
 Final implementation:
 
@@ -11,7 +11,7 @@ Final implementation:
 - Desktop Git operations now run through a fixed-operation worker thread. The worker reuses the existing Git Workspace service, Tool Kernel, Policy, Approval, and Git safety adapter unchanged, so synchronous local/network Git execution no longer blocks the Electron main thread.
 - The worker protocol exposes only fixed semantic Git operations; it does not accept executable, argv, cwd, shell, environment, raw Git command, remote URL, or generic network/process controls.
 - A startup regression caused by Vite rewriting `new URL('./git-worker.js', import.meta.url)` to a `data:` URL was repaired by resolving `git-worker.js` as a sibling of the bundled main module using `fileURLToPath(import.meta.url)` plus `path.dirname/path.join`. This works in both development and production build output.
-- Approval-required Git actions still route through the existing approval repository/coordinator semantics; no automatic approval resume or broader authority was added.
+- Approval-required Git actions still route through the existing approval repository/coordinator semantics; no automatic approval resume or broader authority was added in this implementation.
 
 Verification:
 
@@ -25,26 +25,29 @@ Verification:
 - `pnpm typecheck`: **PASS**.
 - `pnpm build`: **PASS**; production output includes `dist-electron/main.js`, `dist-electron/git-worker.js`, and preload.
 - canonical `pnpm test`: **PASS / exit 0** — 49 test files passed, 3 skipped; 634 tests passed, 5 skipped.
-- `git diff --check`: **PASS** before handoff update; rerun required after this documentation change and before commit.
 - final Standards review: **PASS — no blocking findings**.
 - final Spec/security review: **PASS — no blocking findings; no generic process/Git/network authority added**.
 
-Product Owner acceptance remains:
+Product Owner acceptance: **PASS**
 
-1. Launch SUD-D normally and confirm the app opens without a startup crash.
-2. Stay on the Git page for at least 15 seconds and confirm there is no periodic idle stutter.
-3. Make one harmless ordinary local file change; click `Commit & Push`; confirm the working label appears promptly and the Electron window remains movable/repaintable without `(Not Responding)` until completion.
-4. After a harmless remote change exists, click `Get latest`; confirm the working label appears promptly and the window remains responsive until completion.
-5. Switch to an existing safe local branch and confirm the UI remains responsive and the branch changes correctly.
-6. Return to `feat/simple-git-workflow` and confirm status/snapshot refreshes after the action without waiting for polling.
-7. Confirm no advanced remote/Git/process controls have appeared in the normal Git UI.
+- Git-page idle responsiveness passed with no recurring 5-second stutter.
+- `Commit & Push` acceptance passed using the harmless `PO_COMMIT_PUSH_TEST.txt` artifact; the feature branch was published through the SUD-D Git UI and the app remained responsive.
+- Product Owner approved removal of the acceptance artifact with a normal commit and fast-forward integration of `feat/simple-git-workflow` into `master`.
+
+Approved follow-up — Git approval UX:
+
+- Approval-required Git actions should be approved inline on the Git page.
+- `Approve` should automatically resume the exact pending Git action after approval succeeds.
+- The normal flow should not require navigating to Activity or clicking `Commit & Push` a second time.
+- Activity should primarily serve as audit/history for Git approvals and completed actions.
+- This follow-up must preserve the existing Tool Kernel → Policy → Approval → Execution boundary and requires a separate implementation task before source/UI changes begin.
 
 Closure boundary:
 
-- create one local commit on `feat/simple-git-workflow` after final diff/status inspection.
-- preserve `.serena/` as local-only and preserve unrelated user work.
-- do not push and do not merge before Product Owner acceptance.
-- STOP after the local commit and wait for Product Owner acceptance.
+- remove `PO_COMMIT_PUSH_TEST.txt` with a normal feature-branch commit and preserve `.serena/` as local-only.
+- fast-forward `feat/simple-git-workflow` into `master` only if `master` remains an ancestor and both local/remote refs are safe.
+- push `master` normally; no force push, reset, rebase, clean, or discard of user work.
+- after push, Home PC can use `Get latest` to receive the accepted Git responsiveness workflow.
 
 ## Quick Git + Chat-first Sync/Push — Patch Ready for Product Owner Acceptance (2026-09-15)
 
