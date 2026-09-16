@@ -240,7 +240,9 @@ describe('Git Bootstrap - Desktop Git controller', () => {
     expect(gitPage).not.toContain("onNavigate('activity')");
     expect(gitPage).not.toContain('Review approval');
     expect(gitPage).toContain('window.sudD.approval.respond({');
-    expect(gitPage).toContain('pendingApproval.request');
+    expect(gitPage).toContain('const pending = pendingApproval;');
+    expect(gitPage).toContain('approvalRequestId: pending.approvalRequestId');
+    expect(gitPage).toContain('await handleMutationResult(pending.action, pending.request);');
     expect(gitPage).toContain('window.sudD.git.snapshot()');
     expect(gitPage).toContain('window.sudD.git.switch(');
     expect(gitPage).toContain('window.sudD.git.sync(');
