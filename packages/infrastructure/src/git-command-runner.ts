@@ -89,7 +89,7 @@ function createRuntime(): Result<GitRuntime, AppError> {
     fs.mkdirSync(home, { recursive: true });
     const globalConfig = path.join(root, 'global.gitconfig');
     const systemConfig = path.join(root, 'system.gitconfig');
-    fs.writeFileSync(globalConfig, '', 'utf8');
+    fs.writeFileSync(globalConfig, process.platform === 'win32' ? '[core]\n\tautocrlf = true\n' : '', 'utf8');
     fs.writeFileSync(systemConfig, '', 'utf8');
     return ok({ root, hooks, home, globalConfig, systemConfig });
   } catch {
