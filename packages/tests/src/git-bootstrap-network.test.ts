@@ -303,10 +303,10 @@ describe('Git Bootstrap - trusted Git command runner modes', () => {
     const runner = createGitCommandRunner({
       spawnSync: ((command: string, args: readonly string[], options: Record<string, unknown>) => {
         calls.push([...args]);
-        if (args.includes('config')) {
-          return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
+        if (args.includes('ls-remote')) {
+          return { stdout: Buffer.from('NETWORK_CALLED'), stderr: Buffer.alloc(0), status: 0 } as never;
         }
-        return { stdout: Buffer.from('NETWORK_CALLED'), stderr: Buffer.alloc(0), status: 0 } as never;
+        return Reflect.apply(spawnSync, null, [command, [...args], options]) as never;
       }) as unknown as SpawnStub,
     });
 

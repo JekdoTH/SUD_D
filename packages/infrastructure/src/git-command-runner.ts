@@ -413,7 +413,28 @@ export function createGitCommandRunner(options: GitCommandRunnerOptions = {}): G
   function validateRepositoryNetworkConfig(cwd: string): Result<void, AppError> {
     if (!hasRepositoryMarker(cwd)) return ok(undefined);
 
-    for (const scope of ['--local', '--worktree'] as const) {
+    const worktreeConfig = execute('local', cwd, [
+      'config',
+      'get',
+      '--local',
+      '--no-includes',
+      '--bool',
+      'extensions.worktreeConfig',
+    ], { maxOutputBytes: 256 * 1024, timeoutMs: 3_000 });
+    if (!worktreeConfig.ok || worktreeConfig.value.overflowed) {
+      return err(appError('GIT_STATE_UNSAFE', 'Repository Git configuration is unsafe for network access'));
+    }
+    if (worktreeConfig.value.status !== 0 && worktreeConfig.value.status !== 1) {
+      return err(appError('GIT_STATE_UNSAFE', 'Repository Git configuration is unsafe for network access'));
+    }
+    const worktreeConfigValue = worktreeConfig.value.stdout.toString('utf8').trim();
+    if (worktreeConfig.value.status === 0 && worktreeConfigValue !== 'true' && worktreeConfigValue !== 'false') {
+      return err(appError('GIT_STATE_UNSAFE', 'Repository Git configuration is unsafe for network access'));
+    }
+    const scopes: Array<'--local' | '--worktree'> = ['--local'];
+    if (worktreeConfigValue === 'true') scopes.push('--worktree');
+
+    for (const scope of scopes) {
       const listed = execute('local', cwd, [
         'config',
         'list',
