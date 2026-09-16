@@ -7,8 +7,14 @@ interface GitPageProps {
 }
 
 type ActionMessage =
-  | { readonly tone: 'success' | 'warning' | 'error'; readonly text: string; readonly showApprovalLink?: boolean }
+  | { readonly tone: 'success' | 'warning' | 'error'; readonly text: string }
   | null;
+
+type PendingGitApproval = {
+  readonly action: string;
+  readonly approvalRequestId: string;
+  readonly request: () => Promise<IpcResult<DesktopGitSnapshotDto>>;
+};
 
 const RELATION_COPY: Record<DesktopGitSnapshotDto['relation'], string> = {
   unknown: 'Needs attention',
@@ -21,12 +27,16 @@ const RELATION_COPY: Record<DesktopGitSnapshotDto['relation'], string> = {
 };
 
 export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
+  void onNavigate;
   const [snapshot, setSnapshot] = useState<DesktopGitSnapshotDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState('');
   const [loadError, setLoadError] = useState('');
   const [actionMessage, setActionMessage] = useState<ActionMessage>(null);
+  const [pendingApproval, setPendingApproval] = useState<PendingGitApproval | null>(null);
+  const [approvalDecisionBusy, setApprovalDecisionBusy] = useState<'approve' | 'deny' | ''>('');
   const refreshInFlight = useRef<Promise<void> | null>(null);
+  const approvalResponding = useRef(false);
   const mutationVersion = useRef(0);
 
   const refreshSnapshot = useCallback(async (): Promise<void> => {
@@ -71,12 +81,14 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
     try {
       const result = await request();
       if (result.ok) {
+        setPendingApproval(null);
         setSnapshot(result.value);
         setLoadError('');
         setActionMessage({ tone: 'success', text: gitSuccessMessage(action) });
         return;
       }
       if (result.error.code === 'GIT_STATUS_STALE') {
+        setPendingApproval(null);
         const existingRefresh = refreshInFlight.current;
         if (existingRefresh) {
           await existingRefresh;
@@ -90,15 +102,26 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
         return;
       }
       if (result.error.code === 'APPROVAL_REQUIRED') {
+        const approvalRequestId = result.error.metadata?.approvalRequestId;
+        if (typeof approvalRequestId !== 'string' || approvalRequestId.length === 0) {
+          setPendingApproval(null);
+          setActionMessage({
+            tone: 'error',
+            text: 'Approval could not be prepared safely. Run the Git action again.',
+          });
+          return;
+        }
+        setPendingApproval({ action, approvalRequestId, request });
         setActionMessage({
           tone: 'warning',
-          showApprovalLink: true,
           text: 'Approval required before this GitHub action can run.',
         });
         return;
       }
+      setPendingApproval(null);
       setActionMessage({ tone: 'error', text: gitErrorCopy(result.error.code) });
     } catch {
+      setPendingApproval(null);
       setActionMessage({
         tone: 'error',
         text: 'Git could not complete this action. Check the current status or ask ChatGPT for help.',
@@ -108,8 +131,48 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
     }
   }, [refreshSnapshot]);
 
+  const handleApprovalDecision = useCallback(async (decision: 'approve' | 'deny'): Promise<void> => {
+    const pending = pendingApproval;
+    if (!pending || approvalResponding.current) return;
+    approvalResponding.current = true;
+    setApprovalDecisionBusy(decision);
+    try {
+      const result = await window.sudD.approval.respond({
+        approvalRequestId: pending.approvalRequestId,
+        decision,
+      });
+      if (!result.ok) {
+        setPendingApproval(null);
+        setActionMessage({
+          tone: 'error',
+          text: 'Approval could not be completed. Run the Git action again.',
+        });
+        return;
+      }
+      if (decision !== 'approve' || result.value.status !== 'approved') {
+        setPendingApproval(null);
+        setActionMessage({ tone: 'warning', text: 'Git action denied.' });
+        return;
+      }
+
+      setPendingApproval(null);
+      await handleMutationResult(pending.action, pending.request);
+    } catch {
+      setPendingApproval(null);
+      setActionMessage({
+        tone: 'error',
+        text: 'Approval could not be completed. Run the Git action again.',
+      });
+    } finally {
+      approvalResponding.current = false;
+      setApprovalDecisionBusy('');
+    }
+  }, [handleMutationResult, pendingApproval]);
+
+  const interactionLocked = Boolean(busyAction || pendingApproval || approvalDecisionBusy);
+
   const handleBranchSwitch = (branchName: string): void => {
-    if (!snapshot || !branchName || branchName === snapshot.currentBranch || busyAction) return;
+    if (!snapshot || !branchName || branchName === snapshot.currentBranch || interactionLocked) return;
     void handleMutationResult('switch', () => window.sudD.git.switch({
       expectedSnapshotId: snapshot.snapshotId,
       branchName,
@@ -152,10 +215,23 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
       {actionMessage && (
         <div role="alert" className={`git-action-message git-action-${actionMessage.tone}`}>
           <span>{actionMessage.text}</span>
-          {actionMessage.showApprovalLink && (
-            <button className="btn btn-ghost" onClick={() => onNavigate('activity')}>
-              Review approval
-            </button>
+          {pendingApproval && (
+            <div className="git-approval-actions">
+              <button
+                className="btn btn-primary"
+                disabled={Boolean(approvalDecisionBusy)}
+                onClick={() => void handleApprovalDecision('approve')}
+              >
+                {approvalDecisionBusy === 'approve' ? 'Approving…' : 'Approve'}
+              </button>
+              <button
+                className="btn btn-ghost"
+                disabled={Boolean(approvalDecisionBusy)}
+                onClick={() => void handleApprovalDecision('deny')}
+              >
+                {approvalDecisionBusy === 'deny' ? 'Denying…' : 'Deny'}
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -177,7 +253,7 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
                 id="git-branch-select"
                 className="input git-branch-select"
                 value={snapshot.currentBranch ?? ''}
-                disabled={snapshot.detached || !snapshot.operations.switchBranch.available || Boolean(busyAction)}
+                disabled={snapshot.detached || !snapshot.operations.switchBranch.available || interactionLocked}
                 title={!snapshot.operations.switchBranch.available ? 'Branch switching is unavailable while Git needs attention.' : undefined}
                 onChange={(event) => handleBranchSwitch(event.target.value)}
               >
@@ -207,14 +283,14 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
           <div className="git-routine-actions">
             <button
               className="btn btn-ghost"
-              disabled={!canGetLatest || Boolean(busyAction)}
+              disabled={!canGetLatest || interactionLocked}
               onClick={() => void handleMutationResult('sync', () => window.sudD.git.sync({ expectedSnapshotId: snapshot.snapshotId }))}
             >
               {busyAction === 'sync' ? 'Getting latest…' : 'Get latest'}
             </button>
             <button
               className="btn btn-primary"
-              disabled={!canCommitAndPush || Boolean(busyAction)}
+              disabled={!canCommitAndPush || interactionLocked}
               onClick={() => void handleMutationResult('push', () => window.sudD.git.push({ expectedSnapshotId: snapshot.snapshotId }))}
             >
               {busyAction === 'push' ? 'Committing & pushing…' : 'Commit & Push'}
