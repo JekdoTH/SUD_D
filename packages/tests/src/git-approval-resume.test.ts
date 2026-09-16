@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,10 +13,12 @@ import {
 import { ok, type Workspace } from '@sud-d/domain';
 import {
   createApprovalRepository,
+  createGitSafetyAdapter,
   openDatabase,
   type GitSafetyAdapter,
   type WorkspaceRepository,
 } from '@sud-d/infrastructure';
+import { createGitCommandRunner } from '../../infrastructure/src/git-command-runner.js';
 
 const SNAPSHOT = 'a'.repeat(64);
 const WORKSPACE: Workspace = {
@@ -133,5 +136,39 @@ describe('Git page inline approval UX', () => {
     expect(gitPage).toContain('await handleMutationResult(pending.action, pending.request);');
     expect(gitPage).not.toContain("onNavigate('activity')");
     expect(gitPage).not.toContain('Review approval');
+  });
+});
+
+describe('Git trusted runner Windows line endings', () => {
+  it.skipIf(process.platform !== 'win32')('does not treat a normal CRLF checkout as a local content change', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sudd-git-crlf-status-'));
+    try {
+      const where = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'where.exe');
+      const gitExecutable = execFileSync(where, ['git'], { encoding: 'utf8' })
+        .split(/\r?\n/u)
+        .map((value) => value.trim())
+        .find(Boolean);
+      if (!gitExecutable) throw new Error('git executable not found');
+
+      execFileSync(gitExecutable, ['init', '-q'], { cwd: root });
+      execFileSync(gitExecutable, ['config', 'user.name', 'Fixture User'], { cwd: root });
+      execFileSync(gitExecutable, ['config', 'user.email', 'fixture@example.invalid'], { cwd: root });
+      fs.writeFileSync(path.join(root, 'tracked.txt'), 'first\nsecond\n', 'utf8');
+      execFileSync(gitExecutable, ['-c', 'core.autocrlf=true', 'add', '--', 'tracked.txt'], { cwd: root });
+      execFileSync(gitExecutable, ['commit', '-q', '-m', 'fixture'], { cwd: root });
+      fs.writeFileSync(path.join(root, 'tracked.txt'), 'first\r\nsecond\r\n', 'utf8');
+
+      const cliStatus = execFileSync(gitExecutable, ['-c', 'core.autocrlf=true', 'status', '--porcelain'], {
+        cwd: root,
+        encoding: 'utf8',
+      });
+      expect(cliStatus).toBe('');
+
+      const runner = createGitCommandRunner({ resolveGitExecutable: () => ok(gitExecutable) });
+      const status = createGitSafetyAdapter({ commandRunner: runner }).status(fs.realpathSync.native(root));
+      expect(status).toMatchObject({ ok: true, value: { clean: true, entries: [] } });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });
