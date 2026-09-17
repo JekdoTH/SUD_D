@@ -1,5 +1,22 @@
 # SUD_D Handoff
 
+## Windows Installer Branding — COMPLETE / Final Candidate Verified (2026-09-18)
+
+**Status: COMPLETE on `feat/windows-installer-branding`. Final candidate verified; no public release was published and Task 15–17 were not started.**
+
+- `FINAL_CANDIDATE_SOURCE_SHA`: `7a803bed80400dc312077451b479ffb43c475ddb`.
+- Version: `0.1.0`; packaged embedded Revision and signed-manifest Revision: `7a803bed80400dc312077451b479ffb43c475ddb`.
+- installer: `SUD-D Setup 0.1.0.exe`; SHA-256 `04058F0F406A790D60D310EE0DE2ADCADA880DB3D2A0DFFC1100BA99552E1A08`.
+- installer/manifest SHA-512: `f9fd1319f951a4ef1e896b6caa6fad3da74c86f30b1cb6f4f1a842d6a6eff3961dc76eb00039636201d3cbed605ed56f94da4044d38d0a6c18dc25157ad1aa2b`.
+- Windows branding uses a fixed build-time Win32 resource step before NSIS packaging from `--prepackaged`; `signAndEditExecutable=false` remains unchanged, no new dependency was added, and updater architecture/authority was unchanged.
+- packaged and installed `SUD-D.exe` RT_ICON #1 SHA-256 exactly matches approved `sud-d-app-icon.png`: `172bb88ca88a94f1c013f4f589dbf4ebdcbe2405fd6d9d241764fcb921eba467`.
+- Start Menu shortcut exists at the normal per-user location, targets the installed `SUD-D.exe`, and uses that executable as its icon source.
+- Fast Closure evidence retained: focused updater/branding 8 files / 73 tests PASS; branding tests 2/2 PASS; lint PASS; typecheck PASS; shards 1–3 PASS; prior exact shard-4 run had exit code 0 and was not rerun again after repeated MCP transport failures because source was unchanged.
+- final `pnpm build`: PASS; final candidate `pnpm package:win`: PASS; release manifest create/verify: PASS; final branch diff check: PASS.
+- real default per-user silent install: exit 0; installed app launch stayed alive after 8 seconds in an isolated app-data profile.
+- real `%LOCALAPPDATA%\SUD-D` data: 5 files before / 5 files after, SHA-256 set unchanged after install and isolated launch.
+- release keypair is stored outside the repository in the trusted local release environment; private key is not in Git or packaged app.
+
 ## Installer + In-App Update MVP — Task 13 VERIFIED / Task 14 PO Release Gate (2026-09-17)
 
 **Status: IMPLEMENTATION VERIFIED / PUBLIC RELEASE + PO REAL UPDATE ACCEPTANCE PENDING. No public release has been published.**
