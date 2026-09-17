@@ -10,7 +10,8 @@
     "build": "vite build",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "typecheck": "tsc --project tsconfig.node.json --noEmit && tsc --project tsconfig.web.json --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "package:win": "cross-env SUD_D_REQUIRE_BUILD_REVISION=1 SUD_D_REQUIRE_CLEAN_RELEASE=1 SUD_D_REQUIRE_UPDATE_PUBLIC_KEY=1 vite build && electron-builder --win nsis --publish never"
   },
   "dependencies": {
     "@sud-d/application": "workspace:*",
@@ -34,5 +35,38 @@
     "vite": "^6.3.5",
     "vite-plugin-electron": "^0.29.0",
     "vite-plugin-electron-renderer": "^0.14.6"
+  },
+  "build": {
+    "appId": "local.sudd.desktop",
+    "productName": "SUD-D",
+    "directories": {
+      "output": "../../dist-release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "src/assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "artifactName": "SUD-D Setup ${version}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "JekdoTH",
+        "repo": "SUD_D-Releases",
+        "releaseType": "release"
+      }
+    ]
   }
 }
