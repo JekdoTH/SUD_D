@@ -5,20 +5,23 @@
 **Status: IMPLEMENTATION VERIFIED / PUBLIC RELEASE + PO REAL UPDATE ACCEPTANCE PENDING. No public release has been published.**
 
 Final candidate binding:
-- `FINAL_CANDIDATE_SOURCE_SHA`: `7a17bac0e21615a65aed15005c953a1231f7ae99`.
-- candidate Version: `0.1.0`; embedded Revision and signed-manifest Revision both equal the full candidate source SHA.
-- installer: `SUD-D Setup 0.1.0.exe`; SHA-256 `17a903d4bf190f05abf73edf6341e97380296e22929e2d62c53d437b2f7599c6`.
-- installer/manifest SHA-512: `22f7e44cd237bbccaf9234353744ff79441178012f01fd8343e1d8d8cd51a925a6b21c85bf4213c0bd74ec4e9eed1ed9b334b866c5b827777b83d1cb467a116d`.
+- `FINAL_CANDIDATE_SOURCE_SHA`: `a4dbdbcb7af7423ad2047ab3fb549a481c0a5df6`.
+- candidate Version: `0.1.0`; installed-app Revision and signed-manifest Revision both equal the full candidate source SHA.
+- installer: `SUD-D Setup 0.1.0.exe`; SHA-256 `13806c08d2d6d299992ae3cc49a26716d6e77cdf32ef7713bc777a136615c6e4`.
+- installer/manifest SHA-512: `cc23b2ccbf0672604302706076a23ea53c4d77e651a60f58bb879ba5108c7d5652d62b94c41f362feea2dc68f0e9e87b7c450273ce5c59c4c8e2fdbe2b19f4d0`.
 - `package:win` used `--publish never`; tracked source was clean before and after build/verify.
+- recovery note: prior candidate `7a17bac0e21615a65aed15005c953a1231f7ae99` was invalidated after Task 14 branch diff-check exposed one extra EOF blank line in `scripts/release/create-manifest.mjs`; commit `a4dbdbc` removes only that blank line and is the newly frozen candidate source.
 
 Task 13 verification:
-- focused updater/security/data-preservation: **7 files / 70 tests PASS**.
-- affected Desktop/security regression slice, deterministic single-worker: **7 files / 71 tests PASS**.
-- `pnpm lint`: PASS; `pnpm typecheck`: PASS; `pnpm build`: PASS; `pnpm package:win`: PASS; `git diff --check`: PASS.
-- exact private signing-key bytes absent from packaged output; no `GH_TOKEN`/`GITHUB_TOKEN` value was present or embedded.
+- focused updater/security/data-preservation rerun on the new candidate source: **7 files / 70 tests PASS**.
+- affected Desktop/security regression slice remains **7 files / 71 tests PASS** from the immediately preceding verified source; it was not rerun because the recovery delta is release-tooling whitespace only and does not change runtime/Desktop code.
+- `pnpm lint`: PASS; `pnpm typecheck`: PASS; `pnpm build`: PASS; `pnpm package:win`: PASS; `git diff --check`: PASS; `git diff master...HEAD --check`: PASS.
+- local signed release verification: **PASS** — Version `0.1.0`, Revision `a4dbdbcb7af7423ad2047ab3fb549a481c0a5df6`, installer SHA-512 matches manifest SHA-512.
+- exact private signing-key bytes absent from packaged output; no `GH_TOKEN`/`GITHUB_TOKEN` value was present or embedded. Marker-name strings in packaged dependencies were inspected and were not secret values.
 - packaged update source is fixed public `JekdoTH/SUD_D-Releases`; renderer update bridge remains four zero-input fixed-purpose calls with no raw URL/process/token authority.
-- final installer smoke: non-admin/default per-user install exit `0`; real `%LOCALAPPDATA%\SUD-D` file hashes unchanged; packaged app launched with isolated app-data and displayed `SUD-D v0.1.0` / `Revision 7a17bac`.
-- custom install directory support is closed for MVP by PO approval; installer uses fixed default per-user path.
+- final installer smoke: current token non-admin; default per-user install exit `0`; real `%LOCALAPPDATA%\\SUD-D` remained **5 files before / 5 files after with identical SHA-256 hashes**; installed app launched with isolated app-data and displayed `SUD-D v0.1.0` / `Revision a4dbdbc`.
+- startup update check failed safely with GitHub `404` because no public release exists; installed app remained usable.
+- custom install directory support is closed for MVP by PO approval; installer uses fixed default per-user path with `allowToChangeInstallationDirectory=false`.
 - Task 12 deterministic A→B smoke remains PASS: no auto-download, signed manifest/hash gates enforced, explicit Restart & Update required, Workspace/SQLite/settings/credentials/audit preserved, B Version/Revision shown, one-time release summary verified.
 
 Release gate:
