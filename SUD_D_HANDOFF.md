@@ -1,5 +1,41 @@
 # SUD_D Handoff
 
+## Installer + In-App Update MVP — Task 12 Deterministic A→B Smoke PASS (2026-09-17)
+
+**Status: deterministic local A→B update smoke PASS; public GitHub release publication remained disabled.**
+
+Deterministic versions:
+
+- Version A: `0.1.0`, Revision `c7d9c69c91e9e869539c67a1ead795436657d84f`.
+- Version B: `0.1.1`, Revision `06abb5fc303143911cf75f0ccfa2f738d931ad27` on temporary local branch/worktree `smoke/update-b-20260917`.
+- B signed manifest independently verified Version/Revision and installer SHA-512 before the smoke.
+- Production GitHub update provider configuration was not weakened or redirected; the deterministic provider was injected only through the controller test seam.
+
+Flow evidence:
+
+- installed A launched from the real per-user installation and reported `SUD-D v0.1.0` / Revision `c7d9c69`.
+- A seeded one real Workspace, approval mode `approve_for_me`, connection preferences/tunnel configuration, audit history, and an isolated Windows Credential Manager entry through existing product interfaces.
+- invalid manifest signature: **REJECTED before download**.
+- valid manifest check: **available**, with **0 download calls** until explicit Download.
+- hash-mismatched artifact: **REJECTED / never ready**.
+- valid B artifact hash: **ready** after explicit Download.
+- installed executable stayed A through check/download/ready; only `restartAndInstall()` invoked the B installer.
+- deterministic smoke test result: **3/3 PASS**.
+Post-install B evidence:
+
+- real installed B launched from the same per-user install and reported `SUD-D v0.1.1` / Revision `06abb5f`.
+- Workspace ID/root remained present and active; workspace sentinel file remained intact.
+- SQLite data remained present; approval mode remained `approve_for_me`.
+- pre-update audit event IDs remained queryable after B launch; new safe credential-status audit was appended normally.
+- Windows Credential Manager entry remained present and the restarted B controller reported credential status `configured`.
+- connection tunnel/preferences survived (`tunnelConfigured=true`, `autoRestart=true`).
+- first B launch showed one-time `Updated to v0.1.1` plus the canonical New/Improved notes.
+- second B launch showed Version/Revision but no `Updated to v0.1.1` summary; persisted `update-state.json` ended as `lastSeenVersion=0.1.1`, `pendingSummary=null`.
+- no public release, upload, or GitHub write action occurred.
+
+Task 12 conclusion: **PASS**. The temporary 0.1.1 B build is deterministic smoke evidence only and is not the final Task 14 installer candidate.
+
+
 ## Installer + In-App Update MVP — Task 11 Installer Smoke PASS (2026-09-17)
 
 **Status: Task 11 local unsigned installer smoke PASS on `feat/installer-in-app-update-mvp`; no public release has been published.**
