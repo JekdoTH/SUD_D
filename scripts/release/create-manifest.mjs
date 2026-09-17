@@ -79,4 +79,3 @@ if (isMain) {
     .then(({ manifestPath, payload }) => process.stdout.write(`Wrote ${relative(process.cwd(), manifestPath)} for v${payload.version}\n`))
     .catch((error) => { process.stderr.write(`${error instanceof Error ? error.message : 'Release manifest failed.'}\n`); process.exitCode = 1; });
 }
-
