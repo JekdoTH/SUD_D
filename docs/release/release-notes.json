@@ -1,0 +1,9 @@
+{
+  "new": [
+    "Windows installer and in-app update controls"
+  ],
+  "improved": [
+    "Version and build revision are visible in the Update screen"
+  ],
+  "fixed": []
+}

@@ -1,5 +1,31 @@
 # SUD_D Handoff
 
+## Installer + In-App Update MVP — Task 11 Installer Smoke PASS (2026-09-17)
+
+**Status: Task 11 local unsigned installer smoke PASS on `feat/installer-in-app-update-mvp`; no public release has been published.**
+
+Candidate evidence:
+
+- branch/revision: `feat/installer-in-app-update-mvp` at `c7d9c69c91e9e869539c67a1ead795436657d84f`.
+- candidate: `SUD-D Setup 0.1.0.exe`; Version `0.1.0`; embedded Revision `c7d9c69c91e9e869539c67a1ead795436657d84f`.
+- installer SHA-256: `E3637CFBE5AF4F21ACD066AFBEEE566CC358599D3A717671F4C0C94D2367A8A1`.
+- `pnpm package:win`: PASS / exit 0; generated NSIS Setup, `latest.yml`, and blockmap with `--publish never`.
+- local test Ed25519 key pair lived outside the repository; `release:manifest` + `release:verify`: PASS (`Verified v0.1.0 c7d9c69…`).
+- Authenticode: `NotSigned`, as expected for Personal Alpha.
+
+Fresh-install smoke:
+
+- current Windows token: non-admin (`CURRENT_TOKEN_ADMIN=False`).
+- default per-user installer path: PASS / installer exit 0; install root `%LOCALAPPDATA%\Programs\SUD-D`.
+- installed application launch: PASS using isolated test `LOCALAPPDATA`/`APPDATA`; existing real `%LOCALAPPDATA%\SUD-D` files retained identical SHA-256 hashes before/after.
+- real renderer Update page: PASS — `SUD-D v0.1.0`, `Revision c7d9c69`; update check failed safely because no public release exists yet.
+- local isolated data root created only test SQLite/update-state files; production/developer data was not touched.
+- SmartScreen prompt: not observed for the locally built artifact because it had no browser Mark-of-the-Web; unsigned downloaded-release warning remains an accepted Alpha limitation.
+- diagnostic note: custom silent NSIS `/D=<alternate path>` smoke crashed in NSIS `System.dll`; the normal/default per-user path succeeded and is the supported Personal Alpha flow.
+- no GitHub write token/private signing key was supplied to the installed application.
+- public publication: NOT PERFORMED.
+
+
 ## Git Revision Feedback — PO ACCEPTANCE PASS / MASTER INTEGRATION AUTHORIZED (2026-09-17)
 
 **Status: implementation, bounded verification, production Electron smoke, and Product Owner manual acceptance are PASS on `feat/git-revision-feedback`. Product Owner explicitly authorized safe fast-forward integration into `master`.**
