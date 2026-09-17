@@ -20,6 +20,10 @@ describe('Windows update packaging configuration', () => {
     expect(desktopPackage.build.artifactName).toBe('SUD-D Setup ${version}.${ext}');
   });
 
+  it('keeps unsigned Personal Alpha packaging independent of winCodeSign resource editing', () => {
+    expect(desktopPackage.build.win.signAndEditExecutable).toBe(false);
+  });
+
   it('publishes metadata only to the fixed public release repository', () => {
     expect(desktopPackage.build.publish).toEqual([{
       provider: 'github',
