@@ -8,6 +8,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { RecoveryPage } from './pages/RecoveryPage';
 import { DoctorPage } from './pages/DoctorPage';
 import { TeamPage } from './pages/TeamPage';
+import { UpdatePage } from './pages/UpdatePage';
 import sudDLogo from './assets/sud-d-logo.png';
 import { UiIcon, type UiIconName } from './ui-icons';
 import { presentConnectionState, type ConnectionStatePresentation } from './connection-ui-model';
@@ -19,6 +20,7 @@ export type AppPage =
   | 'connection'
   | 'activity'
   | 'team'
+  | 'update'
   | 'security'
   | 'recovery'
   | 'environment';
@@ -30,6 +32,7 @@ const NAV_ITEMS: { id: AppPage; icon: UiIconName; label: string }[] = [
   { id: 'git', icon: 'git', label: 'Git' },
   { id: 'activity', icon: 'activity', label: 'Activity' },
   { id: 'team', icon: 'team', label: 'Team' },
+  { id: 'update', icon: 'recovery', label: 'Update' },
   { id: 'security', icon: 'security', label: 'Security' },
   { id: 'recovery', icon: 'recovery', label: 'Recovery' },
   { id: 'environment', icon: 'environment', label: 'Environment / Doctor' },
@@ -162,6 +165,7 @@ export function App(): React.ReactElement {
           {page === 'connection' && <ConnectionPage onNavigate={setPage} />}
           {page === 'activity' && <ActivityPage />}
           {page === 'team' && <TeamPage />}
+          {page === 'update' && <UpdatePage />}
           {page === 'security' && <SettingsPage />}
           {page === 'recovery' && <RecoveryPage />}
           {page === 'environment' && <DoctorPage />}
