@@ -8,7 +8,15 @@ type DesktopPackageJson = {
   scripts: Record<string, string>;
   build: {
     win: { target: string[]; signAndEditExecutable: boolean };
-    nsis: { oneClick: boolean; perMachine: boolean; allowElevation: boolean; allowToChangeInstallationDirectory: boolean };
+    nsis: {
+      oneClick: boolean;
+      perMachine: boolean;
+      allowElevation: boolean;
+      allowToChangeInstallationDirectory: boolean;
+      installerIcon: string;
+      uninstallerIcon: string;
+      installerHeaderIcon: string;
+    };
     artifactName: string;
     publish: Array<{ provider: string; owner: string; repo: string; releaseType: string }>;
     files?: unknown[];
@@ -35,6 +43,27 @@ describe('Windows update packaging configuration', () => {
 
   it('keeps unsigned Personal Alpha packaging independent of winCodeSign resource editing', () => {
     expect(desktopPackage.build.win.signAndEditExecutable).toBe(false);
+  });
+
+  it('brands the unpacked executable before NSIS and reuses the derived icon for installer surfaces', () => {
+    const script = desktopPackage.scripts['package:win'];
+    const prepare = 'node ./scripts/prepare-windows-branding.mjs';
+    const unpack = 'electron-builder --win --dir --publish never';
+    const brand = 'node ./scripts/brand-windows-package.mjs';
+    const installer = 'electron-builder --win nsis --prepackaged ../../dist-release/win-unpacked --publish never';
+
+    expect(script).toContain(prepare);
+    expect(script).toContain(unpack);
+    expect(script).toContain(brand);
+    expect(script).toContain(installer);
+    expect(script.indexOf(prepare)).toBeLessThan(script.indexOf(unpack));
+    expect(script.indexOf(unpack)).toBeLessThan(script.indexOf(brand));
+    expect(script.indexOf(brand)).toBeLessThan(script.indexOf(installer));
+    expect(desktopPackage.build.nsis).toMatchObject({
+      installerIcon: 'build/sud-d-app-icon.ico',
+      uninstallerIcon: 'build/sud-d-app-icon.ico',
+      installerHeaderIcon: 'build/sud-d-app-icon.ico',
+    });
   });
 
   it('publishes metadata only to the fixed public release repository', () => {
