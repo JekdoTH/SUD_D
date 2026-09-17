@@ -1,5 +1,42 @@
 # SUD_D Handoff
 
+## Git Revision Feedback — VERIFIED ON FEATURE BRANCH / PO ACCEPTANCE PENDING (2026-09-17)
+
+**Status: implementation and bounded verification are complete on `feat/git-revision-feedback`. Stop before `master` integration until Product Owner acceptance.**
+
+Task baseline and scope:
+
+- task-start `master`: `bb96a390f06c41ee8cd66da8ff987f37106ac948`.
+- implementation commit before this handoff update: `a6e813458e11a45527dda18345b429aea3c78bde` — `feat: add git revision feedback`.
+- Git snapshot now carries a narrow validated trusted local HEAD SHA; display truncation to 7 characters happens only in renderer presentation.
+- normal up-to-date status is `Up to date · <sha>` while existing local-change status remains unchanged.
+- approved `Get latest` exact auto-resume shows `Updating from <sha>…` only after Approval succeeds and execution actually begins; pending Approve/Deny does not claim that updating started.
+- successful no-change sync reports `Already up to date · <sha>`; changed HEAD reports `Updated <before> → <after>`.
+- Deny/error paths remain fail-closed and do not show false success/update feedback.
+- Tool Kernel, Policy, Approval coordinator, Git safety/network authority, fixed worker boundary, and renderer/preload/IPC authority are unchanged.
+
+Verification evidence:
+
+- TDD RED→GREEN covered trusted snapshot HEAD, current revision display, changed/no-change success, approved executing state, pending approval, Deny, and inline approval auto-resume regression.
+- focused affected Git/Desktop/security aggregate: **5 files / 30 tests PASS**.
+- `pnpm lint`: **PASS**.
+- Desktop typecheck: **PASS**.
+- production build: **PASS**.
+- Impeccable detector: **PASS (`[]`)** for the changed Git renderer target.
+- production Electron Git smoke: **PASS** — initial `Up to date · a6e8134`; pending approval showed no `Updating from`; Approve auto-resume exposed `Updating from a6e8134…` and completed as `Already up to date · a6e8134`; Deny produced no success message and left the worktree clean.
+- final Standards review: **PASS — 0 blocking findings**.
+- final Spec review against `SUD_D_Serena_Git_Revision_Feedback_Task.txt`: **PASS — 0 blocking findings**.
+
+Product Owner manual acceptance steps:
+
+1. Open/reload SUD-D on `feat/git-revision-feedback`, open Git, and confirm the relation line reads `Up to date · <current 7-char HEAD>` with the existing local-change line still present.
+2. Click `Get latest`; while Approve/Deny is pending, confirm the inline approval UI is unchanged and **no** `Updating from …` status is shown.
+3. Click `Approve` once; confirm the exact pending action auto-resumes without a second `Get latest`, briefly shows `Updating from <before>…`, then ends with `Already up to date · <same sha>` when no remote change exists (or `Updated <before> → <after>` when HEAD actually changes).
+4. Run `Get latest` again and click `Deny`; confirm `Git action denied.` and no `Updated …` / `Already up to date …` success message is produced for that denied attempt.
+5. Confirm the page remains on Git and the Workspace remains clean after the no-change/deny acceptance path.
+
+**STOP:** feature branch only. Do not merge/push `master`; wait for explicit Product Owner acceptance/integration instruction. Installer + In-app Update MVP remains a separate later branch/spec and is not part of this task.
+
 ## Git Inline Approval + Auto-Resume — COMPLETE / Cross-Device Acceptance PASS (2026-09-17)
 
 **Milestone: COMPLETE.** Git inline approval + auto-resume is integrated on `master`, Product Owner acceptance is complete, and cross-device acceptance has passed end-to-end.
