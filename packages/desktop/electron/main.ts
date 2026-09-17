@@ -65,6 +65,9 @@ import {
   registerDesktopOverviewStatusIpcHandlers,
   type OverviewStatusIpcMain,
 } from './overview-status-ipc.js';
+import { createDesktopUpdateController } from './update-controller.js';
+import { createElectronUpdateProvider, loadSignedReleaseManifest } from './update-provider.js';
+import { registerDesktopUpdateIpcHandlers, type UpdateIpcMain } from './update-ipc.js';
 import {
   WorkspaceAddInputSchema,
   WorkspaceSelectInputSchema,
@@ -83,8 +86,17 @@ import type { InternalRoot } from '@sud-d/domain';
 // ---------------------------------------------------------------------------
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+declare const __SUD_D_BUILD_REVISION__: string;
+declare const __SUD_D_UPDATE_PUBLIC_KEY_PEM__: string;
+
 const dataRoot = getDataRoot();
 const dbPath = path.join(dataRoot, 'sud-d.db');
+const buildRevision = typeof __SUD_D_BUILD_REVISION__ === 'string' && /^[0-9a-fA-F]{40}$/.test(__SUD_D_BUILD_REVISION__)
+  ? __SUD_D_BUILD_REVISION__.toLowerCase()
+  : '0'.repeat(40);
+const updatePublicKeyPem = typeof __SUD_D_UPDATE_PUBLIC_KEY_PEM__ === 'string'
+  ? __SUD_D_UPDATE_PUBLIC_KEY_PEM__
+  : '';
 
 const db = openDatabase(dbPath);
 const workspaceRepo = createWorkspaceRepository(db);
@@ -166,6 +178,20 @@ const diagnosticsController = createDesktopDiagnosticsController({
   connectionStatus: () => connectionService.getStatus(),
   tunnelRuntimeStatus: () => connectionRuntime.getStatus(),
   listAuditEvents: (limit, excludeActions) => auditRepo.list(limit, excludeActions),
+});
+const updateController = createDesktopUpdateController({
+  currentVersion: app.getVersion(),
+  currentRevision: buildRevision,
+  publicKeyPem: updatePublicKeyPem,
+  provider: createElectronUpdateProvider(),
+  loadSignedManifest: loadSignedReleaseManifest,
+  isPackaged: app.isPackaged,
+  orderlyShutdown: async () => {
+    const stopped = connectionService.stop();
+    if (!stopped.ok) throw new Error('UPDATE_SHUTDOWN_CONNECTION_FAILED');
+    await gitController.dispose();
+    db.close();
+  },
 });
 
 // ---------------------------------------------------------------------------
@@ -363,6 +389,11 @@ function registerIpcHandlers(): void {
     overviewStatusController,
     validateDesktopSender,
   );
+  registerDesktopUpdateIpcHandlers(
+    ipcMain as unknown as UpdateIpcMain,
+    updateController,
+    validateDesktopSender,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -447,6 +478,7 @@ function createWindow(): BrowserWindow {
 app.whenReady().then(() => {
   registerIpcHandlers();
   createWindow();
+  updateController.checkOnStartup();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

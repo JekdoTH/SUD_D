@@ -42,6 +42,7 @@ import {
   type DesktopConnectionPreferencesUpdateInput,
   type DesktopConnectionSnapshotDto,
   type DesktopConnectionTunnelSetupInput,
+  type DesktopUpdateStatusDto,
 } from '@sud-d/contracts';
 
 // ---------------------------------------------------------------------------
@@ -146,6 +147,16 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_TUNNEL_SETUP, input) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
     updatePreferences: (input: DesktopConnectionPreferencesUpdateInput): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>
       ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_PREFERENCES_UPDATE, input) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
+  },
+  update: {
+    status: (): Promise<IpcResult<DesktopUpdateStatusDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.UPDATE_STATUS) as Promise<IpcResult<DesktopUpdateStatusDto>>,
+    check: (): Promise<IpcResult<DesktopUpdateStatusDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.UPDATE_CHECK) as Promise<IpcResult<DesktopUpdateStatusDto>>,
+    download: (): Promise<IpcResult<DesktopUpdateStatusDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.UPDATE_DOWNLOAD) as Promise<IpcResult<DesktopUpdateStatusDto>>,
+    restartAndInstall: (): Promise<IpcResult<null>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.UPDATE_RESTART_AND_INSTALL) as Promise<IpcResult<null>>,
   },
   doctor: {
     check: (): Promise<IpcResult<DoctorCheckDto>> =>

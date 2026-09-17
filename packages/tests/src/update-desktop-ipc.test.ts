@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
+import { registerDesktopUpdateIpcHandlers } from '../../desktop/electron/update-ipc.js';
+
 import {
   DesktopUpdateStatusDtoSchema,
   IPC_CHANNELS,
@@ -89,5 +91,50 @@ describe('Desktop update provider security', () => {
     expect(source).not.toContain('GH_TOKEN');
     expect(source).not.toContain('process.env.GH');
     expect(source).not.toMatch(/providerUrl|rendererUrl|input\.url/);
+  });
+});
+
+describe('Desktop update IPC boundary', () => {
+  function harness(senderValid = true) {
+    const handlers = new Map<string, (event: { sender: unknown }, raw?: unknown) => unknown>();
+    const ipcMain = { handle: (channel: string, listener: (event: { sender: unknown }, raw?: unknown) => unknown) => handlers.set(channel, listener) };
+    const controller = {
+      getStatus: () => status(),
+      check: async () => ({ ok: true as const, value: status({ phase: 'up_to_date' }) }),
+      download: async () => ({ ok: true as const, value: status({ phase: 'ready', targetVersion: '0.2.0', targetRevision: SHA }) }),
+      restartAndInstall: async () => ({ ok: true as const, value: null }),
+      checkOnStartup: () => undefined,
+    };
+    registerDesktopUpdateIpcHandlers(ipcMain, controller, () => senderValid);
+    return handlers;
+  }
+
+  it('rejects invalid senders and any update action input', async () => {
+    const invalid = harness(false);
+    await expect(invalid.get(IPC_CHANNELS.UPDATE_CHECK)?.({ sender: {} })).resolves.toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
+    const valid = harness(true);
+    await expect(valid.get(IPC_CHANNELS.UPDATE_DOWNLOAD)?.({ sender: {} }, { url: 'https://example.test' })).resolves.toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
+  });
+
+  it('validates controller status before returning it to renderer', async () => {
+    const handlers = new Map<string, (event: { sender: unknown }, raw?: unknown) => unknown>();
+    const ipcMain = { handle: (channel: string, listener: (event: { sender: unknown }, raw?: unknown) => unknown) => handlers.set(channel, listener) };
+    const controller = {
+      getStatus: () => ({ ...status(), filePath: 'C:\\secret\\setup.exe' }),
+      check: async () => ({ ok: true as const, value: status() }),
+      download: async () => ({ ok: true as const, value: status() }),
+      restartAndInstall: async () => ({ ok: true as const, value: null }),
+      checkOnStartup: () => undefined,
+    };
+    registerDesktopUpdateIpcHandlers(ipcMain, controller as never, () => true);
+    expect(handlers.get(IPC_CHANNELS.UPDATE_STATUS)?.({ sender: {} })).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
+  });
+
+  it('preload exposes exactly four fixed update methods without raw ipcRenderer', () => {
+    const source = readFileSync(new URL('../../desktop/electron/preload.ts', import.meta.url), 'utf8');
+    expect(source).toContain('update: {');
+    for (const name of ['status', 'check', 'download', 'restartAndInstall']) expect(source).toContain(`${name}:`);
+    expect(source).not.toContain('update: ipcRenderer');
+    expect(source).not.toMatch(/update:\s*\{[^}]*url:/s);
   });
 });

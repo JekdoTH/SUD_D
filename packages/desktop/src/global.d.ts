@@ -40,6 +40,7 @@ import type {
   DesktopConnectionPreferencesUpdateInput,
   DesktopConnectionSnapshotDto,
   DesktopConnectionTunnelSetupInput,
+  DesktopUpdateStatusDto,
 } from '@sud-d/contracts';
 
 interface SudDApi {
@@ -102,6 +103,12 @@ interface SudDApi {
     removeCredential(input: DesktopConnectionCredentialRemoveInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
     configureTunnel(input: DesktopConnectionTunnelSetupInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
     updatePreferences(input: DesktopConnectionPreferencesUpdateInput): Promise<IpcResult<DesktopConnectionSnapshotDto>>;
+  };
+  update: {
+    status(): Promise<IpcResult<DesktopUpdateStatusDto>>;
+    check(): Promise<IpcResult<DesktopUpdateStatusDto>>;
+    download(): Promise<IpcResult<DesktopUpdateStatusDto>>;
+    restartAndInstall(): Promise<IpcResult<null>>;
   };
   doctor: {
     check(): Promise<IpcResult<DoctorCheckDto>>;
