@@ -1,4 +1,8 @@
-import type { DesktopUpdateStatusDto, IpcResult } from '@sud-d/contracts';
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { UpdateReleaseNotesDtoSchema, UpdateSemVerSchema, type DesktopUpdateStatusDto, type IpcResult, type UpdateReleaseNotesDto } from '@sud-d/contracts';
+import { getDataRoot } from '@sud-d/infrastructure';
 
 import { sha512FileHex, verifyReleaseEnvelope, type VerifiedReleaseManifest } from './update-manifest.js';
 import type { UpdateProvider } from './update-provider.js';
@@ -21,6 +25,15 @@ type UpdateControllerDeps = {
   loadSignedManifest: SignedManifestLoader;
   orderlyShutdown: () => Promise<void>;
   isPackaged: boolean;
+  stateFilePath?: string;
+};
+
+type PersistedUpdateState = {
+  lastSeenVersion: string;
+  pendingSummary: {
+    version: string;
+    releaseNotes: UpdateReleaseNotesDto;
+  } | null;
 };
 
 const SAFE_MESSAGES = Object.freeze({
@@ -45,6 +58,43 @@ function cloneStatus(status: DesktopUpdateStatusDto): DesktopUpdateStatusDto {
   };
 }
 
+function cloneReleaseNotes(notes: UpdateReleaseNotesDto): UpdateReleaseNotesDto {
+  return {
+    new: [...notes.new],
+    improved: [...notes.improved],
+    fixed: [...notes.fixed],
+  };
+}
+
+function readPersistedUpdateState(filePath: string): PersistedUpdateState | undefined {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+    const record = parsed as Record<string, unknown>;
+    if (Object.keys(record).sort().join(',') !== 'lastSeenVersion,pendingSummary') return undefined;
+    if (!UpdateSemVerSchema.safeParse(record.lastSeenVersion).success) return undefined;
+    if (record.pendingSummary === null) {
+      return { lastSeenVersion: record.lastSeenVersion as string, pendingSummary: null };
+    }
+    if (!record.pendingSummary || typeof record.pendingSummary !== 'object' || Array.isArray(record.pendingSummary)) return undefined;
+    const summary = record.pendingSummary as Record<string, unknown>;
+    if (Object.keys(summary).sort().join(',') !== 'releaseNotes,version') return undefined;
+    const version = UpdateSemVerSchema.safeParse(summary.version);
+    const releaseNotes = UpdateReleaseNotesDtoSchema.safeParse(summary.releaseNotes);
+    if (!version.success || !releaseNotes.success) return undefined;
+    return { lastSeenVersion: record.lastSeenVersion as string, pendingSummary: { version: version.data, releaseNotes: releaseNotes.data } };
+  } catch {
+    return undefined;
+  }
+}
+
+function writePersistedUpdateState(filePath: string, state: PersistedUpdateState): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(tempPath, JSON.stringify(state), { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(tempPath, filePath);
+}
+
 function compareSemVer(left: string, right: string): number | undefined {
   const pattern = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
   if (!pattern.test(left) || !pattern.test(right)) {
@@ -65,6 +115,20 @@ function errorResult<T>(code: string, message: string): IpcResult<T> {
 }
 
 export function createDesktopUpdateController(deps: UpdateControllerDeps): DesktopUpdateController {
+  const stateFilePath = deps.stateFilePath ?? path.join(getDataRoot(), 'update-state.json');
+  let postUpdateSummary: UpdateReleaseNotesDto | undefined;
+  if (deps.isPackaged) {
+    const persisted = readPersistedUpdateState(stateFilePath);
+    if (!persisted) {
+      writePersistedUpdateState(stateFilePath, { lastSeenVersion: deps.currentVersion, pendingSummary: null });
+    } else if (persisted.lastSeenVersion !== deps.currentVersion) {
+      if (persisted.pendingSummary?.version === deps.currentVersion) {
+        postUpdateSummary = cloneReleaseNotes(persisted.pendingSummary.releaseNotes);
+      }
+      writePersistedUpdateState(stateFilePath, { lastSeenVersion: deps.currentVersion, pendingSummary: null });
+    }
+  }
+
   let busy = false;
   let verifiedManifest: VerifiedReleaseManifest | undefined;
   let downloadedPath: string | undefined;
@@ -81,6 +145,14 @@ export function createDesktopUpdateController(deps: UpdateControllerDeps): Deskt
 
   const setStatus = (next: DesktopUpdateStatusDto) => {
     status = cloneStatus(next);
+  };
+
+  const publicStatus = (): DesktopUpdateStatusDto => {
+    const visible = cloneStatus(status);
+    if (postUpdateSummary && visible.targetVersion === null) {
+      visible.releaseNotes = cloneReleaseNotes(postUpdateSummary);
+    }
+    return visible;
   };
 
   const clearTarget = (
@@ -122,7 +194,7 @@ export function createDesktopUpdateController(deps: UpdateControllerDeps): Deskt
   async function check(): Promise<IpcResult<DesktopUpdateStatusDto>> {
     if (!deps.isPackaged) {
       clearTarget('unavailable', null);
-      return { ok: true, value: cloneStatus(status) };
+      return { ok: true, value: publicStatus() };
     }
     if (busy) {
       return errorResult('UPDATE_BUSY', SAFE_MESSAGES.busy);
@@ -134,7 +206,7 @@ export function createDesktopUpdateController(deps: UpdateControllerDeps): Deskt
       const providerResult = await deps.provider.check();
       if (!providerResult.available) {
         clearTarget('up_to_date', null);
-        return { ok: true, value: cloneStatus(status) };
+        return { ok: true, value: publicStatus() };
       }
 
       const manifestResult = verifyReleaseEnvelope(await deps.loadSignedManifest(), deps.publicKeyPem);
@@ -152,7 +224,7 @@ export function createDesktopUpdateController(deps: UpdateControllerDeps): Deskt
       verifiedManifest = manifestResult.value;
       downloadedPath = undefined;
       setStatus(makeTargetStatus('available', manifestResult.value));
-      return { ok: true, value: cloneStatus(status) };
+      return { ok: true, value: publicStatus() };
     } catch {
       clearTarget('error', 'CHECK_FAILED');
       return errorResult('CHECK_FAILED', SAFE_MESSAGES.check);
@@ -184,7 +256,7 @@ export function createDesktopUpdateController(deps: UpdateControllerDeps): Deskt
 
       downloadedPath = downloaded.filePath;
       setStatus(makeTargetStatus('ready', manifest));
-      return { ok: true, value: cloneStatus(status) };
+      return { ok: true, value: publicStatus() };
     } catch {
       clearTarget('error', 'DOWNLOAD_FAILED');
       return errorResult('DOWNLOAD_FAILED', SAFE_MESSAGES.download);
@@ -203,6 +275,13 @@ export function createDesktopUpdateController(deps: UpdateControllerDeps): Deskt
 
     busy = true;
     try {
+      writePersistedUpdateState(stateFilePath, {
+        lastSeenVersion: deps.currentVersion,
+        pendingSummary: {
+          version: verifiedManifest.version,
+          releaseNotes: cloneReleaseNotes(verifiedManifest.releaseNotes),
+        },
+      });
       await deps.orderlyShutdown();
       deps.provider.restartAndInstall();
       return { ok: true, value: null };
@@ -215,7 +294,7 @@ export function createDesktopUpdateController(deps: UpdateControllerDeps): Deskt
   }
 
   return {
-    getStatus: () => cloneStatus(status),
+    getStatus: publicStatus,
     check,
     download,
     restartAndInstall,

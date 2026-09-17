@@ -10,6 +10,7 @@ export type UpdatePresentation = {
   productVersion: string;
   revision: string;
   statusText: string;
+  postUpdateSummaryTitle: string | null;
   noteSections: UpdateNoteSection[];
   primaryAction: 'download' | 'restart' | null;
   checkDisabled: boolean;
@@ -41,6 +42,10 @@ export function presentUpdateStatus(status: DesktopUpdateStatusDto): UpdatePrese
     statusText = status.errorCode ? ERROR_COPY[status.errorCode] : 'Update status is unavailable.';
   }
 
+  const postUpdateSummaryTitle = status.targetVersion === null && status.releaseNotes !== null
+    ? `Updated to v${status.currentVersion}`
+    : null;
+
   const noteSections: UpdateNoteSection[] = [];
   if (status.releaseNotes?.new.length) noteSections.push({ heading: 'New', items: [...status.releaseNotes.new] });
   if (status.releaseNotes?.improved.length) noteSections.push({ heading: 'Improved', items: [...status.releaseNotes.improved] });
@@ -50,6 +55,7 @@ export function presentUpdateStatus(status: DesktopUpdateStatusDto): UpdatePrese
     productVersion: `SUD-D v${status.currentVersion}`,
     revision: `Revision ${status.currentRevision.slice(0, 7)}`,
     statusText,
+    postUpdateSummaryTitle,
     noteSections,
     primaryAction: status.phase === 'available' ? 'download' : status.phase === 'ready' ? 'restart' : null,
     checkDisabled: ['checking', 'downloading', 'verifying', 'unavailable'].includes(status.phase),
@@ -163,7 +169,8 @@ export function UpdatePage(): React.ReactElement {
 
           {view.noteSections.length > 0 && (
             <section className="update-notes" aria-labelledby="update-notes-title">
-              <h2 id="update-notes-title">What&apos;s new</h2>
+              <h2 id="update-notes-title">{view.postUpdateSummaryTitle ?? <>What&apos;s new</>}</h2>
+              {view.postUpdateSummaryTitle && <p className="update-summary-copy">Changes in this update</p>}
               <div className="update-note-sections">
                 {view.noteSections.map((section) => (
                   <div className="update-note-section" key={section.heading}>

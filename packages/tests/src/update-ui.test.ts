@@ -100,4 +100,29 @@ describe('Update page presentation', () => {
     expect(pageSource).toContain('window.sudD.update.restartAndInstall()');
     expect(pageSource).not.toMatch(/filePath|installerPath|downloadUrl|manifestUrl|https?:\/\//);
   });
+
+  it('presents one-time post-update notes as an installed-version summary', () => {
+    const view = presentUpdateStatus(status({
+      phase: 'up_to_date',
+      currentVersion: '0.2.0',
+      targetVersion: null,
+      targetRevision: null,
+      releaseNotes: {
+        new: ['Windows installer and in-app update controls'],
+        improved: ['Version and build revision are visible in Update'],
+        fixed: [],
+      },
+    }));
+
+    expect(view.postUpdateSummaryTitle).toBe('Updated to v0.2.0');
+    expect(view.noteSections.map((section) => section.heading)).toEqual(['New', 'Improved']);
+  });
+
+  it('uses the post-update summary copy without adding another privileged update action', () => {
+    const source = readFileSync(new URL('../../desktop/src/pages/UpdatePage.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('Changes in this update');
+    expect(source).toContain('Updated to v');
+    expect(source).not.toContain('acknowledge(');
+  });
+
 });

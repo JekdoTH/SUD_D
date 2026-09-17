@@ -1,5 +1,5 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -79,17 +79,20 @@ function makeController(options: {
   loadSignedManifest?: () => Promise<unknown>;
   orderlyShutdown?: () => Promise<void>;
   isPackaged?: boolean;
+  currentVersion?: string;
+  stateFilePath?: string;
 } = {}) {
   const provider = options.provider ?? new FakeProvider();
   const calls: string[] = [];
   const controller = createDesktopUpdateController({
-    currentVersion: CURRENT_VERSION,
+    currentVersion: options.currentVersion ?? CURRENT_VERSION,
     currentRevision: CURRENT_REVISION,
     publicKeyPem,
     provider,
     loadSignedManifest: options.loadSignedManifest ?? (async () => signedManifest()),
     orderlyShutdown: options.orderlyShutdown ?? (async () => { calls.push('shutdown'); }),
     isPackaged: options.isPackaged ?? true,
+    ...(options.stateFilePath ? { stateFilePath: options.stateFilePath } : {}),
   });
   return { controller, provider, calls };
 }
@@ -276,4 +279,66 @@ describe('desktop update controller', () => {
     await expect(controller.check()).resolves.toMatchObject({ ok: true, value: { phase: 'unavailable' } });
     expect(provider.checkCalls).toBe(0);
   });
+
+  it('exposes cached release notes once after the installed version increases', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sud-d-update-state-'));
+    const stateFilePath = join(directory, 'update-state.json');
+    await writeFile(stateFilePath, JSON.stringify({
+      lastSeenVersion: '0.1.0',
+      pendingSummary: {
+        version: '0.2.0',
+        releaseNotes: { new: ['Installer updates'], improved: ['Safer restart'], fixed: [] },
+      },
+    }));
+
+    const first = makeController({ currentVersion: '0.2.0', stateFilePath }).controller;
+    expect(first.getStatus()).toMatchObject({
+      currentVersion: '0.2.0',
+      targetVersion: null,
+      releaseNotes: { new: ['Installer updates'], improved: ['Safer restart'], fixed: [] },
+    });
+    expect(JSON.parse(await readFile(stateFilePath, 'utf8'))).toEqual({
+      lastSeenVersion: '0.2.0',
+      pendingSummary: null,
+    });
+
+    const second = makeController({ currentVersion: '0.2.0', stateFilePath }).controller;
+    expect(second.getStatus().releaseNotes).toBeNull();
+  });
+
+  it('does not fabricate a post-update summary for a fresh install', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sud-d-update-fresh-'));
+    const stateFilePath = join(directory, 'update-state.json');
+    const { controller } = makeController({ currentVersion: '0.2.0', stateFilePath });
+
+    expect(controller.getStatus().releaseNotes).toBeNull();
+    expect(JSON.parse(await readFile(stateFilePath, 'utf8'))).toEqual({
+      lastSeenVersion: '0.2.0',
+      pendingSummary: null,
+    });
+  });
+
+  it('persists only the target version and release notes before restart', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'sud-d-update-pending-'));
+    const stateFilePath = join(directory, 'update-state.json');
+    const provider = new FakeProvider();
+    provider.checkImpl = async () => ({ available: true, info: { version: '0.2.0' } });
+    provider.downloadImpl = async () => ({ filePath: await createArtifact() });
+    const { controller } = makeController({ provider, stateFilePath });
+    await controller.check();
+    await controller.download();
+
+    await expect(controller.restartAndInstall()).resolves.toEqual({ ok: true, value: null });
+    const persisted = JSON.parse(await readFile(stateFilePath, 'utf8'));
+    expect(persisted).toEqual({
+      lastSeenVersion: CURRENT_VERSION,
+      pendingSummary: {
+        version: '0.2.0',
+        releaseNotes: { new: ['Installer updates'], improved: [], fixed: [] },
+      },
+    });
+    expect(JSON.stringify(persisted)).not.toContain(publicKeyPem.trim());
+    expect(Object.keys(persisted).sort()).toEqual(['lastSeenVersion', 'pendingSummary']);
+  });
+
 });
