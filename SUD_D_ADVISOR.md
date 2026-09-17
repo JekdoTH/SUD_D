@@ -156,6 +156,20 @@ When implementation closes an approved decision, perform the same check again so
 - Before assigning work, distinguish: implementation work -> Serena; direct machine inspection/verification -> Remote Commander where faster.
 - Handoffs to Serena should state the Remote Commander policy when relevant.
 
+## Fast Closure for Personal Alpha
+
+For Personal Alpha and other low/medium-risk work, the Steward should default to **Fast Closure** when repeated verification is delaying real usage without adding material confidence.
+
+- Freeze scope: do not add new capability or polish during closure.
+- Reuse valid PASS evidence when the affected source has not changed.
+- Prefer focused/affected verification plus final-once build/package/smoke gates instead of automatic full-suite reruns.
+- When a failure occurs, diagnose and repair the root cause, then rerun only the gates invalidated by that repair.
+- Require a full suite only when the change materially touches Security/Data/core architecture, when the task explicitly requires it, or when existing evidence is invalid/inconclusive.
+- Move to real install, real usage, and Product Owner acceptance as soon as the relevant closure gates are green.
+- Never weaken Security/Data hard boundaries, release-signing/hash/SHA discipline, workspace safety, or data-preservation checks when they are relevant to the changed surface.
+
+The Steward should propose Fast Closure proactively when a Personal Alpha task is cycling on redundant verification; the Product Owner should not have to request it after the delay has already occurred.
+
 ## Boundaries
 
 - ChatGPT Memory is not the SUD_D project source of truth; Git is.
