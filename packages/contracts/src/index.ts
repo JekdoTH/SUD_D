@@ -51,8 +51,51 @@ export const IPC_CHANNELS = {
   APP_OPEN_CHATGPT_WEB: 'app:openChatGPTWeb',
   APP_OPEN_OPENAI_API_KEYS_PAGE: 'app:openOpenAiApiKeysPage',
   APP_OPEN_OPENAI_TUNNEL_SETTINGS_PAGE: 'app:openOpenAiTunnelSettingsPage',
+  UPDATE_STATUS: 'update:status',
+  UPDATE_CHECK: 'update:check',
+  UPDATE_DOWNLOAD: 'update:download',
+  UPDATE_RESTART_AND_INSTALL: 'update:restart-and-install',
 } as const;
 
+// ---------------------------------------------------------------------------
+// Desktop update DTOs — fixed-purpose, renderer-safe metadata only
+// ---------------------------------------------------------------------------
+
+export const UpdateSemVerSchema = z.string().regex(/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/);
+export const UpdateRevisionSchema = z.string().regex(/^[0-9a-fA-F]{40}$/);
+const UpdateReleaseNoteItemSchema = z.string().min(1).max(1000);
+
+export const UpdateReleaseNotesDtoSchema = z.object({
+  new: z.array(UpdateReleaseNoteItemSchema).max(50),
+  improved: z.array(UpdateReleaseNoteItemSchema).max(50),
+  fixed: z.array(UpdateReleaseNoteItemSchema).max(50),
+}).strict();
+export type UpdateReleaseNotesDto = z.infer<typeof UpdateReleaseNotesDtoSchema>;
+
+export const DesktopUpdatePhaseSchema = z.enum([
+  'idle', 'checking', 'up_to_date', 'available', 'downloading',
+  'verifying', 'ready', 'error', 'unavailable',
+]);
+export type DesktopUpdatePhase = z.infer<typeof DesktopUpdatePhaseSchema>;
+
+export const DesktopUpdateErrorCodeSchema = z.enum([
+  'CHECK_FAILED', 'DOWNLOAD_FAILED', 'VERIFY_FAILED', 'INSTALL_FAILED',
+]);
+
+export const DesktopUpdateStatusDtoSchema = z.object({
+  phase: DesktopUpdatePhaseSchema,
+  currentVersion: UpdateSemVerSchema,
+  currentRevision: UpdateRevisionSchema,
+  targetVersion: UpdateSemVerSchema.nullable(),
+  targetRevision: UpdateRevisionSchema.nullable(),
+  progressPercent: z.number().min(0).max(100).nullable(),
+  releaseNotes: UpdateReleaseNotesDtoSchema.nullable(),
+  errorCode: DesktopUpdateErrorCodeSchema.nullable(),
+}).strict();
+export type DesktopUpdateStatusDto = z.infer<typeof DesktopUpdateStatusDtoSchema>;
+
+export const UpdateActionInputSchema = z.object({}).strict();
+export type UpdateActionInput = z.infer<typeof UpdateActionInputSchema>;
 // ---------------------------------------------------------------------------
 // Workspace IPC schemas
 // ---------------------------------------------------------------------------
