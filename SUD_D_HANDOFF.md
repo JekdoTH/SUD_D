@@ -1,5 +1,30 @@
 # SUD_D Handoff
 
+## Installer + In-App Update MVP — Task 13 VERIFIED / Task 14 PO Release Gate (2026-09-17)
+
+**Status: IMPLEMENTATION VERIFIED / PUBLIC RELEASE + PO REAL UPDATE ACCEPTANCE PENDING. No public release has been published.**
+
+Final candidate binding:
+- `FINAL_CANDIDATE_SOURCE_SHA`: `7a17bac0e21615a65aed15005c953a1231f7ae99`.
+- candidate Version: `0.1.0`; embedded Revision and signed-manifest Revision both equal the full candidate source SHA.
+- installer: `SUD-D Setup 0.1.0.exe`; SHA-256 `17a903d4bf190f05abf73edf6341e97380296e22929e2d62c53d437b2f7599c6`.
+- installer/manifest SHA-512: `22f7e44cd237bbccaf9234353744ff79441178012f01fd8343e1d8d8cd51a925a6b21c85bf4213c0bd74ec4e9eed1ed9b334b866c5b827777b83d1cb467a116d`.
+- `package:win` used `--publish never`; tracked source was clean before and after build/verify.
+
+Task 13 verification:
+- focused updater/security/data-preservation: **7 files / 70 tests PASS**.
+- affected Desktop/security regression slice, deterministic single-worker: **7 files / 71 tests PASS**.
+- `pnpm lint`: PASS; `pnpm typecheck`: PASS; `pnpm build`: PASS; `pnpm package:win`: PASS; `git diff --check`: PASS.
+- exact private signing-key bytes absent from packaged output; no `GH_TOKEN`/`GITHUB_TOKEN` value was present or embedded.
+- packaged update source is fixed public `JekdoTH/SUD_D-Releases`; renderer update bridge remains four zero-input fixed-purpose calls with no raw URL/process/token authority.
+- final installer smoke: non-admin/default per-user install exit `0`; real `%LOCALAPPDATA%\SUD-D` file hashes unchanged; packaged app launched with isolated app-data and displayed `SUD-D v0.1.0` / `Revision 7a17bac`.
+- custom install directory support is closed for MVP by PO approval; installer uses fixed default per-user path.
+- Task 12 deterministic A→B smoke remains PASS: no auto-download, signed manifest/hash gates enforced, explicit Restart & Update required, Workspace/SQLite/settings/credentials/audit preserved, B Version/Revision shown, one-time release summary verified.
+
+Release gate:
+- proposed release notes: New — Windows installer and in-app update controls. Improved — Version and build revision are visible in the Update screen. Fixed — none.
+- Task 15–17 and any public release publication remain blocked until explicit PO approval for a named version.
+
 ## Installer + In-App Update MVP — Task 13 Security/Quality Gate (2026-09-17)
 
 **Status: verification in progress; final candidate build and Task 14 push pending. No public release has been published.**
