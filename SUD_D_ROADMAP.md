@@ -312,6 +312,21 @@ The Restricted Verify slice must remain narrow:
 
 General shell / broader Execute remains outside the critical path unless separately approved.
 
+### Restricted Project Runner / Self-Development - Approved Post-Installer Direction
+
+After Installer + In-App Update real release acceptance, the next development-enablement plan must include a minimal Restricted Project Runner so an installed SUD_D can develop the SUD_D source Workspace without relying on an external unrestricted shell.
+
+Durable intent:
+
+- user commands continue to come through normal SUD_D chat/agent workflows; no separate CLI-first user workflow is required;
+- reuse/extend the existing Restricted Verify path where practical rather than creating a parallel execution subsystem;
+- support the project-declared development actions actually needed for self-development, starting from existing verification actions and bounded packaging/release-candidate actions such as the repository's `package:win` workflow;
+- keep execution Workspace-bound, audited, and behind Tool Kernel / Policy / Approval where applicable;
+- do not expose caller-controlled arbitrary executable, argv, cwd, env, shell, raw command text, or generic process authority;
+- the goal is installed SUD_D -> open SUD_D source Workspace -> edit -> verify/build/package -> Git, while preserving the existing security architecture.
+
+This is an approved capability direction, not authorization to implement a general shell. Exact command allowlisting, project-profile discovery, packaging approval semantics, and UI belong in the next explicit design/implementation task.
+
 ### Incremental Production MCP Exposure
 
 Production MCP exposure is no longer treated as one monolithic late gate. Approved capability slices may be exposed incrementally **only after their own required Kernel/Policy/security/verification gates pass**.

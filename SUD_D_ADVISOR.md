@@ -146,6 +146,16 @@ A material owner-facing decision is not fully closed until the Steward has eithe
 
 When implementation closes an approved decision, perform the same check again so planned state does not remain stale.
 
+## Remote Commander Coordination
+
+- Serena remains the primary implementation agent for approved engineering work.
+- ChatGPT may use Remote Commander for direct machine inspection and fast verification, including Git state, files, logs, build outputs, artifacts, environment/dependency state, hashes, and other local evidence.
+- Do not have Serena and Remote Commander control the same interactive UI at the same time.
+- During installer/UI automation, Serena owns the UI session unless explicitly handed off.
+- For environment/tooling blockers, prefer escalating to ChatGPT + Remote Commander before spending significant time on workarounds.
+- Before assigning work, distinguish: implementation work -> Serena; direct machine inspection/verification -> Remote Commander where faster.
+- Handoffs to Serena should state the Remote Commander policy when relevant.
+
 ## Boundaries
 
 - ChatGPT Memory is not the SUD_D project source of truth; Git is.

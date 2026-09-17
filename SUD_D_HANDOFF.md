@@ -1,5 +1,17 @@
 # SUD_D Handoff
 
+## Installer + In-App Update MVP - Task 14 COMPLETE / Feature Branch Published (2026-09-17)
+
+**Status: TASK 14 COMPLETE. Final candidate remains verified; feature branch is published; master and public release remain untouched.**
+
+- `FINAL_CANDIDATE_SOURCE_SHA`: `a4dbdbcb7af7423ad2047ab3fb549a481c0a5df6`.
+- `FINAL_FEATURE_BRANCH_HEAD`: `0a1b10ad3eb34624a057a662e15cfef2271289a2`.
+- local and remote `feat/installer-in-app-update-mvp` both equal `0a1b10ad3eb34624a057a662e15cfef2271289a2`.
+- local `master`, `origin/master`, and remote `master` remain `5c9a3dc99d3caa22e92b50d0e5fd02ea0ce7f222`.
+- no force push, no master mutation, no Task 15-17 execution, and no public release publication occurred.
+- next release gate remains explicit Product Owner approval for the named release before Task 15-17.
+- approved post-installer planning direction: preserve the Remote Commander coordination rules in `SUD_D_ADVISOR.md`, and include Restricted Project Runner / Self-Development in the next development-enablement plan after real installer/update release acceptance.
+
 ## Installer + In-App Update MVP — Task 13 VERIFIED / Task 14 PO Release Gate (2026-09-17)
 
 **Status: IMPLEMENTATION VERIFIED / PUBLIC RELEASE + PO REAL UPDATE ACCEPTANCE PENDING. No public release has been published.**
