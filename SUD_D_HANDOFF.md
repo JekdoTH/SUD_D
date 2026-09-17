@@ -1,5 +1,24 @@
 # SUD_D Handoff
 
+## Git Inline Approval + Auto-Resume — Product Owner Acceptance Passed (2026-09-17)
+
+**Status: implementation and Product Owner acceptance are complete on `fix/git-inline-approval-resume`. Product Owner explicitly authorized fast-forward integration into `master` without waiting for an additional cross-device Get latest check.**
+
+Accepted verification evidence:
+
+- focused affected verification: **PASS** — build/typecheck plus the Git approval, Desktop, security, network, and execution-diagnostics slice passed; latest focused run was **5 files / 56 tests**.
+- real `git.sync`: **PASS** — Standard approval produced `APPROVAL_REQUIRED`, Approve resumed the exact pending action, and execution completed successfully without a second Git click.
+- real `git.push`: **PASS** — Standard approval produced `APPROVAL_REQUIRED`, Approve resumed the exact pending action, and execution completed successfully.
+- production Electron UI smoke: **PASS** — `Get latest` and `Commit & Push` displayed Approve/Deny inline on Git; Approve auto-resumed; Deny did not execute; worktree remained clean.
+- Home PC manual Product Owner acceptance: **PASS** — `Commit & Push` Approve path and Deny path were both exercised and accepted by the Product Owner.
+
+Closure authorization:
+
+- Product Owner accepted the current verification as sufficient for integration.
+- do not wait for another cross-device `Get latest` before merge.
+- integrate only by normal fast-forward into `master`, then push `master` normally.
+- no force, reset, rebase, clean, or discard of user work.
+
 ## Simple Git Workflow — Product Owner Acceptance Passed (2026-09-16)
 
 **Status: implementation, startup repair, Security-tier verification, and Product Owner acceptance are complete on `feat/simple-git-workflow`. Product Owner approved cleanup of the acceptance artifact plus fast-forward integration into `master`.**
