@@ -1,8 +1,8 @@
 # SUD_D Handoff
 
-## Git Inline Approval + Auto-Resume — Product Owner Acceptance Passed (2026-09-17)
+## Git Inline Approval + Auto-Resume — COMPLETE / Cross-Device Acceptance PASS (2026-09-17)
 
-**Status: implementation and Product Owner acceptance are complete on `fix/git-inline-approval-resume`. Product Owner explicitly authorized fast-forward integration into `master` without waiting for an additional cross-device Get latest check.**
+**Milestone: COMPLETE.** Git inline approval + auto-resume is integrated on `master`, Product Owner acceptance is complete, and cross-device acceptance has passed end-to-end.
 
 Accepted verification evidence:
 
@@ -12,12 +12,22 @@ Accepted verification evidence:
 - production Electron UI smoke: **PASS** — `Get latest` and `Commit & Push` displayed Approve/Deny inline on Git; Approve auto-resumed; Deny did not execute; worktree remained clean.
 - Home PC manual Product Owner acceptance: **PASS** — `Commit & Push` Approve path and Deny path were both exercised and accepted by the Product Owner.
 
-Closure authorization:
+Cross-device acceptance evidence:
 
-- Product Owner accepted the current verification as sufficient for integration.
-- do not wait for another cross-device `Get latest` before merge.
-- integrate only by normal fast-forward into `master`, then push `master` normally.
-- no force, reset, rebase, clean, or discard of user work.
+- Home PC pushed the acceptance change to `master` successfully.
+- Work PC ran `Get latest` → `Approve` → automatic resume successfully.
+- The Work PC flow completed without requiring a second `Get latest` click.
+- The cross-device acceptance test file was cleaned up after verification.
+- Cleanup `Commit & Push` completed successfully.
+- Final Work PC state: **Up to date / No local changes**.
+
+Closure:
+
+- cross-device Git acceptance: **PASS**.
+- Git inline approval + auto-resume milestone: **COMPLETE**.
+- the accepted normal flow is `Get latest` or `Commit & Push` → inline `Approve` → automatic resume of the exact pending Git action.
+- no additional cross-device acceptance pass is required for this milestone.
+- future Git capability changes must continue to preserve the existing Tool Kernel → Policy → Approval → Execution boundary.
 
 ## Simple Git Workflow — Product Owner Acceptance Passed (2026-09-16)
 
