@@ -42,6 +42,7 @@ export interface GitWorkspaceSnapshot {
   readonly clean: boolean;
   readonly changedFiles: number;
   readonly truncated: boolean;
+  readonly headSha?: string;
   readonly currentBranch?: string;
   readonly detached: boolean;
   readonly branches: readonly { readonly name: string; readonly current: boolean; readonly checkedOutElsewhere: boolean }[];
@@ -262,6 +263,7 @@ function buildSnapshot(workspace: Workspace, inspection: GitWorkspaceInspection,
     else relation = 'unavailable';
   }
   const status = inspection.status;
+  const headSha = status?.headSha ?? inspection.detect.headSha;
   const repository = !inspection.detect.isRepository ? 'not_repository' : inspection.detect.isSupported ? 'ready' : 'unsupported';
   const clean = status?.clean ?? true;
   const changedFiles = status?.entries.length ?? 0;
@@ -282,7 +284,8 @@ function buildSnapshot(workspace: Workspace, inspection: GitWorkspaceInspection,
   const available = (value: boolean, reason: string): GitOperationAvailability => value ? { available: true } : { available: false, reason };
   return ok({
     workspace: { id: workspace.id, displayName: workspace.displayName }, snapshotId, repository, repositoryState: inspection.detect.state,
-    clean, changedFiles, truncated: status?.truncated ?? false, ...(currentBranch ? { currentBranch } : {}), detached: inspection.detect.detached ?? false,
+    clean, changedFiles, truncated: status?.truncated ?? false, ...(headSha ? { headSha } : {}),
+    ...(currentBranch ? { currentBranch } : {}), detached: inspection.detect.detached ?? false,
     branches: inspection.branches, defaultBranch, primaryRemote: primary, ...(inspection.upstreamBranch ? { upstreamBranch: inspection.upstreamBranch } : {}),
     relation, ...(ahead === undefined ? {} : { ahead }), ...(behind === undefined ? {} : { behind }), authStatus: 'unknown',
     operations: {

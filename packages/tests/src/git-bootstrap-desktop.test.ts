@@ -201,6 +201,8 @@ describe('Git Bootstrap - Desktop Git controller', () => {
     const app = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/App.tsx'), 'utf8');
     const icons = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/ui-icons.tsx'), 'utf8');
     const gitPage = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/GitPage.tsx'), 'utf8');
+    const gitRevisionFeedback = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/git-revision-feedback.ts'), 'utf8');
+    const gitUiSource = gitPage + '\n' + gitRevisionFeedback;
 
     expect(app).toContain("| 'git'");
     expect(app.indexOf("{ id: 'git', icon: 'git', label: 'Git' }")).toBeGreaterThan(app.indexOf("{ id: 'workspaces'"));
@@ -223,7 +225,7 @@ describe('Git Bootstrap - Desktop Git controller', () => {
       'Approve',
       'Deny',
     ]) {
-      expect(gitPage).toContain(copy);
+      expect(gitUiSource).toContain(copy);
     }
 
     for (const advancedCopy of [
@@ -242,7 +244,7 @@ describe('Git Bootstrap - Desktop Git controller', () => {
     expect(gitPage).toContain('window.sudD.approval.respond({');
     expect(gitPage).toContain('const pending = pendingApproval;');
     expect(gitPage).toContain('approvalRequestId: pending.approvalRequestId');
-    expect(gitPage).toContain('await handleMutationResult(pending.action, pending.request);');
+    expect(gitPage).toContain('await handleMutationResult(pending.action, pending.request, {');
     expect(gitPage).toContain('window.sudD.git.snapshot()');
     expect(gitPage).toContain('window.sudD.git.switch(');
     expect(gitPage).toContain('window.sudD.git.sync(');

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { DesktopGitSnapshotDto, IpcResult } from '@sud-d/contracts';
 import type { AppPage } from '../App';
+import { presentGitRevisionFeedback } from '../git-revision-feedback';
 
 interface GitPageProps {
   readonly onNavigate: (page: AppPage) => void;
@@ -14,16 +15,12 @@ type PendingGitApproval = {
   readonly action: string;
   readonly approvalRequestId: string;
   readonly request: () => Promise<IpcResult<DesktopGitSnapshotDto>>;
+  readonly beforeHeadSha?: string;
 };
 
-const RELATION_COPY: Record<DesktopGitSnapshotDto['relation'], string> = {
-  unknown: 'Needs attention',
-  up_to_date: 'Up to date',
-  local_ahead: 'Local commits to push',
-  remote_ahead: 'Changes on GitHub',
-  diverged: 'Needs attention',
-  no_upstream: 'Ready to publish',
-  unavailable: 'Needs attention',
+type GitMutationFeedbackOptions = {
+  readonly beforeHeadSha?: string;
+  readonly announceSyncStart?: boolean;
 };
 
 export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
@@ -35,6 +32,7 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
   const [actionMessage, setActionMessage] = useState<ActionMessage>(null);
   const [pendingApproval, setPendingApproval] = useState<PendingGitApproval | null>(null);
   const [approvalDecisionBusy, setApprovalDecisionBusy] = useState<'approve' | 'deny' | ''>('');
+  const [syncExecutionFrom, setSyncExecutionFrom] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
   const approvalResponding = useRef(false);
   const mutationVersion = useRef(0);
@@ -74,9 +72,15 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
   const handleMutationResult = useCallback(async (
     action: string,
     request: () => Promise<IpcResult<DesktopGitSnapshotDto>>,
+    options: GitMutationFeedbackOptions = {},
   ): Promise<void> => {
     mutationVersion.current += 1;
     setBusyAction(action);
+    setSyncExecutionFrom(
+      action === 'sync' && options.announceSyncStart && options.beforeHeadSha
+        ? options.beforeHeadSha
+        : null,
+    );
     setActionMessage(null);
     try {
       const result = await request();
@@ -84,7 +88,10 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
         setPendingApproval(null);
         setSnapshot(result.value);
         setLoadError('');
-        setActionMessage({ tone: 'success', text: gitSuccessMessage(action) });
+        setActionMessage({
+          tone: 'success',
+          text: gitSuccessMessage(action, options.beforeHeadSha, result.value.headSha),
+        });
         return;
       }
       if (result.error.code === 'GIT_STATUS_STALE') {
@@ -111,7 +118,12 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
           });
           return;
         }
-        setPendingApproval({ action, approvalRequestId, request });
+        setPendingApproval({
+          action,
+          approvalRequestId,
+          request,
+          ...(options.beforeHeadSha ? { beforeHeadSha: options.beforeHeadSha } : {}),
+        });
         setActionMessage({
           tone: 'warning',
           text: 'Approval required before this GitHub action can run.',
@@ -128,6 +140,7 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
       });
     } finally {
       setBusyAction('');
+      setSyncExecutionFrom(null);
     }
   }, [refreshSnapshot]);
 
@@ -156,7 +169,10 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
       }
 
       setPendingApproval(null);
-      await handleMutationResult(pending.action, pending.request);
+      await handleMutationResult(pending.action, pending.request, {
+        ...(pending.beforeHeadSha ? { beforeHeadSha: pending.beforeHeadSha } : {}),
+        announceSyncStart: pending.action === 'sync',
+      });
     } catch {
       setPendingApproval(null);
       setActionMessage({
@@ -180,8 +196,18 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
   };
 
   const repositoryReady = snapshot?.repository === 'ready';
-  const relationCopy = snapshot ? RELATION_COPY[snapshot.relation] : 'Needs attention';
-  const relationTone = snapshot ? gitRelationTone(snapshot.relation) : 'warning';
+  const relationCopy = snapshot
+    ? syncExecutionFrom
+      ? presentGitRevisionFeedback({ kind: 'updating', headSha: syncExecutionFrom })
+      : presentGitRevisionFeedback({
+          kind: 'status',
+          relation: snapshot.relation,
+          ...(snapshot.headSha ? { headSha: snapshot.headSha } : {}),
+        })
+    : 'Needs attention';
+  const relationTone = syncExecutionFrom
+    ? 'info'
+    : snapshot ? gitRelationTone(snapshot.relation) : 'warning';
   const attentionCopy = snapshot ? gitAttentionCopy(snapshot) : '';
   const canGetLatest = Boolean(
     snapshot
@@ -284,7 +310,11 @@ export function GitPage({ onNavigate }: GitPageProps): React.ReactElement {
             <button
               className="btn btn-ghost"
               disabled={!canGetLatest || interactionLocked}
-              onClick={() => void handleMutationResult('sync', () => window.sudD.git.sync({ expectedSnapshotId: snapshot.snapshotId }))}
+              onClick={() => void handleMutationResult(
+                'sync',
+                () => window.sudD.git.sync({ expectedSnapshotId: snapshot.snapshotId }),
+                snapshot.headSha ? { beforeHeadSha: snapshot.headSha } : {},
+              )}
             >
               {busyAction === 'sync' ? 'Getting latest…' : 'Get latest'}
             </button>
@@ -398,8 +428,15 @@ function gitErrorCopy(code: string): string {
   }
 }
 
-function gitSuccessMessage(action: string): string {
-  if (action === 'sync') return 'Up to date.';
+function gitSuccessMessage(action: string, beforeHeadSha?: string, afterHeadSha?: string): string {
+  if (action === 'sync') {
+    if (!beforeHeadSha) return 'Up to date.';
+    return presentGitRevisionFeedback({
+      kind: 'sync_success',
+      beforeHeadSha,
+      ...(afterHeadSha ? { afterHeadSha } : {}),
+    });
+  }
   if (action === 'push') return 'Committed and pushed.';
   if (action === 'switch') return 'Branch changed.';
   return 'Git action completed.';

@@ -139,7 +139,7 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
     const service = f.create(f.deps) as GitWorkspaceService;
 
     const tracking = service.snapshot();
-    expect(tracking).toMatchObject({ ok: true, value: { primaryRemote: { state: 'resolved', name: 'upstream' }, defaultBranch: { state: 'known', branch: 'trunk' }, relation: 'up_to_date' } });
+    expect(tracking).toMatchObject({ ok: true, value: { headSha: 'a'.repeat(40), primaryRemote: { state: 'resolved', name: 'upstream' }, defaultBranch: { state: 'known', branch: 'trunk' }, relation: 'up_to_date' } });
     if (!tracking.ok) return;
 
     f.setInspection({ ...f.getInspection(), trackingRemote: undefined, upstreamBranch: undefined });
@@ -157,6 +157,18 @@ describe('Git Bootstrap - GitWorkspaceService', () => {
     expect(service.snapshot()).toMatchObject({ ok: true, value: { primaryRemote: { state: 'missing' } } });
   });
 
+  it('uses the trusted status HEAD as the current revision when detect and status observations differ', () => {
+    const f = fixture();
+    if (typeof f.create !== 'function') throw new Error('missing service');
+    f.setInspection({
+      ...f.getInspection(),
+      detect: { ...f.getInspection().detect, headSha: 'a'.repeat(40) },
+      status: { ...f.getInspection().status!, headSha: 'c'.repeat(40), statusId: 'c'.repeat(64) },
+    });
+    const service = f.create(f.deps) as GitWorkspaceService;
+
+    expect(service.snapshot()).toMatchObject({ ok: true, value: { headSha: 'c'.repeat(40) } });
+  });
   it('keeps snapshotId sensitive to trusted status, branch, remote, tracking, and persisted Primary Remote state', () => {
     const f = fixture();
     if (typeof f.create !== 'function') throw new Error('missing service');

@@ -310,6 +310,7 @@ export const DesktopGitSnapshotDtoSchema = z.object({
   clean: z.boolean(),
   changedFiles: z.number().int().min(0).max(500),
   truncated: z.boolean(),
+  headSha: z.string().regex(/^[0-9a-f]{40,64}$/).optional(),
   currentBranch: GitBranchNameSchema.optional(),
   detached: z.boolean(),
   branches: z.array(DesktopGitBranchDtoSchema).max(500),
