@@ -58,7 +58,7 @@
       "oneClick": false,
       "perMachine": false,
       "allowElevation": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": false
     },
     "artifactName": "SUD-D Setup ${version}.${ext}",
     "publish": [

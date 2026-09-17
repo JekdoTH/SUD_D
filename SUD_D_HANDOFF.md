@@ -1,5 +1,17 @@
 # SUD_D Handoff
 
+## Installer + In-App Update MVP — Task 13 Security/Quality Gate (2026-09-17)
+
+**Status: verification in progress; final candidate build and Task 14 push pending. No public release has been published.**
+
+- Product Owner approved closing custom installation-directory support after the normal interactive Browse flow reproduced the installer crash seen with the earlier `/D=<alternate path>` diagnostic.
+- MVP installer remains per-user/no-admin on its normal path and now fixes the installation location by setting `allowToChangeInstallationDirectory=false`.
+- Focused packaging regression was RED with the old config and GREEN after the bounded config change: **6/6 PASS**.
+- focused updater/security/data-preservation suite: **7 files / 70 tests PASS**.
+- affected Desktop/security regression slice, rerun deterministically with one worker: **7 files / 71 tests PASS**.
+- `pnpm lint`: **PASS**; `pnpm typecheck`: **PASS** after test-only typing corrections required by the full repo gate.
+- custom-path crash evidence remains diagnostic; no generic process/network authority, renderer privilege, public publishing authority, or installer elevation was added.
+- Task 15–17 remain blocked on explicit PO release approval for a named version.
 ## Installer + In-App Update MVP — Task 12 Deterministic A→B Smoke PASS (2026-09-17)
 
 **Status: deterministic local A→B update smoke PASS; public GitHub release publication remained disabled.**

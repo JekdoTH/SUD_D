@@ -6,9 +6,13 @@ import { join, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+// @ts-expect-error -- trusted release tooling is intentionally implemented as ESM JavaScript.
 import { bumpVersion } from '../../../scripts/release/bump-version.mjs';
+// @ts-expect-error -- trusted release tooling is intentionally implemented as ESM JavaScript.
 import { createReleaseManifest } from '../../../scripts/release/create-manifest.mjs';
+// @ts-expect-error -- trusted release tooling is intentionally implemented as ESM JavaScript.
 import { renderReleaseNotes } from '../../../scripts/release/render-release-notes.mjs';
+// @ts-expect-error -- trusted release tooling is intentionally implemented as ESM JavaScript.
 import { verifyRelease } from '../../../scripts/release/verify-release.mjs';
 
 const SCRIPT_ROOT = resolve(import.meta.dirname, '../../../scripts/release');

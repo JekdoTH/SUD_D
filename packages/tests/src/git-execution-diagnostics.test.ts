@@ -91,7 +91,7 @@ describe('Git execution failure diagnostics', () => {
       hasCredential: () => false,
       mcpGatewayAvailable: () => true,
       tunnelClientAvailable: () => true,
-      connectionStatus: () => ({ state: 'stopped' }),
+      connectionStatus: () => ({ state: 'stopped', session: null, error: null }),
       tunnelRuntimeStatus: () => ({ state: 'stopped' }),
       listAuditEvents: () => [event],
     });

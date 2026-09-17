@@ -2,8 +2,21 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-const rootPackage = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')) as Record<string, any>;
-const desktopPackage = JSON.parse(readFileSync(new URL('../../desktop/package.json', import.meta.url), 'utf8')) as Record<string, any>;
+type RootPackageJson = { scripts: Record<string, string> };
+type DesktopPackageJson = {
+  version: string;
+  scripts: Record<string, string>;
+  build: {
+    win: { target: string[]; signAndEditExecutable: boolean };
+    nsis: { oneClick: boolean; perMachine: boolean; allowElevation: boolean; allowToChangeInstallationDirectory: boolean };
+    artifactName: string;
+    publish: Array<{ provider: string; owner: string; repo: string; releaseType: string }>;
+    files?: unknown[];
+  };
+};
+
+const rootPackage = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')) as RootPackageJson;
+const desktopPackage = JSON.parse(readFileSync(new URL('../../desktop/package.json', import.meta.url), 'utf8')) as DesktopPackageJson;
 const viteSource = readFileSync(new URL('../../desktop/vite.config.ts', import.meta.url), 'utf8');
 
 const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
@@ -15,7 +28,7 @@ describe('Windows update packaging configuration', () => {
       oneClick: false,
       perMachine: false,
       allowElevation: false,
-      allowToChangeInstallationDirectory: true,
+      allowToChangeInstallationDirectory: false,
     });
     expect(desktopPackage.build.artifactName).toBe('SUD-D Setup ${version}.${ext}');
   });

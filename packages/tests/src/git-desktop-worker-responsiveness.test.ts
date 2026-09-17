@@ -25,7 +25,8 @@ describe('Desktop Git worker responsiveness', () => {
         });
       });
     `;
-    const controller = createDesktopGitWorkerController(new Worker(workerScript, { eval: true }));
+    const worker = new Worker(workerScript, { eval: true }) as unknown as NonNullable<Parameters<typeof createDesktopGitWorkerController>[0]>;
+    const controller = createDesktopGitWorkerController(worker);
 
     let responseResolved = false;
     const pending = controller.snapshot().then((result) => {

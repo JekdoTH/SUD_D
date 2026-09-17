@@ -6,6 +6,7 @@ import { registerDesktopUpdateIpcHandlers } from '../../desktop/electron/update-
 
 import {
   DesktopUpdateStatusDtoSchema,
+  type DesktopUpdateStatusDto,
   IPC_CHANNELS,
   UpdateActionInputSchema,
   UpdateReleaseNotesDtoSchema,
@@ -99,9 +100,9 @@ describe('Desktop update IPC boundary', () => {
     const handlers = new Map<string, (event: { sender: unknown }, raw?: unknown) => unknown>();
     const ipcMain = { handle: (channel: string, listener: (event: { sender: unknown }, raw?: unknown) => unknown) => handlers.set(channel, listener) };
     const controller = {
-      getStatus: () => status(),
-      check: async () => ({ ok: true as const, value: status({ phase: 'up_to_date' }) }),
-      download: async () => ({ ok: true as const, value: status({ phase: 'ready', targetVersion: '0.2.0', targetRevision: SHA }) }),
+      getStatus: () => status() as DesktopUpdateStatusDto,
+      check: async () => ({ ok: true as const, value: status({ phase: 'up_to_date' }) as DesktopUpdateStatusDto }),
+      download: async () => ({ ok: true as const, value: status({ phase: 'ready', targetVersion: '0.2.0', targetRevision: SHA }) as DesktopUpdateStatusDto }),
       restartAndInstall: async () => ({ ok: true as const, value: null }),
       checkOnStartup: () => undefined,
     };

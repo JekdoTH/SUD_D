@@ -6,7 +6,7 @@ This guide is for the approved two-user Personal Alpha only. Installers are unsi
 
 1. Obtain `SUD-D Setup <version>.exe` only from the official SUD-D Personal Alpha release location approved by the Product Owner.
 2. Confirm the expected Version/Revision from the release notes before running it.
-3. Run the installer as the current Windows user. Normal installation is per-user and must not require administrator elevation.
+3. Run the installer as the current Windows user. Normal installation is per-user, uses the default SUD-D install location, and must not require administrator elevation. Custom installation directories are not supported in this Personal Alpha MVP.
 4. If Windows SmartScreen warns about the unsigned Alpha, use **More info → Run anyway** only when you personally trust the artifact and its source.
 5. Launch SUD-D and open **Update**.
 6. Confirm the displayed `SUD-D v<version>` and `Revision <7-char>` match the approved release.
@@ -42,4 +42,4 @@ Before public publication, the local unsigned candidate `SUD-D Setup 0.1.0.exe` 
 
 The local build had no Mark-of-the-Web, so a SmartScreen prompt was not observed in this local smoke. The artifact is Authenticode `NotSigned`; a warning after real browser download remains an accepted Personal Alpha limitation and must not be bypassed unless the user personally trusts the official artifact.
 
-A custom silent NSIS `/D=<alternate path>` harness crashed inside NSIS `System.dll`; the supported/default per-user install path completed with installer exit `0`. This affects only the local alternate-path smoke harness and is not the normal installation flow.
+Custom-path diagnostics found crashes both with the silent NSIS `/D=<alternate path>` harness and with the normal interactive Browse flow on this Windows test machine. The Product Owner approved closing custom installation-directory support for this MVP. The supported path is the fixed default per-user install location; the installer configuration disables changing the installation directory.
