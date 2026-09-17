@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -72,5 +74,20 @@ describe('Desktop update contracts', () => {
       targetRevision: SHA.toUpperCase(),
       releaseNotes: { new: ['Installer'], improved: [], fixed: [] },
     })).success).toBe(true);
+  });
+});
+
+
+describe('Desktop update provider security', () => {
+  it('keeps the real updater fixed-purpose, manual, and token-free', () => {
+    const source = readFileSync(new URL('../../desktop/electron/update-provider.ts', import.meta.url), 'utf8');
+    expect(source).toContain("autoUpdater.autoDownload = false");
+    expect(source).toContain("autoUpdater.autoInstallOnAppQuit = false");
+    expect(source).toContain("JekdoTH");
+    expect(source).toContain("SUD_D-Releases");
+    expect(source).toContain("https://github.com/JekdoTH/SUD_D-Releases/releases/latest/download/sud-d-release.json");
+    expect(source).not.toContain('GH_TOKEN');
+    expect(source).not.toContain('process.env.GH');
+    expect(source).not.toMatch(/providerUrl|rendererUrl|input\.url/);
   });
 });
