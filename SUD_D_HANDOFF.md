@@ -1,8 +1,8 @@
 # SUD_D Handoff
 
-## Git Revision Feedback — VERIFIED ON FEATURE BRANCH / PO ACCEPTANCE PENDING (2026-09-17)
+## Git Revision Feedback — PO ACCEPTANCE PASS / MASTER INTEGRATION AUTHORIZED (2026-09-17)
 
-**Status: implementation and bounded verification are complete on `feat/git-revision-feedback`. Stop before `master` integration until Product Owner acceptance.**
+**Status: implementation, bounded verification, production Electron smoke, and Product Owner manual acceptance are PASS on `feat/git-revision-feedback`. Product Owner explicitly authorized safe fast-forward integration into `master`.**
 
 Task baseline and scope:
 
@@ -27,15 +27,16 @@ Verification evidence:
 - final Standards review: **PASS — 0 blocking findings**.
 - final Spec review against `SUD_D_Serena_Git_Revision_Feedback_Task.txt`: **PASS — 0 blocking findings**.
 
-Product Owner manual acceptance steps:
+Product Owner manual acceptance: **PASS**
 
-1. Open/reload SUD-D on `feat/git-revision-feedback`, open Git, and confirm the relation line reads `Up to date · <current 7-char HEAD>` with the existing local-change line still present.
-2. Click `Get latest`; while Approve/Deny is pending, confirm the inline approval UI is unchanged and **no** `Updating from …` status is shown.
-3. Click `Approve` once; confirm the exact pending action auto-resumes without a second `Get latest`, briefly shows `Updating from <before>…`, then ends with `Already up to date · <same sha>` when no remote change exists (or `Updated <before> → <after>` when HEAD actually changes).
-4. Run `Get latest` again and click `Deny`; confirm `Git action denied.` and no `Updated …` / `Already up to date …` success message is produced for that denied attempt.
-5. Confirm the page remains on Git and the Workspace remains clean after the no-change/deny acceptance path.
+- current revision display: **PASS**.
+- pending `Get latest` approval does not show `Updating from …`: **PASS**.
+- Approve resumes the exact pending action automatically: **PASS**.
+- no-change success reports `Already up to date · <sha>`: **PASS**.
+- Deny reports `Git action denied.` with no false success message: **PASS**.
+- final Workspace state: **No local changes**.
 
-**STOP:** feature branch only. Do not merge/push `master`; wait for explicit Product Owner acceptance/integration instruction. Installer + In-app Update MVP remains a separate later branch/spec and is not part of this task.
+Integration authorization: Product Owner explicitly approved a normal fast-forward merge of `feat/git-revision-feedback` into `master`, followed by a normal `master` push and local/remote SHA verification. No force/reset/rebase/clean/discard is authorized. Installer + In-app Update MVP remains a separate later branch/spec and is not part of this task.
 
 ## Git Inline Approval + Auto-Resume — COMPLETE / Cross-Device Acceptance PASS (2026-09-17)
 
