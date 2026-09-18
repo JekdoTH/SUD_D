@@ -50,12 +50,12 @@ function assertNoSymlinks(directory) {
 rmSync(runtimeRoot, { recursive: true, force: true });
 runPnpm(['--filter', '@sud-d/mcp-gateway...', 'build']);
 runPnpm([
-  '--ignore-scripts',
+  '--config.inject-workspace-packages=true',
   '--config.node-linker=hoisted',
+  '--ignore-scripts',
   '--filter',
   '@sud-d/mcp-gateway',
   'deploy',
-  '--legacy',
   '--prod',
   runtimeRoot,
 ]);
