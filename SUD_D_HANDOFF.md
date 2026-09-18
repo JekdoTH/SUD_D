@@ -1,5 +1,29 @@
 # SUD_D Handoff
 
+## Installer + In-App Update MVP — COMPLETE / PO REAL A→B ACCEPTED (2026-09-18)
+
+**Status: COMPLETE for Personal Alpha. Real installed-app update path is verified end to end and accepted by the PO.**
+
+- Public release repository: `JekdoTH/SUD_D-Releases`.
+- Early public `v0.1.0` / `v0.1.1` exposed two bounded updater issues during real acceptance:
+  1. same-version check classification used version presence instead of `isUpdateAvailable`;
+  2. the Windows `--prepackaged` branding pipeline omitted `resources/app-update.yml`, so installed builds had no production update feed configuration.
+- Both root causes were fixed without broadening updater authority. Packaging now injects the fixed GitHub feed config before NSIS packaging:
+  `JekdoTH/SUD_D-Releases`, provider `github`, release type `release`.
+- `v0.1.2` was published and used once as the bootstrap installer because older installed builds could not self-repair the missing feed configuration.
+- Bootstrap install `v0.1.0 → v0.1.2` completed with exit 0 and preserved existing product data. Post-bootstrap state retained 2 Workspaces, 1 connection profile, 6 approval requests, Team mission/work-item/handoff records, and schema state; audit count increased only from normal runtime activity.
+- `v0.1.3` was then published as the real higher Version B. `FINAL_CANDIDATE_SOURCE_SHA`: `26fff79847863b6fd043d936ba599a6265727de8`.
+- `v0.1.3` installer SHA-256: `260f80b5dd8d128034dc42bdf390768199d61f819d8c354859655964a92ca52e`.
+- `v0.1.3` installer SHA-512: `6cc74daf3cf82d1db7d06b47ec0a56f9b1c54791d409f07f34f7896833d1d8ab6e611b28ecd6bcec07fff2babbf57f7d460ca55c85644405135684aaeb61f27f`.
+- Real in-app update `v0.1.2 → v0.1.3` succeeded through Check for Updates → Download Update → Restart & Update.
+- PO acceptance screenshot confirmed installed `SUD-D v0.1.3`, Revision `26fff79`, status `up to date`, and one-time `Updated to v0.1.3` release summary.
+- Post-update machine verification confirmed installed Version `0.1.3`, embedded Revision `26fff79847863b6fd043d936ba599a6265727de8`, production `app-update.yml` present, and `update-state.json` at `lastSeenVersion: 0.1.3` with no pending summary.
+- Post-update data verification retained 2 Workspaces, 1 connection profile, 6 approval requests, Team mission/work-item/handoff records, and schema state. Database size remained `827392` bytes; audit count increased only with expected runtime/update activity.
+- Fast Closure was applied: only invalidated updater/packaging gates were rerun; Security/Data hard gates were preserved.
+- `master` remains untouched at `5c9a3dc99d3caa22e92b50d0e5fd02ea0ce7f222`.
+- Next product direction after integration is the approved Restricted Project Runner / Self-Development design task; do not start implementation until the PO chooses the integration/next-task scope.
+
+
 ## Public Personal Alpha v0.1.0 — PUBLISHED / v0.1.1 Fix Candidate Ready (2026-09-18)
 
 **Status: v0.1.0 is published publicly as Version A. A bounded v0.1.1 updater fix is verified and packaged but is NOT published; explicit PO approval for v0.1.1 remains required.**
