@@ -1,7 +1,7 @@
 # Restricted Project Runner / Self-Development Implementation Plan
 
-**Date:** 2026-09-18  
-**Design:** `docs/superpowers/specs/2026-09-18-restricted-project-runner-self-development-design.md`  
+**Date:** 2026-09-18
+**Design:** `docs/superpowers/specs/2026-09-18-restricted-project-runner-self-development-design.md`
 **Implementation baseline:** `e1160d9e251cb57d119cd3996e4bb0985a878acb`
 
 ## Task Contract
