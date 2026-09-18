@@ -2,6 +2,8 @@ import { request } from 'node:https';
 
 import { autoUpdater } from 'electron-updater';
 
+import { normalizeElectronUpdateCheckResult } from './update-provider-result';
+
 export const RELEASE_OWNER = 'JekdoTH';
 export const RELEASE_REPO = 'SUD_D-Releases';
 export const RELEASE_MANIFEST_URL = 'https://github.com/JekdoTH/SUD_D-Releases/releases/latest/download/sud-d-release.json';
@@ -107,8 +109,7 @@ export function createElectronUpdateProvider(): UpdateProvider {
     async check() {
       try {
         const result = await autoUpdater.checkForUpdates();
-        const version = result?.updateInfo?.version;
-        return version ? { available: true, info: { version } } : { available: false };
+        return normalizeElectronUpdateCheckResult(result);
       } catch {
         throw new Error('UPDATE_PROVIDER_CHECK_FAILED');
       }
