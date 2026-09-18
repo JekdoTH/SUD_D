@@ -1,4 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
@@ -20,6 +24,7 @@ type DesktopPackageJson = {
     artifactName: string;
     publish: Array<{ provider: string; owner: string; repo: string; releaseType: string }>;
     files?: unknown[];
+    extraResources?: Array<{ from: string; to: string; filter?: string[] }>;
   };
 };
 
@@ -67,6 +72,59 @@ describe('Windows update packaging configuration', () => {
       uninstallerIcon: 'build/sud-d-app-icon.ico',
       installerHeaderIcon: 'build/sud-d-app-icon.ico',
     });
+  });
+
+  it('ships and verifies the MCP Gateway runtime in Windows resources', () => {
+    expect(desktopPackage.build.extraResources).toContainEqual({
+      from: 'build/mcp-gateway-runtime',
+      to: 'mcp-gateway',
+      filter: ['dist/**/*', 'node_modules/**/*', 'package.json'],
+    });
+
+    const script = desktopPackage.scripts['package:win'];
+    const prepareGateway = 'node ./scripts/prepare-mcp-gateway-runtime.mjs';
+    const unpack = 'electron-builder --win --dir --publish never';
+    const verifyGateway = 'node ./scripts/verify-windows-package.mjs';
+    expect(script).toContain(prepareGateway);
+    expect(script).toContain(verifyGateway);
+    expect(script.indexOf(prepareGateway)).toBeLessThan(script.indexOf(unpack));
+    expect(script.indexOf(unpack)).toBeLessThan(script.indexOf(verifyGateway));
+  });
+
+  it('fails artifact verification when the packaged MCP Gateway entrypoint is missing', () => {
+    const unpackedDir = mkdtempSync(path.join(tmpdir(), 'sud-d-package-verify-'));
+    const verifier = fileURLToPath(new URL('../../desktop/scripts/verify-windows-package.mjs', import.meta.url));
+    try {
+      const missing = spawnSync(process.execPath, [verifier, '--unpacked-dir', unpackedDir], {
+        encoding: 'utf8',
+      });
+      expect(missing.status).toBe(1);
+      expect(missing.stderr).toContain('mcp-gateway/dist/stdio-entry.js');
+
+      const entry = path.join(unpackedDir, 'resources', 'mcp-gateway', 'dist', 'stdio-entry.js');
+      mkdirSync(path.dirname(entry), { recursive: true });
+      writeFileSync(entry, 'console.error("gateway");\n', 'utf8');
+
+      const nativeBinding = path.join(
+        unpackedDir,
+        'resources',
+        'mcp-gateway',
+        'node_modules',
+        'better-sqlite3',
+        'build',
+        'Release',
+        'better_sqlite3.node',
+      );
+      mkdirSync(path.dirname(nativeBinding), { recursive: true });
+      writeFileSync(nativeBinding, 'native-binding-fixture', 'utf8');
+
+      const present = spawnSync(process.execPath, [verifier, '--unpacked-dir', unpackedDir], {
+        encoding: 'utf8',
+      });
+      expect(present.status).toBe(0);
+    } finally {
+      rmSync(unpackedDir, { recursive: true, force: true });
+    }
   });
 
   it('publishes metadata only to the fixed public release repository', () => {

@@ -11,7 +11,7 @@
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "typecheck": "tsc --project tsconfig.node.json --noEmit && tsc --project tsconfig.web.json --noEmit",
     "preview": "vite preview",
-    "package:win": "cross-env SUD_D_REQUIRE_BUILD_REVISION=1 SUD_D_REQUIRE_CLEAN_RELEASE=1 SUD_D_REQUIRE_UPDATE_PUBLIC_KEY=1 vite build && node ./scripts/prepare-windows-branding.mjs && electron-builder --win --dir --publish never && node ./scripts/ensure-app-update-config.mjs && node ./scripts/brand-windows-package.mjs && electron-builder --win nsis --prepackaged ../../dist-release/win-unpacked --publish never"
+    "package:win": "node ./scripts/prepare-mcp-gateway-runtime.mjs && cross-env SUD_D_REQUIRE_BUILD_REVISION=1 SUD_D_REQUIRE_CLEAN_RELEASE=1 SUD_D_REQUIRE_UPDATE_PUBLIC_KEY=1 vite build && node ./scripts/prepare-windows-branding.mjs && electron-builder --win --dir --publish never && node ./scripts/verify-windows-package.mjs && node ./scripts/ensure-app-update-config.mjs && node ./scripts/brand-windows-package.mjs && electron-builder --win nsis --prepackaged ../../dist-release/win-unpacked --publish never"
   },
   "dependencies": {
     "@sud-d/application": "workspace:*",
@@ -47,6 +47,17 @@
       "dist-electron/**/*",
       "src/assets/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/mcp-gateway-runtime",
+        "to": "mcp-gateway",
+        "filter": [
+          "dist/**/*",
+          "node_modules/**/*",
+          "package.json"
+        ]
+      }
     ],
     "win": {
       "target": [
