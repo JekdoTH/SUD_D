@@ -168,7 +168,7 @@ This replaces the old local packaging dependency on an externally configured pub
 `package_win` preserves the existing package pipeline's hard gates:
 
 - full Git revision is required;
-- tracked worktree must be clean;
+- tracked worktree must be clean before approval and is revalidated on retry/execution;
 - updater public key is required;
 - packaging uses `--publish never`;
 - package/version/revision consistency remains checked by existing packaging code/tests.
@@ -181,7 +181,22 @@ A dirty worktree or invalid profile fails closed. The runner does not auto-commi
 
 `verify.run` keeps the existing `execute` effect and Tool Kernel path.
 
-`package_win` is exact-bound to the action in one-time Approval.
+For routine verification actions, keep the existing action-bound approval behavior.
+
+For `package_win`, approval must bind to trusted package state, not only the public action token. Before an approval request is created, trusted code resolves the active Workspace and package profile and computes a bounded binding containing at least:
+
+```text
+action = package_win
+headSha = current full Git HEAD
+statusId = current trusted Git status identity
+profileDigest = digest of the approved package profile + public verification key
+```
+
+The binding is recomputed on every retry. If HEAD, tracked state, packaging-script contract, or trusted public key changes after approval, the old one-time grant no longer matches and a new approval is required.
+
+This trusted binding must be derived through the existing Workspace/Git/profile adapters; none of these fields become caller input.
+
+Dirty/unsupported Git state or an invalid package profile should fail before a package approval is offered.
 
 Approval Mode behavior:
 
@@ -191,7 +206,7 @@ Approval Mode behavior:
 
 Existing routine verification actions keep their current behavior.
 
-The approval title for `package_win` should be user-readable, e.g. **Package Windows installer**, rather than exposing the internal action token.
+The approval title for `package_win` should be user-readable, e.g. **Package Windows installer**, and may include a safe short revision in the resource label. Do not expose absolute paths or profile internals.
 
 ## 10. Process / Output Bounds
 
@@ -276,7 +291,7 @@ Implementation is complete only when all are demonstrated:
 5. modified/unapproved packaging script shape rejects `package_win`;
 6. fixed public-key path is Workspace-contained and private-key markers are rejected;
 7. Standard and Approve-for-me require explicit one-time approval for `package_win`;
-8. changed action cannot reuse approval;
+8. package approval is bound to trusted HEAD/status/profile state, and changing action, revision, tracked state, profile script, or public key cannot reuse the grant;
 9. package execution keeps `shell:false`, fixed cwd/argv, filtered env, bounded/redacted output, and timeout tree cleanup;
 10. real Home-PC production MCP acceptance creates a Windows installer from the SUD-D source Workspace through installed SUD-D;
 11. the generated installer embeds the expected Version and full Git Revision;
