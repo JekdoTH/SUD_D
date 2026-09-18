@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ApprovalModeDto, DesktopConnectionSnapshotDto, WorkspaceDto } from '@sud-d/contracts';
 import type { AppPage } from '../App';
+import type { TunnelPresentationState } from '../connection-ui-model';
 import {
   canRestartConnection,
   deriveConnectionComponentStatuses,
@@ -49,10 +50,15 @@ function errorGuidance(code: string): string {
   }
 }
 
-function tunnelStatus(snapshot: DesktopConnectionSnapshotDto | null): { label: string; badge: string } {
+function tunnelStatus(
+  snapshot: DesktopConnectionSnapshotDto | null,
+  tunnelState: TunnelPresentationState,
+): { label: string; badge: string } {
   if (!snapshot?.profile?.tunnelConfigured) return { label: 'Needs setup', badge: 'badge-yellow' };
-  if (snapshot.runtime.state === 'error') return { label: 'Error', badge: 'badge-red' };
-  if (snapshot.runtime.state === 'stopped') return { label: 'Ready', badge: 'badge-green' };
+  if (tunnelState === 'error') return { label: 'Error', badge: 'badge-red' };
+  if (snapshot.runtime.state === 'stopped' || tunnelState === 'stopped') {
+    return { label: 'Ready', badge: 'badge-green' };
+  }
   return { label: 'Running', badge: 'badge-green' };
 }
 
@@ -104,13 +110,13 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
     ? presentConnectionState(snapshot.runtime.state)
     : { label: 'Checking…', description: 'Reading local connection status.', tone: 'neutral' as const };
   const components = snapshot
-    ? deriveConnectionComponentStatuses(snapshot.runtime.state)
+    ? deriveConnectionComponentStatuses(snapshot.runtime.state, snapshot.runtime.error?.code)
     : { gateway: 'stopped' as const, tunnel: 'stopped' as const, client: 'disconnected' as const };
   const primaryAction = useMemo(
     () => snapshot ? getConnectionPrimaryAction(snapshot, Boolean(activeWorkspace)) : null,
     [snapshot, activeWorkspace],
   );
-  const secureTunnelStatus = tunnelStatus(snapshot);
+  const secureTunnelStatus = tunnelStatus(snapshot, components.tunnel);
   const tunnelInputValid = validTunnelReference(tunnelReference);
 
   const performLifecycle = async (action: 'connect' | 'disconnect' | 'restart'): Promise<void> => {
