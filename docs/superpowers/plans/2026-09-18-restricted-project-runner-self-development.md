@@ -58,10 +58,13 @@ Add RED coverage proving:
 - Standard requires explicit approval;
 - Approve-for-me still requires explicit approval for `package_win`;
 - existing routine verification actions keep current Approve-for-me behavior;
-- exact one-time approval is bound to `package_win`;
-- changing the action cannot reuse the grant;
+- package approval binding contains trusted current `headSha`, `statusId`, and a bounded package-profile digest in addition to the action;
+- changing the action, HEAD, tracked state, package-script contract, or trusted public key cannot reuse an approval;
+- dirty/unsupported Git state or invalid package profile fails before package approval is offered;
 - Full Access keeps existing global semantics without a package-specific bypass;
 - user-facing approval title is `Package Windows installer` or equivalent approved copy.
+
+Use the existing `approval.bind(input, security)` seam. Resolve the active Workspace from trusted `workspaceId`, then derive Git/package binding fields through trusted dependencies; do not add revision/profile fields to MCP input.
 
 Completion: approval-focused tests are RED before implementation.
 
@@ -95,6 +98,8 @@ Primary file:
 
 Introduce the smallest local profile logic needed for `package_win`.
 
+Expose only the minimum trusted internal helper needed by the capability to resolve a package approval context before execution. That helper should return safe bounded state such as `headSha`, `statusId`, and `profileDigest`; keep raw manifests, absolute key paths, and command text inside the implementation.
+
 Required behavior:
 
 - caller still supplies only `action`;
@@ -104,6 +109,8 @@ Required behavior:
 - reject a non-SUD-D Workspace;
 - reject modified/unapproved `package:win` script shape;
 - require local Node/pnpm/project prerequisites;
+- require a supported Git repository with a full HEAD and clean tracked state for package approval/execution;
+- create a stable profile digest from the approved root/Desktop packaging contract plus the trusted public-key identity;
 - create a launch plan only after the full profile passes.
 
 Do not create a generic user-editable command registry in v1.
@@ -195,13 +202,14 @@ Acceptance flow:
 4. call `verify.run({ action: "package_win" })`;
 5. confirm Approval Required;
 6. approve through the trusted Desktop approval surface;
-7. retry the exact action;
-8. confirm PASS and bounded safe output;
-9. verify a Windows installer is produced in the existing ignored release-output location;
-10. verify packaged Version and full Git Revision match the source candidate;
-11. verify source tracked worktree remains clean;
-12. verify no release was published and no release/private-key credential was used;
-13. verify existing local SUD-D user data is unchanged.
+7. prove a revision/profile change invalidates the old grant in focused acceptance coverage, then restore the accepted clean candidate;
+8. retry the exact action against the same trusted HEAD/profile state;
+9. confirm PASS and bounded safe output;
+10. verify a Windows installer is produced in the existing ignored release-output location;
+11. verify packaged Version and full Git Revision match the source candidate;
+12. verify source tracked worktree remains clean;
+13. verify no release was published and no release/private-key credential was used;
+14. verify existing local SUD-D user data is unchanged.
 
 A direct `pnpm package:win` run may be used only as diagnosis if the production acceptance fails; it is not the acceptance result.
 
