@@ -1,7 +1,7 @@
 # Restricted Project Runner / Self-Development Design
 
-**Date:** 2026-09-18  
-**Status:** APPROVED DIRECTION / DESIGN READY FOR IMPLEMENTATION  
+**Date:** 2026-09-18
+**Status:** APPROVED DIRECTION / DESIGN READY FOR IMPLEMENTATION
 **Baseline:** `e1160d9e251cb57d119cd3996e4bb0985a878acb`
 
 ## 1. Goal
