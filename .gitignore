@@ -27,6 +27,8 @@ packages/*/src/*.d.ts.map
 
 # Electron packaged
 release/
+dist-release/
+dist-release/
 
 # Logs
 *.log
