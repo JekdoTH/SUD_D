@@ -1,7 +1,7 @@
-{
+﻿{
   "new": [],
-  "improved": [],
-  "fixed": [
-    "Packaged Windows builds now include the production update feed configuration required for in-app updates"
-  ]
+  "improved": [
+    "Windows in-app update flow is now ready for normal future releases"
+  ],
+  "fixed": []
 }
