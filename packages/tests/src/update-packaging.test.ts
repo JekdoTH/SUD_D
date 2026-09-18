@@ -49,15 +49,18 @@ describe('Windows update packaging configuration', () => {
     const script = desktopPackage.scripts['package:win'];
     const prepare = 'node ./scripts/prepare-windows-branding.mjs';
     const unpack = 'electron-builder --win --dir --publish never';
+    const ensureUpdateConfig = 'node ./scripts/ensure-app-update-config.mjs';
     const brand = 'node ./scripts/brand-windows-package.mjs';
     const installer = 'electron-builder --win nsis --prepackaged ../../dist-release/win-unpacked --publish never';
 
     expect(script).toContain(prepare);
     expect(script).toContain(unpack);
+    expect(script).toContain(ensureUpdateConfig);
     expect(script).toContain(brand);
     expect(script).toContain(installer);
     expect(script.indexOf(prepare)).toBeLessThan(script.indexOf(unpack));
-    expect(script.indexOf(unpack)).toBeLessThan(script.indexOf(brand));
+    expect(script.indexOf(unpack)).toBeLessThan(script.indexOf(ensureUpdateConfig));
+    expect(script.indexOf(ensureUpdateConfig)).toBeLessThan(script.indexOf(brand));
     expect(script.indexOf(brand)).toBeLessThan(script.indexOf(installer));
     expect(desktopPackage.build.nsis).toMatchObject({
       installerIcon: 'build/sud-d-app-icon.ico',
