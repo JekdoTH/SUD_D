@@ -1,5 +1,22 @@
 # SUD_D Handoff
 
+## Restricted Project Runner / Self-Development — DESIGN READY (2026-09-18)
+
+**Status: DESIGN READY on `docs/restricted-project-runner-design`. Product Owner authorized proceeding after post-installer integration; runtime implementation has not started.**
+
+- Task-start baseline: `e1160d9e251cb57d119cd3996e4bb0985a878acb`.
+- Design: `docs/superpowers/specs/2026-09-18-restricted-project-runner-self-development-design.md`.
+- Implementation plan: `docs/superpowers/plans/2026-09-18-restricted-project-runner-self-development.md`.
+- v1 reuses the existing `verify.run({ action })` capability and adds exactly one bounded action: `package_win`; no new production MCP tool is planned.
+- `package_win` is SUD-D-profile-only, fixed to the existing `package:win` workflow, keeps `--publish never`, and exposes no caller-controlled executable/argv/cwd/env/shell/raw command authority.
+- The design tracks only the public update verification key inside the source Workspace so installed SUD-D can package without outside-Workspace release configuration. The private signing key remains external and is explicitly outside runner scope.
+- Standard and Approve-for-me require explicit one-time approval for `package_win`; existing Full Access semantics remain unchanged.
+- Signed manifest creation, version bump, dependency installation, GitHub release publication, generic Network, and arbitrary Execute remain out of scope.
+- Implementation is Security/Data Critical and must follow TDD, final full-suite/build gates, real installed-SUD-D Home-PC packaging acceptance, and final Standards/Spec review.
+- Fast Closure applies during iteration: focused RED/GREEN first, final-once Security/Data gates after source stabilizes.
+
+**Next action:** Serena implements the plan on a new implementation branch from the integrated design baseline. Stop if the trusted current public verification key cannot be established safely or if packaging requires broad new network/process authority.
+
 ## Post-Installer Integration - COMPLETE / MASTER INTEGRATED (2026-09-18)
 
 **Status: COMPLETE. Product Owner-approved integration is on `master`; installer/update source and post-installer governance are unified without changing the verified runtime candidate.**
