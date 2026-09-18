@@ -14,6 +14,7 @@
 - Signed manifest creation, version bump, dependency installation, GitHub release publication, generic Network, and arbitrary Execute remain out of scope.
 - Implementation is Security/Data Critical and must follow TDD, final full-suite/build gates, real installed-SUD-D Home-PC packaging acceptance, and final Standards/Spec review.
 - Fast Closure applies during iteration: focused RED/GREEN first, final-once Security/Data gates after source stabilizes.
+- Final design review: **Standards PASS / Spec-Security PASS**, blocking findings **0** after hardening package approval binding to trusted HEAD/status/profile state.
 
 **Next action:** Serena implements the plan on a new implementation branch from the integrated design baseline. Stop if the trusted current public verification key cannot be established safely or if packaging requires broad new network/process authority.
 
