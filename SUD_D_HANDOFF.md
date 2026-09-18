@@ -1,5 +1,16 @@
 # SUD_D Handoff
 
+## Post-Installer Integration - COMPLETE / MASTER INTEGRATED (2026-09-18)
+
+**Status: COMPLETE. Product Owner-approved integration is on `master`; installer/update source and post-installer governance are unified without changing the verified runtime candidate.**
+
+- Integration merge commit: `7719e2f19ea6240fe5585674d5a3253c033674ce`; parents `d019ffe1f89db1a187fed23ea2339dfcd986500f` and `b1b381517e0ca743dfd991b5adf031393026913b`.
+- Resolution kept `feat/windows-installer-branding` as source of truth for `.gitignore`, runtime/update/package source, and the current installer/update handoff; governance intent was integrated through `SUD_D_ADVISOR.md` and `SUD_D_ROADMAP.md`.
+- The docs-branch `b1b3815` `.gitignore` artifact (line-ending rewrite, duplicate `dist-release/`, and omission of `packages/desktop/build/`) was intentionally not adopted.
+- Fast Closure evidence: before this handoff-only closure, the integrated tree differed from `d019ffe` only in Advisor/Roadmap; source equivalence PASS; `.gitignore` and handoff blobs matched `d019ffe`; `git diff --check` PASS.
+- Existing installer/update acceptance evidence remains valid. No installer/package/full-suite rerun was triggered because conflict resolution changed governance docs only, not production source.
+- Next approved direction remains Restricted Project Runner / Self-Development design. Do not begin implementation without explicit Product Owner instruction.
+
 ## Installer + In-App Update MVP — COMPLETE / PO REAL A→B ACCEPTED (2026-09-18)
 
 **Status: COMPLETE for Personal Alpha. Real installed-app update path is verified end to end and accepted by the PO.**
