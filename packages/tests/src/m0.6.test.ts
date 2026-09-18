@@ -538,7 +538,7 @@ describe('M0.6 — connection presentation model', () => {
     expect(presentConnectionState('error')).toMatchObject({ label: 'Connection error', tone: 'danger' });
   });
 
-  it('derives gateway, tunnel, and client presentation from the approved aggregate state', () => {
+  it('derives gateway, tunnel, and client presentation from lifecycle state and error source', () => {
     expect(deriveConnectionComponentStatuses('stopped')).toEqual({
       gateway: 'stopped', tunnel: 'stopped', client: 'disconnected',
     });
@@ -551,8 +551,14 @@ describe('M0.6 — connection presentation model', () => {
     expect(deriveConnectionComponentStatuses('connected')).toEqual({
       gateway: 'ready', tunnel: 'ready', client: 'connected',
     });
-    expect(deriveConnectionComponentStatuses('error')).toEqual({
-      gateway: 'error', tunnel: 'error', client: 'disconnected',
+    expect(deriveConnectionComponentStatuses('error', 'MCP_GATEWAY_ENTRY_NOT_FOUND')).toEqual({
+      gateway: 'error', tunnel: 'stopped', client: 'disconnected',
+    });
+    expect(deriveConnectionComponentStatuses('error', 'TUNNEL_HEALTH_FAILED')).toEqual({
+      gateway: 'stopped', tunnel: 'error', client: 'disconnected',
+    });
+    expect(deriveConnectionComponentStatuses('stopped')).toEqual({
+      gateway: 'stopped', tunnel: 'stopped', client: 'disconnected',
     });
   });
 

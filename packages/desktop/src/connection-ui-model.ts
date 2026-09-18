@@ -1,4 +1,5 @@
 import type {
+  ConnectionServiceErrorCode,
   ConnectionStateDto,
   DesktopConnectionSnapshotDto,
 } from '@sud-d/contracts';
@@ -54,7 +55,10 @@ export function canRestartConnection(state: ConnectionStateDto): boolean {
   return state === 'connected' || state === 'degraded' || state === 'error';
 }
 
-export function deriveConnectionComponentStatuses(state: ConnectionStateDto): ConnectionComponentStatuses {
+export function deriveConnectionComponentStatuses(
+  state: ConnectionStateDto,
+  errorCode?: ConnectionServiceErrorCode | null,
+): ConnectionComponentStatuses {
   switch (state) {
     case 'stopped':
       return { gateway: 'stopped', tunnel: 'stopped', client: 'disconnected' };
@@ -70,7 +74,13 @@ export function deriveConnectionComponentStatuses(state: ConnectionStateDto): Co
     case 'stopping':
       return { gateway: 'ready', tunnel: 'ready', client: 'disconnected' };
     case 'error':
-      return { gateway: 'error', tunnel: 'error', client: 'disconnected' };
+      if (errorCode === 'MCP_GATEWAY_ENTRY_NOT_FOUND') {
+        return { gateway: 'error', tunnel: 'stopped', client: 'disconnected' };
+      }
+      if (errorCode?.startsWith('TUNNEL_')) {
+        return { gateway: 'stopped', tunnel: 'error', client: 'disconnected' };
+      }
+      return { gateway: 'stopped', tunnel: 'stopped', client: 'disconnected' };
   }
 }
 
