@@ -1,5 +1,25 @@
 # SUD_D Handoff
 
+## Public Personal Alpha v0.1.0 — PUBLISHED / v0.1.1 Fix Candidate Ready (2026-09-18)
+
+**Status: v0.1.0 is published publicly as Version A. A bounded v0.1.1 updater fix is verified and packaged but is NOT published; explicit PO approval for v0.1.1 remains required.**
+
+- Public release repository: `JekdoTH/SUD_D-Releases`; visibility verified public; no private source tree, signing private key, token, or user data is published.
+- v0.1.0 public release: tag `v0.1.0`; GitHub Actions publish run `35304331860` succeeded; release page, `latest.yml`, `sud-d-release.json`, and installer all returned anonymous HTTP 200.
+- v0.1.0 source Revision: `7a803bed80400dc312077451b479ffb43c475ddb`; installer SHA-256 `04058f0f406a790d60d310ee0de2adcada880db3d2a0dffc1100ba99552e1a08`; SHA-512 `f9fd1319f951a4ef1e896b6caa6fad3da74c86f30b1cb6f4f1a842d6a6eff3961dc76eb00039636201d3cbed605ed56f94da4044d38d0a6c18dc25157ad1aa2b`.
+- Publicly downloaded v0.1.0 `latest.yml` and signed manifest hashes exactly matched the verified local release metadata.
+- First live same-version check exposed one bounded provider bug: `electron-updater` returns `isUpdateAvailable=false` while still carrying `updateInfo.version`; SUD-D had treated version presence as availability, causing same-version checks to fall into `VERIFY_FAILED` instead of `up_to_date`.
+- Fix: provider classification now keys on `isUpdateAvailable`; malformed available results without a version still fail closed.
+- v0.1.1 `FINAL_CANDIDATE_SOURCE_SHA`: `5bce9b61df12dbe8433bc374dfe42c0deee19dae`.
+- v0.1.1 installer SHA-256: `76caa84714fea575793654cefabcf1ebe875602040dcf688aac8b87b999cc87f`; SHA-512: `712cdd3de68c7b0765b0cfccf0836f8eb6c8ad1f206f65306e30c49f63727ed0d15d82ff06b75fc478b92969fc7ffb670cc42ab68a934ddc1d303fd8748f9f99`.
+- v0.1.1 focused updater/security/data regression: 8 files / 74 tests PASS; new provider normalization test covers same-version, higher-version, and missing-version fail-closed cases.
+- `pnpm lint`: PASS; `pnpm typecheck`: PASS; `pnpm build`: PASS; final `pnpm package:win`: PASS; release manifest create/verify: PASS.
+- Final v0.1.1 package embeds the frozen Revision and production update public key; packaged `SUD-D.exe` icon still exactly matches the approved source icon.
+- An optional combined branding regression run hit the existing 5-second timeout on one Win32 resource test; it was not rerun under Fast Closure because no branding source changed, prior branding was 2/2 PASS, and direct final-package icon verification passed.
+- Do not install v0.1.1 directly before the live update acceptance; keep installed v0.1.0 as Version A so the real A→B path can be exercised after PO approves publishing v0.1.1.
+- `master` remains untouched. v0.1.1 publication and Task 17 live A→B acceptance are blocked on explicit PO approval for named version `v0.1.1`.
+
+
 ## Windows Installer Branding — COMPLETE / Final Candidate Verified (2026-09-18)
 
 **Status: COMPLETE on `feat/windows-installer-branding`. Final candidate verified; no public release was published and Task 15–17 were not started.**
