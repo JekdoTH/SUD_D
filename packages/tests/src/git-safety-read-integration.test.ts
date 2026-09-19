@@ -144,11 +144,22 @@ describe('Git Safety - status and production MCP surface', () => {
     await server.connect(createStdioGatewayTransport(input, output));
     const send = (message: unknown) => input.write(`${JSON.stringify(message)}\n`);
     send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: LEGACY_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: 'git-safety-test', version: '1.0.0' } } });
-    await reader.next();
+    const initialized = await reader.next();
+    expect(initialized.result?.capabilities?.tools?.listChanged).toBe(true);
     send({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} });
+    const listChanged = await reader.next();
+    expect(listChanged).toMatchObject({ jsonrpc: '2.0', method: 'notifications/tools/list_changed' });
     send({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
     const listed = await reader.next();
-    expect((listed.result?.tools ?? []).map((tool) => tool.name).filter(Boolean).sort()).toEqual(APPROVED_TOOLS);
+    const toolNames = (listed.result?.tools ?? []).map((tool) => tool.name).filter(Boolean).sort();
+    expect(toolNames).toEqual(APPROVED_TOOLS);
+    expect(toolNames).toEqual(expect.arrayContaining([
+      'work.resume',
+      'git.fetch',
+      'git.sync',
+      'git.push',
+      'git.branch.merge',
+    ]));
     await server.close();
   });
 
