@@ -1,4 +1,4 @@
-export { MCP_GATEWAY_INFO } from './metadata.js';
+export { MCP_GATEWAY_INFO, MCP_TOOL_SURFACE_VERSION } from './metadata.js';
 export {
   InertMcpGateway,
   McpGatewayLifecycleError,
