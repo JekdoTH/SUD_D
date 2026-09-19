@@ -24,6 +24,7 @@ import {
   prepareTunnelLaunchPlan,
   resolveNodeExecutable,
   resolveTunnelClientExecutable,
+  type TunnelProcessExitDiagnostics,
   type TunnelProcessHandle,
   type TunnelProcessLauncher,
 } from './secure-tunnel-process.js';
@@ -35,6 +36,7 @@ export interface GatewayClientSignalPort {
 export interface OpenAiSecureTunnelRuntimeStatus {
   readonly state: 'stopped' | 'starting' | 'healthy' | 'error';
   readonly lastErrorCode?: string;
+  readonly lastExitDiagnostics?: TunnelProcessExitDiagnostics;
 }
 
 export interface OpenAiSecureTunnelRuntime {
@@ -99,8 +101,11 @@ export function createOpenAiSecureTunnelRuntimeWithDependencies(
       | 'TUNNEL_HEALTH_FAILED'
       | 'TUNNEL_EXITED_UNEXPECTEDLY'
       | 'TUNNEL_STOP_FAILED',
+    exitDiagnostics?: TunnelProcessExitDiagnostics,
   ): void => {
-    status = { state: 'error', lastErrorCode: code };
+    status = exitDiagnostics
+      ? { state: 'error', lastErrorCode: code, lastExitDiagnostics: exitDiagnostics }
+      : { state: 'error', lastErrorCode: code };
     tunnelReady = false;
     clientConnected = false;
   };
@@ -159,13 +164,13 @@ export function createOpenAiSecureTunnelRuntimeWithDependencies(
       processHandle = handle;
       status = { state: 'starting' };
 
-      stopExitListener = handle.onExit(() => {
+      stopExitListener = handle.onExit((exitDiagnostics) => {
         if (stopping || processHandle !== handle) return;
         healthWatch?.stop();
         healthWatch = undefined;
         processHandle = undefined;
         stopExitListener = undefined;
-        setFailure('TUNNEL_EXITED_UNEXPECTEDLY');
+        setFailure('TUNNEL_EXITED_UNEXPECTEDLY', exitDiagnostics);
         emit({ type: 'runtime_failed', code: 'TUNNEL_EXITED_UNEXPECTEDLY' });
       });
 

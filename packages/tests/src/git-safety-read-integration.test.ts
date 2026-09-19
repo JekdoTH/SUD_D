@@ -145,7 +145,7 @@ describe('Git Safety - status and production MCP surface', () => {
     const send = (message: unknown) => input.write(`${JSON.stringify(message)}\n`);
     send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: LEGACY_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: 'git-safety-test', version: '1.0.0' } } });
     const initialized = await reader.next();
-    expect(initialized.result?.capabilities?.tools?.listChanged).toBe(true);
+    expect(initialized.result?.capabilities?.tools?.listChanged).toBe(false);
     send({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} });
     send({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
     const listed = await reader.next();

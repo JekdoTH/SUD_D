@@ -16,10 +16,15 @@ export interface TunnelLaunchPlan {
   readonly shell: false;
 }
 
+export interface TunnelProcessExitDiagnostics {
+  readonly exitCode: number | null;
+  readonly stderrTail: readonly string[];
+}
+
 export interface TunnelProcessHandle {
   readonly pid: number;
   stop(): void;
-  onExit(listener: () => void): () => void;
+  onExit(listener: (diagnostics: TunnelProcessExitDiagnostics) => void): () => void;
 }
 
 export interface TunnelProcessLauncher {
@@ -29,7 +34,70 @@ export interface TunnelProcessLauncher {
 
 interface ChildProcessEventSource {
   on(event: 'error', listener: () => void): void;
-  on(event: 'exit', listener: () => void): void;
+  on(event: 'close', listener: (code: number | null) => void): void;
+}
+
+const TUNNEL_STDERR_TAIL_LINES = 80;
+const TUNNEL_STDERR_LINE_CHARS = 1000;
+const TUNNEL_STDERR_PENDING_CHARS = 4000;
+
+function sensitiveEnvironmentValues(environment: NodeJS.ProcessEnv): readonly string[] {
+  return Object.entries(environment)
+    .filter(([key, value]) =>
+      typeof value === 'string' &&
+      value.length >= 4 &&
+      /password|passwd|secret|token|api[_-]?key|auth|credential|private[_-]?key|bearer/i.test(key),
+    )
+    .map(([, value]) => value as string);
+}
+
+function redactTunnelDiagnosticLine(line: string, sensitiveValues: readonly string[]): string {
+  let redacted = line;
+  for (const value of sensitiveValues) {
+    redacted = redacted.split(value).join('[REDACTED]');
+  }
+  redacted = redacted
+    .replace(/(bearer\s+)[A-Za-z0-9._~+\/-]+=*/gi, '$1[REDACTED]')
+    .replace(/((?:api[_-]?key|token|secret|password|passwd|credential|authorization)\s*[:=]\s*)\S+/gi, '$1[REDACTED]')
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, '[REDACTED]');
+  return redacted.slice(-TUNNEL_STDERR_LINE_CHARS);
+}
+
+export function createBoundedTunnelStderrCapture(
+  environment: NodeJS.ProcessEnv,
+): {
+  append(chunk: Buffer | string): void;
+  snapshot(): readonly string[];
+} {
+  const sensitiveValues = sensitiveEnvironmentValues(environment);
+  const tail: string[] = [];
+  let pending = '';
+
+  const pushLine = (line: string): void => {
+    tail.push(redactTunnelDiagnosticLine(line, sensitiveValues));
+    if (tail.length > TUNNEL_STDERR_TAIL_LINES) {
+      tail.splice(0, tail.length - TUNNEL_STDERR_TAIL_LINES);
+    }
+  };
+
+  return {
+    append(chunk: Buffer | string): void {
+      pending = `${pending}${typeof chunk === 'string' ? chunk : chunk.toString('utf8')}`;
+      if (pending.length > TUNNEL_STDERR_PENDING_CHARS) {
+        pending = pending.slice(-TUNNEL_STDERR_PENDING_CHARS);
+      }
+      const lines = pending.split(/\r?\n/);
+      pending = lines.pop() ?? '';
+      for (const line of lines) pushLine(line);
+    },
+    snapshot(): readonly string[] {
+      if (pending.length > 0) {
+        pushLine(pending);
+        pending = '';
+      }
+      return Object.freeze([...tail]);
+    },
+  };
 }
 
 function systemExecutable(name: string): string {
@@ -129,17 +197,19 @@ export function createWindowsTunnelProcessLauncher(): TunnelProcessLauncher {
   return {
     start(plan: TunnelLaunchPlan): TunnelProcessHandle {
       let child;
+      let childEnvironment: NodeJS.ProcessEnv;
       try {
         const approvalRuntimeEnvironment = createApprovalRuntimeEnvironment();
+        childEnvironment = {
+          ...withGatewayRuntimeFirstOnPath(process.env, plan.gatewayRuntimeExecutablePath),
+          ...approvalRuntimeEnvironment,
+          ELECTRON_RUN_AS_NODE: '1',
+        };
         child = spawn(plan.executablePath, [...plan.args], {
           cwd: plan.workingDirectory,
           shell: false,
           windowsHide: true,
-          env: {
-            ...withGatewayRuntimeFirstOnPath(process.env, plan.gatewayRuntimeExecutablePath),
-            ...approvalRuntimeEnvironment,
-            ELECTRON_RUN_AS_NODE: '1',
-          },
+          env: childEnvironment,
           stdio: ['ignore', 'pipe', 'pipe'],
         });
       } catch {
@@ -147,10 +217,11 @@ export function createWindowsTunnelProcessLauncher(): TunnelProcessLauncher {
       }
 
       const childEvents = child as unknown as ChildProcessEventSource;
+      const stderrCapture = createBoundedTunnelStderrCapture(childEnvironment);
       child.stdout?.resume();
-      child.stderr?.resume();
+      child.stderr?.on('data', (chunk: Buffer | string) => stderrCapture.append(chunk));
       childEvents.on('error', () => {
-        // The runtime maps lifecycle through exit/readiness surfaces; raw errors are intentionally dropped.
+        // The runtime maps lifecycle through exit/readiness surfaces; raw process errors are not retained.
       });
 
       if (child.pid === undefined) {
@@ -158,9 +229,13 @@ export function createWindowsTunnelProcessLauncher(): TunnelProcessLauncher {
       }
       const childPid = child.pid;
 
-      const listeners = new Set<() => void>();
-      childEvents.on('exit', () => {
-        for (const listener of [...listeners]) listener();
+      const listeners = new Set<(diagnostics: TunnelProcessExitDiagnostics) => void>();
+      childEvents.on('close', (exitCode) => {
+        const diagnostics: TunnelProcessExitDiagnostics = Object.freeze({
+          exitCode,
+          stderrTail: stderrCapture.snapshot(),
+        });
+        for (const listener of [...listeners]) listener(diagnostics);
       });
 
       return {
@@ -181,7 +256,7 @@ export function createWindowsTunnelProcessLauncher(): TunnelProcessLauncher {
           }
         },
 
-        onExit(listener: () => void): () => void {
+        onExit(listener: (diagnostics: TunnelProcessExitDiagnostics) => void): () => void {
           listeners.add(listener);
           return () => listeners.delete(listener);
         },

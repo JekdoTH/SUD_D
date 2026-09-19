@@ -49,10 +49,15 @@ interface ChildProcessExitEventSourceLike {
   once(event: 'exit', listener: () => void): void;
 }
 
+interface TunnelProcessExitDiagnosticsLike {
+  readonly exitCode: number | null;
+  readonly stderrTail: readonly string[];
+}
+
 interface TunnelProcessHandleLike {
   readonly pid: number;
   stop(): void;
-  onExit(listener: () => void): () => void;
+  onExit(listener: (diagnostics: TunnelProcessExitDiagnosticsLike) => void): () => void;
 }
 
 interface TunnelProcessLauncherLike {
@@ -94,6 +99,7 @@ interface RuntimeLike {
   getStatus(): {
     readonly state: 'stopped' | 'starting' | 'healthy' | 'error';
     readonly lastErrorCode?: string;
+    readonly lastExitDiagnostics?: TunnelProcessExitDiagnosticsLike;
   };
 }
 
@@ -112,7 +118,7 @@ class FakeTunnelProcessHandle implements TunnelProcessHandleLike {
   readonly pid: number;
   stopCalls = 0;
   stopError: Error | null = null;
-  private readonly exitListeners = new Set<() => void>();
+  private readonly exitListeners = new Set<(diagnostics: TunnelProcessExitDiagnosticsLike) => void>();
 
   constructor(pid: number) {
     this.pid = pid;
@@ -123,13 +129,15 @@ class FakeTunnelProcessHandle implements TunnelProcessHandleLike {
     if (this.stopError) throw this.stopError;
   }
 
-  onExit(listener: () => void): () => void {
+  onExit(listener: (diagnostics: TunnelProcessExitDiagnosticsLike) => void): () => void {
     this.exitListeners.add(listener);
     return () => this.exitListeners.delete(listener);
   }
 
-  exitUnexpectedly(): void {
-    for (const listener of [...this.exitListeners]) listener();
+  exitUnexpectedly(
+    diagnostics: TunnelProcessExitDiagnosticsLike = { exitCode: 1, stderrTail: [] },
+  ): void {
+    for (const listener of [...this.exitListeners]) listener(diagnostics);
   }
 }
 
@@ -528,15 +536,26 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
     expect(processLauncher.handles[0].stopCalls).toBe(1);
   });
 
-  it('maps an unexpected tunnel process exit to a safe typed error', async () => {
-    const { profile, processLauncher, service } = await makeHarness();
+  it('maps an unexpected tunnel process exit to a safe typed error and retains bounded diagnostics internally', async () => {
+    const { profile, processLauncher, runtime, service } = await makeHarness();
     expect(service.start(profile.profileId).ok).toBe(true);
 
-    processLauncher.handles[0].exitUnexpectedly();
+    processLauncher.handles[0].exitUnexpectedly({
+      exitCode: 23,
+      stderrTail: ['tunnel protocol rejected capability'],
+    });
 
     expect(service.getStatus()).toMatchObject({
       state: 'error',
       error: { code: 'TUNNEL_EXITED_UNEXPECTEDLY', message: 'Secure Tunnel runtime exited unexpectedly' },
+    });
+    expect(runtime.getStatus()).toMatchObject({
+      state: 'error',
+      lastErrorCode: 'TUNNEL_EXITED_UNEXPECTEDLY',
+      lastExitDiagnostics: {
+        exitCode: 23,
+        stderrTail: ['tunnel protocol rejected capability'],
+      },
     });
   });
 
@@ -549,6 +568,27 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
     expect(stopped).toMatchObject({ ok: true, value: { state: 'stopped', session: null } });
     expect(processLauncher.handles[0].stopCalls).toBe(1);
     expect(healthProbe.stopCalls).toBe(1);
+  });
+
+  it('bounds and redacts tunnel stderr diagnostics before retention', async () => {
+    const api = await import('../../infrastructure/src/secure-tunnel-process.js') as unknown as {
+      createBoundedTunnelStderrCapture(environment: NodeJS.ProcessEnv): {
+        append(chunk: Buffer | string): void;
+        snapshot(): readonly string[];
+      };
+    };
+    const capture = api.createBoundedTunnelStderrCapture({
+      SUD_D_TUNNEL_CREDENTIAL: 'super-secret-value',
+    });
+    for (let index = 0; index < 100; index += 1) {
+      capture.append(`line-${index}\\n`);
+    }
+    capture.append('failure super-secret-value');
+
+    const tail = capture.snapshot();
+    expect(tail).toHaveLength(80);
+    expect(tail.at(-1)).toContain('[REDACTED]');
+    expect(tail.join('\\n')).not.toContain('super-secret-value');
   });
 
   it('treats a Windows taskkill tree race as a clean stop when the root PID is already gone', async () => {
@@ -701,7 +741,10 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
   it('keeps renderer-facing ConnectionService status strict and secret-free after tunnel failure', async () => {
     const { profile, processLauncher, service } = await makeHarness();
     expect(service.start(profile.profileId).ok).toBe(true);
-    processLauncher.handles[0].exitUnexpectedly();
+    processLauncher.handles[0].exitUnexpectedly({
+      exitCode: 44,
+      stderrTail: ['TOKEN=renderer-secret-must-not-leak'],
+    });
 
     const status = service.getStatus();
     const dto = ConnectionServiceStatusDtoSchema.parse({

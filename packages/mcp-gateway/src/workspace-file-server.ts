@@ -352,7 +352,7 @@ export function createProductionMcpServer(
     type: 'mcp-stdio' as const,
   }));
   const server = new McpServer(MCP_GATEWAY_INFO, {
-    capabilities: { tools: { listChanged: true } },
+    capabilities: { tools: { listChanged: false } },
     instructions: 'Call work.resume before substantive project work. If a Team mission exists, call team.status and continue the current bounded Planner/Worker/Validator/Reviewer assignment. Routine legal Team assignments advance automatically; stop for Approval, a true user decision, a blocker, or tool/session limits. Resume Context is Workspace-scoped and grants no additional authority.',
   });
   registerWorkspaceFileTools(server, kernel);
