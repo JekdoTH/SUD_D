@@ -97,6 +97,51 @@ Mode may change during a task:
 
 Any mode switch should be reported with a short reason.
 
+## Closure mode policy
+
+Execution mode and closure mode are separate decisions:
+
+- Execution mode: `SINGLE` or `TEAM`
+- Closure mode: `FAST` or `STANDARD`
+
+Recommended global default for this owner: **FAST**.
+
+### FAST Closure
+
+Use FAST by default for normal personal dogfood/development work:
+
+- run the smallest targeted verification that covers the changed risk boundary
+- do not run a broad/full suite unless the changed area or repository policy truly requires it
+- do not add unrelated refactors
+- avoid repeated review loops when focused verification already passes
+- prefer one focused build/check over redundant validation layers
+- owner manual dogfood may be the final acceptance gate
+- report clearly what was automated vs what remains for owner manual verification
+- finish, commit, and hand off promptly once the targeted safety boundary is satisfied
+
+FAST must still obey all safety, approval, Git freshness, destructive-operation, and authorization gates.
+
+### STANDARD Closure
+
+Escalate from FAST to STANDARD when one or more of these apply:
+
+- release/signing/update pipeline
+- security/auth/credential boundary
+- destructive or data-loss risk
+- schema/data migration
+- shared production behavior with broad blast radius
+- concurrency/recovery/idempotency changes
+- repository policy explicitly requires broader validation
+- owner explicitly requests STANDARD/full verification
+- focused verification exposes uncertainty that cannot be bounded safely
+
+The agent should report the selected closure mode with a short reason for substantial tasks:
+
+- `Closure mode: FAST — <reason>`
+- `Closure mode: STANDARD — <reason>`
+
+If uncertain about closure depth, prefer FAST only when the risk boundary is well understood; otherwise escalate to STANDARD.
+
 ## Precedence and safety
 
 Recommended precedence:
@@ -124,13 +169,20 @@ Add a user-level SUD-D setting persisted outside any project repository.
 
 The setting should be available to every registered workspace on that SUD-D installation.
 
-Candidate states:
+Candidate execution-mode states:
 
 - `auto` — agent selects SINGLE / TEAM using policy
 - `single` — default force SINGLE unless task explicitly overrides
 - `team` — prefer TEAM only when Team eligibility/safety checks pass
 
-Recommended default: `auto`.
+Recommended execution-mode default: `auto`.
+
+Candidate closure-mode states:
+
+- `fast` — smallest risk-targeted verification; owner dogfood can be final acceptance
+- `standard` — broader verification for high-risk changes
+
+Recommended closure-mode default for this owner: `fast`.
 
 Do not store this only in a project `AGENTS.md`.
 
@@ -223,6 +275,7 @@ Before implementation, locate current equivalents of:
 - DTO/contracts exposed to renderer
 - database migrations
 - tests for MCP instructions, Team Mode, settings and policy precedence
+- closure-mode selection and FAST -> STANDARD escalation rules
 
 Do not assume exact file names until source inspection.
 
@@ -256,6 +309,9 @@ At minimum:
 - SINGLE selection does not accidentally create a Team mission
 - setting persists across restart
 - MCP context remains bounded and does not expose secrets
+- FAST closure does not trigger broad/full suites without a documented risk/policy reason
+- high-risk release/security/migration changes escalate to STANDARD
+- explicit owner closure override wins subject to safety
 
 ## Dogfood acceptance
 
@@ -271,6 +327,9 @@ Success requires:
 6. if SINGLE is selected, no unnecessary Team mission is created
 7. no safety/approval behavior changes
 8. result is repeatable across multiple projects
+9. normal low-risk work defaults to FAST closure
+10. FAST closure runs only focused checks and leaves final manual dogfood clearly to the owner when appropriate
+11. a high-risk task escalates to STANDARD without owner having to remember to request it
 
 ## Non-goals
 
