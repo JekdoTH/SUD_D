@@ -26,6 +26,8 @@ type DesktopPackageJson = {
 const rootPackage = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')) as RootPackageJson;
 const desktopPackage = JSON.parse(readFileSync(new URL('../../desktop/package.json', import.meta.url), 'utf8')) as DesktopPackageJson;
 const viteSource = readFileSync(new URL('../../desktop/vite.config.ts', import.meta.url), 'utf8');
+const brandingPrepareSource = readFileSync(new URL('../../desktop/scripts/prepare-windows-branding.mjs', import.meta.url), 'utf8');
+const installerCompatSource = readFileSync(new URL('../../desktop/scripts/windows-installer-compat.nsh', import.meta.url), 'utf8');
 
 const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 
@@ -67,6 +69,11 @@ describe('Windows update packaging configuration', () => {
       uninstallerIcon: 'build/sud-d-app-icon.ico',
       installerHeaderIcon: 'build/sud-d-app-icon.ico',
     });
+    expect(brandingPrepareSource).toContain("windows-installer-compat.nsh");
+    expect(brandingPrepareSource).toContain("installer.nsh");
+    expect(installerCompatSource).toContain("!macro customCheckAppRunning");
+    expect(installerCompatSource).toContain("!insertmacro _CHECK_APP_RUNNING");
+    expect(installerCompatSource).toContain('\\\\?\\$INSTDIR\\resources\\mcp-gateway');
   });
 
   it('publishes metadata only to the fixed public release repository', () => {
