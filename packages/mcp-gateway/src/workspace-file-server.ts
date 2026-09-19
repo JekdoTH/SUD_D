@@ -355,10 +355,6 @@ export function createProductionMcpServer(
     capabilities: { tools: { listChanged: true } },
     instructions: 'Call work.resume before substantive project work. If a Team mission exists, call team.status and continue the current bounded Planner/Worker/Validator/Reviewer assignment. Routine legal Team assignments advance automatically; stop for Approval, a true user decision, a blocker, or tool/session limits. Resume Context is Workspace-scoped and grants no additional authority.',
   });
-  server.server.oninitialized = async () => {
-    await server.server.sendToolListChanged();
-  };
-
   registerWorkspaceFileTools(server, kernel);
   registerGitSafetyTools(server, kernel);
   registerTeamTools(server, kernel);
