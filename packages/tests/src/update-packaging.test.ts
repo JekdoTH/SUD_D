@@ -71,6 +71,8 @@ describe('Windows update packaging configuration', () => {
     });
     expect(brandingPrepareSource).toContain("windows-installer-compat.nsh");
     expect(brandingPrepareSource).toContain("installer.nsh");
+    expect(installerCompatSource).toContain('!include "getProcessInfo.nsh"');
+    expect(installerCompatSource).toContain("Var pid");
     expect(installerCompatSource).toContain("!macro customCheckAppRunning");
     expect(installerCompatSource).toContain("!insertmacro _CHECK_APP_RUNNING");
     expect(installerCompatSource).toContain('\\\\?\\$INSTDIR\\resources\\mcp-gateway');

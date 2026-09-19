@@ -1,3 +1,6 @@
+!include "getProcessInfo.nsh"
+Var pid
+
 !macro customCheckAppRunning
   !insertmacro _CHECK_APP_RUNNING
 
