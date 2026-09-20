@@ -20,6 +20,11 @@ describe('Windows release workflow', () => {
     expect(secretIndex).toBeGreaterThan(releaseIndex);
   });
 
+  it('pins both release jobs to the Windows 2022 runner', () => {
+    expect(workflow.match(/runs-on: windows-2022/g)).toHaveLength(2);
+    expect(workflow).not.toContain('runs-on: windows-latest');
+  });
+
   it('pins the critical GitHub Actions used by the release workflow', () => {
     expect(workflow).toMatch(/actions\/checkout@[0-9a-f]{40}/);
     expect(workflow).toMatch(/actions\/setup-node@[0-9a-f]{40}/);
