@@ -22,7 +22,7 @@ function signedManifest(overrides: Record<string, unknown> = {}) {
     revision: TARGET_REVISION,
     releaseDate: '2026-09-17T12:34:56.000Z',
     channel: 'latest',
-    artifactFileName: 'SUD-D Setup 0.2.0.exe',
+    artifactFileName: 'SUD-D-Setup-0.2.0.exe',
     artifactSha512: TARGET_HASH,
     releaseNotes: { new: ['Installer updates'], improved: [], fixed: [] },
     ...overrides,
@@ -99,7 +99,7 @@ function makeController(options: {
 
 async function createArtifact(content = 'trusted update bytes') {
   const directory = await mkdtemp(join(tmpdir(), 'sud-d-update-controller-'));
-  const filePath = join(directory, 'SUD-D Setup 0.2.0.exe');
+  const filePath = join(directory, 'SUD-D-Setup-0.2.0.exe');
   await writeFile(filePath, content);
   return filePath;
 }

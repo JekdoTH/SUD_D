@@ -1,5 +1,18 @@
 # SUD_D Handoff
 
+## Public Readiness + v1 Release Pipeline Scaffolding — READY FOR KEY PROVISIONING (2026-09-20)
+
+**Status: implementation complete on `release/v1-public-readiness`; no push, tag, publication, or repository-visibility change has occurred.**
+
+- Base revision: `9d6acdd2536a896218043dc4d07bfe9f9a14a2e1`.
+- Public-repo hygiene now includes MIT licensing, public README, security/contribution guidance, hardened secret/tooling ignores, and neutral Primary/Secondary device terminology in tracked Markdown history.
+- Future updater feed is `JekdoTH/SUD_D` GitHub Releases. Existing published 0.1.x binaries remain unchanged and may continue using the legacy release-only repository.
+- v1 release tooling adds major-version bump support, a signing-key identity verifier, packaged Windows Version/Revision checks, and a live 39-tool MCP verification with `tools.listChanged=false` and tool-surface identity `SUD-D@2026.9.14`.
+- `.github/workflows/release-windows.yml` separates read-only verify/build from the protected `release` environment signing/publish job. The private key is expected only as `SUD_D_RELEASE_PRIVATE_KEY_B64` and is materialized under runner temp.
+- `packages/desktop/release/update-public-key.pem` is intentionally an invalid `NOT_PROVISIONED` placeholder. Release packaging fails closed until the permanent v1 Ed25519 public key replaces it; the matching private key must not be committed.
+- Focused verification: 7 files / 61 tests PASS; release scripts pass `node --check`; placeholder packaging rejection PASS (`Release public key file is invalid.`).
+- Canonical desktop version remains `0.1.3` until the separately approved v1.0.0 release-preparation step. MCP tool-surface version remains independently `2026.9.14`.
+
 ## Post-Installer Integration - COMPLETE / MASTER INTEGRATED (2026-09-18)
 
 **Status: COMPLETE. Product Owner-approved integration is on `master`; installer/update source and post-installer governance are unified without changing the verified runtime candidate.**
@@ -222,16 +235,16 @@ Accepted verification evidence:
 - real `git.sync`: **PASS** — Standard approval produced `APPROVAL_REQUIRED`, Approve resumed the exact pending action, and execution completed successfully without a second Git click.
 - real `git.push`: **PASS** — Standard approval produced `APPROVAL_REQUIRED`, Approve resumed the exact pending action, and execution completed successfully.
 - production Electron UI smoke: **PASS** — `Get latest` and `Commit & Push` displayed Approve/Deny inline on Git; Approve auto-resumed; Deny did not execute; worktree remained clean.
-- Home PC manual Product Owner acceptance: **PASS** — `Commit & Push` Approve path and Deny path were both exercised and accepted by the Product Owner.
+- primary validation device manual Product Owner acceptance: **PASS** — `Commit & Push` Approve path and Deny path were both exercised and accepted by the Product Owner.
 
 Cross-device acceptance evidence:
 
-- Home PC pushed the acceptance change to `master` successfully.
-- Work PC ran `Get latest` → `Approve` → automatic resume successfully.
-- The Work PC flow completed without requiring a second `Get latest` click.
+- primary validation device pushed the acceptance change to `master` successfully.
+- secondary validation device ran `Get latest` → `Approve` → automatic resume successfully.
+- The secondary validation device flow completed without requiring a second `Get latest` click.
 - The cross-device acceptance test file was cleaned up after verification.
 - Cleanup `Commit & Push` completed successfully.
-- Final Work PC state: **Up to date / No local changes**.
+- Final secondary validation device state: **Up to date / No local changes**.
 
 Closure:
 
@@ -288,7 +301,7 @@ Closure boundary:
 - remove `PO_COMMIT_PUSH_TEST.txt` with a normal feature-branch commit and preserve `.serena/` as local-only.
 - fast-forward `feat/simple-git-workflow` into `master` only if `master` remains an ancestor and both local/remote refs are safe.
 - push `master` normally; no force push, reset, rebase, clean, or discard of user work.
-- after push, Home PC can use `Get latest` to receive the accepted Git responsiveness workflow.
+- after push, primary validation device can use `Get latest` to receive the accepted Git responsiveness workflow.
 
 ## Quick Git + Chat-first Sync/Push — Patch Ready for Product Owner Acceptance (2026-09-15)
 
@@ -397,9 +410,9 @@ Durable local report pointers:
 
 Product Owner real GitHub acceptance: **REMAINING** unless performed separately by the owner:
 
-- Home PC → work/commit → Push
-- Work PC → Sync → work/commit → Push
-- Home PC → Sync
+- primary validation device → work/commit → Push
+- secondary validation device → Sync → work/commit → Push
+- primary validation device → Sync
 - one Standard manual-approval path
 - one eligible automatic-approval path
 
@@ -421,8 +434,8 @@ Current branch/state:
 - branch: `wip/personal-alpha-stabilization`
 - HEAD: `ea15337fe97babdc84ed618b35b3a090b4cc04da`
 - original checkpoint base: `16e9deb8e0e670fa6b4c03b4d7bb09225f953617`
-- `master` was not merged, rebased, pulled, or edited during Home-PC continuation
-- pre-existing Home-PC handoff edit remains preserved as `stash@{0}: pre-bootstrap Home 2026-09-13 preserve local handoff`
+- `master` was not merged, rebased, pulled, or edited during primary validation device continuation
+- pre-existing primary validation device handoff edit remains preserved as `stash@{0}: pre-bootstrap Home 2026-09-13 preserve local handoff`
 - `.serena/` remains local-only/untracked and is not part of the product diff
 - no tracked file is staged; no SUD-D repo commit/push has been performed after the checkpoint
 
@@ -439,7 +452,7 @@ Delivered stabilization behavior:
 
 Repair-loop closure highlights:
 
-- stale Home-PC build artifacts were refreshed without treating generated `dist` drift as a source defect; the actual TypeScript binding-narrowing compile defect was fixed minimally.
+- stale primary validation device build artifacts were refreshed without treating generated `dist` drift as a source defect; the actual TypeScript binding-narrowing compile defect was fixed minimally.
 - legacy Team migration fixture was corrected to represent the schema version it claimed, resolving the migration-007 regression.
 - historical M0.4 gateway guard was narrowed to permit exactly the trusted `resolveApprovalRuntimeIdentity(process.env)` use while continuing to reject child-process/network authority in the gateway.
 - M0.2 migration expectation was updated from versions 1–6 to 1–7 after migration 007.
@@ -475,7 +488,7 @@ Environment blocker / residual risk:
 
 ### STOP CONDITION REACHED
 
-Stop here before commit/push. Do not start Git network sync, Playwright runtime implementation, cloud work, or another milestone. A later explicit task may review/commit/push this stabilization diff; until then preserve the working tree and the Home-PC stash exactly.
+Stop here before commit/push. Do not start Git network sync, Playwright runtime implementation, cloud work, or another milestone. A later explicit task may review/commit/push this stabilization diff; until then preserve the working tree and the primary validation device stash exactly.
 
 ## Agent Skill System Upgrade
 
@@ -623,7 +636,7 @@ Implementation commit:
 
 ### Branding Logo + App Icon v2
 
-**Status: COMPLETE — approved branding renditions verified and implemented on Home PC; ready for Work-PC fast-forward pull after this handoff commit is pushed.**
+**Status: COMPLETE — approved branding renditions verified and implemented on primary validation device; ready for secondary validation device fast-forward pull after this handoff commit is pushed.**
 
 - Approved production logo: **375×125**, SHA-256 `13a25ffade5475ac448304724e81a89f68eb51e979af7ab1c5ba26f840229d99`, replacing the existing trusted path `packages/desktop/src/assets/sud-d-logo.png`.
 - Approved production app icon: **192×192**, SHA-256 `172bb88ca88a94f1c013f4f589dbf4ebdcbe2405fd6d9d241764fcb921eba467`, replacing the existing trusted path `packages/desktop/src/assets/sud-d-app-icon.png`.
@@ -640,7 +653,7 @@ Branding implementation commit:
 
 `fef01754aa7ca799b476876e1ee68d502d5f3524` — `fix: refresh sud-d branding assets`
 
-**Work-PC continuation:** begin with `git status`, `git fetch origin`, then `git pull --ff-only origin master`; rerun the fresh session bootstrap + Mandatory Skill Router Gate. The next explicit product UI task remains **Connection tab UX/UI + onboarding/state correctness pass**, and the Mandatory Impeccable UI Gate requires loading `.agents/skills/impeccable/SKILL.md` before renderer-visible UI/UX work.
+**secondary validation device continuation:** begin with `git status`, `git fetch origin`, then `git pull --ff-only origin master`; rerun the fresh session bootstrap + Mandatory Skill Router Gate. The next explicit product UI task remains **Connection tab UX/UI + onboarding/state correctness pass**, and the Mandatory Impeccable UI Gate requires loading `.agents/skills/impeccable/SKILL.md` before renderer-visible UI/UX work.
 
 ### Overview Action Layout + Access Status
 
@@ -719,7 +732,7 @@ Broader Connection correctness remains deferred and was not started here:
 - Pre-Implementation Compliance Check is adopted before milestone implementation or any source-changing task.
 - M0.6 is COMPLETE.
 - M0.7 is COMPLETE after Doctor + Activity integration, security/redaction verification, production Desktop smoke, and required final code review.
-- M0.8 is COMPLETE after Secure Tunnel setup UX hardening, real Home-PC control-plane/tunnel acceptance, clean stop/fresh-start verification, regression coverage, production Desktop smoke, and required final code review.
+- M0.8 is COMPLETE after Secure Tunnel setup UX hardening, real primary validation device control-plane/tunnel acceptance, clean stop/fresh-start verification, regression coverage, production Desktop smoke, and required final code review.
 - Post-M0.8 Secure Runtime API Key Setup is COMPLETE: SUD-D now supports Windows Credential Manager persistence through a Windows-native credential prompt, fixed profileId-only IPC, stopped-only credential mutation, stored-before-environment runtime preparation, and safe Set / Replace / Remove UI controls without exposing plaintext credentials to the renderer.
 - Post-M0.8 Connection UI/UX Simplification is COMPLETE: normal workspace/key/tunnel setup and ChatGPT connection readiness are managed from the SUD-D UI through fixed-purpose safe boundaries. M1, Personal Alpha Workspace File Tools, and Git Safety + Integration have since completed as recorded below.
 
@@ -747,12 +760,12 @@ Delivered contract:
 - Resume validates trusted Git drift without mutating Git or replacing saved context. Workspace switches invalidate bootstrap and cannot expose another Workspace's Resume Context.
 - Activity suppresses routine successful Work Memory Tool Kernel noise while keeping resume-required, schema, persistence, and execution failures visible once; renderer DTOs remain free of raw checkpoint metadata.
 
-Final Home-PC evidence:
+Final primary validation device evidence:
 
 - meaningful Git-enrichment RED: **PASS as RED evidence** — automatic overlong changed path violated the persisted artifact bound before the fix
 - focused Work Memory suite: **12 passed / 1 gated acceptance skipped** across 6 files
 - directly relevant Workspace/Git/Approval/MCP regressions: **111/111 PASS**
-- refreshed Home-PC production acceptance: **2/2 PASS**, including restart continuity, real non-mutating Git drift, pathological long/aggregate trusted-Git enrichment, bounded persisted context, and Workspace A/B isolation
+- refreshed primary validation device production acceptance: **2/2 PASS**, including restart continuity, real non-mutating Git drift, pathological long/aggregate trusted-Git enrichment, bounded persisted context, and Workspace A/B isolation
 - lint: **PASS**
 - typecheck: **PASS**
 - final full repository suite: **35 files passed / 2 skipped; 476 tests passed / 4 skipped**
@@ -762,7 +775,7 @@ Final Home-PC evidence:
 - final Security/Data + Standards/Spec review: **PASS / PASS / PASS**, blockers **0**
 - `.serena/` remains local-only and must not be committed
 
-Closure note: the separate pre-existing Restricted Execute Home-PC note later in this handoff remains unrelated local working-tree state and must stay unstaged/uncommitted with Work Memory.
+Closure note: the separate pre-existing Restricted Execute primary validation device note later in this handoff remains unrelated local working-tree state and must stay unstaged/uncommitted with Work Memory.
 
 **Next approved step:** **Team Mode MVP** only under a new explicit user task plus a fresh Skill Router Gate. STOP after this Work Memory commit/push/fetch with `HEAD == origin/master` and divergence `0 0`; do not start Team Mode or any later milestone from this task.
 
@@ -786,11 +799,11 @@ Delivered contract:
 - Activity shows approval, pass, verification failure, and timeout outcomes as concise Workspace events while suppressing duplicate successful Tool Kernel noise.
 - No `code.run`, `dev.verify`, generic shell tool, raw Serena passthrough, Network tool, Delete/Recovery, package install/update, Work Memory, Team Mode, or Computer Use authority was added.
 
-Final Home-PC evidence:
+Final primary validation device evidence:
 
 - Restricted Verify focused suite: **11/11 PASS**
 - relevant Security/Data Critical regressions: **132/132 PASS**
-- real Home-PC Windows production acceptance: **1/1 PASS** across `test`, `lint`, `typecheck`, and `build`; latest body runtime **5.32s**
+- real primary validation device Windows production acceptance: **1/1 PASS** across `test`, `lint`, `typecheck`, and `build`; latest body runtime **5.32s**
 - lint: **PASS**
 - typecheck: **PASS**
 - production build: **PASS**
@@ -800,7 +813,7 @@ Final Home-PC evidence:
 - final Standards / Spec review: **PASS / PASS**, blockers **0**
 - `.serena/` remains local-only and must not be committed
 
-Closure note: the separate pre-existing Restricted Execute Home-PC note later in this handoff remains unrelated local working-tree state and must stay unstaged/uncommitted with Restricted Verify.
+Closure note: the separate pre-existing Restricted Execute primary validation device note later in this handoff remains unrelated local working-tree state and must stay unstaged/uncommitted with Restricted Verify.
 
 **Next approved step:** **Work Memory / Automatic Resume MVP** only, and only under a new explicit user task plus a fresh Skill Router Gate. STOP after this Restricted Verify commit/push/fetch with `HEAD == origin/master` and divergence `0 0`; do not start Work Memory, Team Mode, `code.run`, general shell, Network tooling, Delete/Recovery, package install/update, or Computer Use from this task.
 
@@ -831,7 +844,7 @@ Delivered contract:
 - The exported managed runtime remains `start` / `stop` / `repair` only. Raw MCP `callTool(...)` exists only on the injected infrastructure/test session seam; Product Mode exposes no generic upstream tool-name dispatch surface.
 - Production MCP remains exactly **14 Workspace/Git/Team tools**. No production `code.*`, renderer UI, direct Serena passthrough, `code.run`, or Milestone C capability was added.
 
-Final Home-PC verification:
+Final primary validation device verification:
 
 - focused Coding Engine tests: **26/26 PASS**
 - real Windows managed-runtime acceptance: **1/1 PASS** — pinned runtime, central metadata, all 22 authorized tools present/schema-compatible, upstream extras blocked, LSP health, source `.serena` preserved, and process cleanup complete
@@ -845,7 +858,7 @@ Final Home-PC verification:
 - security/scope/secret review: **PASS** — no Desktop/MCP source drift, no `.serena/` tracking, no production `code.*`, no debug instrumentation, no secret-shaped added diff, and no raw Serena runtime persistence/logging
 - final code review: **Standards PASS / Spec PASS**, blocking findings **0 / 0**
 
-Task 6 diagnosis note: the Home-PC acceptance crash was caused by Node v24.14.0 on Windows fail-fast behavior during recursive `fs.cpSync(...)` from a Thai/Unicode source path. The acceptance harness now uses deterministic directory walking plus `copyFileSync`; no production runtime behavior was changed for that issue. The later child-process `.once(...)` typecheck blocker was resolved with a narrow consumed-event type adapter, without runtime behavior change or dependency pin churn.
+Task 6 diagnosis note: the primary validation device acceptance crash was caused by Node v24.14.0 on Windows fail-fast behavior during recursive `fs.cpSync(...)` from a Thai/Unicode source path. The acceptance harness now uses deterministic directory walking plus `copyFileSync`; no production runtime behavior was changed for that issue. The later child-process `.once(...)` typecheck blocker was resolved with a narrow consumed-event type adapter, without runtime behavior change or dependency pin churn.
 
 Known Milestone B limitation: clean-machine/self-contained `uv` bootstrap and controlled Serena update/rollback promotion are **not enabled yet**; the current provisioner requires an available trusted `uv` bootstrap resolver.
 
@@ -853,7 +866,7 @@ Known Milestone B limitation: clean-machine/self-contained `uv` bootstrap and co
 
 **Managed Serena Architecture — Milestone A compatibility/runtime spike**
 
-**Status: PASS on Work-PC (2026-09-04).**
+**Status: PASS on secondary validation device (2026-09-04).**
 
 Milestone A proved that SUD-D can manage one pinned Serena/LSP runtime as a compatibility spike without exposing production `code.*` tools.
 
@@ -872,7 +885,7 @@ Evidence:
 - `docs/superpowers/research/2026-09-04-serena-runtime-spike-results.md`
 - `docs/superpowers/research/2026-09-04-serena-v1.7.0-tool-schema.json`
 
-Final verification on Work-PC:
+Final verification on secondary validation device:
 
 - focused Serena spike tests: **PASS** — 7 passed / 1 skipped
 - live `pnpm serena:spike`: **PASS** — 8/8, stdio MCP initialize/discovery, LSP overview, deterministic cleanup
@@ -906,7 +919,7 @@ Immediate next action: **STOP.** Milestone B — managed runtime foundation requ
 
 **SUD-D product connector runtime compatibility fix**
 
-**Status: VERIFIED — local regression, full Security/Data Critical gates, and built product-profile acceptance pass; real Work-PC ChatGPT-through-Secure-Tunnel acceptance is still required.**
+**Status: VERIFIED — local regression, full Security/Data Critical gates, and built product-profile acceptance pass; real secondary validation device ChatGPT-through-Secure-Tunnel acceptance is still required.**
 
 Root cause: the product Secure Tunnel profile launched the JavaScript MCP Gateway through plain `node`. The installed `better-sqlite3` native module is Electron-compatible, so the product profile could reach MCP `initialize` and fail with `-32603 Internal server error` before `tools/list` when the Gateway ran under an incompatible Node ABI.
 
@@ -933,7 +946,7 @@ Fresh verification after the final review fix:
 - final Standards / Spec / Security review: **PASS** after one review finding was fixed with RED→GREEN coverage; no blocking findings remain
 - `.serena/`: **local-only / untracked**
 
-Remaining acceptance: perform one real Work-PC ChatGPT connection through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. The local built acceptance proves the fixed product-profile/runtime path but does not claim the external ChatGPT/control-plane path is complete on Work-PC.
+Remaining acceptance: perform one real secondary validation device ChatGPT connection through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. The local built acceptance proves the fixed product-profile/runtime path but does not claim the external ChatGPT/control-plane path is complete on secondary validation device.
 
 **Team Mode Personal Alpha MVP — V3**
 
@@ -976,7 +989,7 @@ Production MCP remains exactly **26 tools**, including exactly four Team tools: 
 - shared transaction-writer contract: **1/1 passed**.
 - focused persistence/security slice: **115/115 passed**.
 - affected production regressions: **55 passed / 1 skipped**.
-- real Home-PC production acceptance: **1/1 passed**.
+- real primary validation device production acceptance: **1/1 passed**.
 - `pnpm lint`: **PASS**.
 - `pnpm typecheck`: **PASS**.
 - fresh full `pnpm test`: **494 passed / 5 skipped across 41 files**.
@@ -1000,11 +1013,11 @@ Closure commit message: `feat: complete team mode personal alpha mvp`.
 
 **Status: BLOCKED — SANDBOX ENFORCEMENT NOT PROVEN ON WORK-PC on 2026-09-02.**
 
-Restricted Execute was retried on the Work-PC after Team Mode MVP — No-Execute completed. The mandatory Phase 0 Windows sandbox gate still did not pass, so no production Execute capability was implemented and no `dev.verify` MCP tool was registered. Production MCP remains exactly 14 tools.
+Restricted Execute was retried on the secondary validation device after Team Mode MVP — No-Execute completed. The mandatory Phase 0 Windows sandbox gate still did not pass, so no production Execute capability was implemented and no `dev.verify` MCP tool was registered. Production MCP remains exactly 14 tools.
 
-### Restricted Execute Work-PC retry findings
+### Restricted Execute secondary validation device retry findings
 
-Work-PC capability inventory:
+secondary validation device capability inventory:
 
 - OS: Windows 10 Pro `10.0.19045` / build `19045`, x64
 - `VirtualizationFirmwareEnabled`: `True`
@@ -1019,13 +1032,13 @@ Work-PC capability inventory:
 - `CheckNetIsolation.exe`: present
 - current Serena process: non-elevated
 
-Microsoft primary documentation confirms Windows Sandbox on Windows 10 supports `.wsb` configuration including disabled networking and read-only mapped folders, and uses hardware-based virtualization with a separate kernel. The newer Sandbox CLI with session IDs plus `start` / `exec` / `stop` automation begins with Windows 11 24H2; it is not available on this Windows 10 Work-PC.
+Microsoft primary documentation confirms Windows Sandbox on Windows 10 supports `.wsb` configuration including disabled networking and read-only mapped folders, and uses hardware-based virtualization with a separate kernel. The newer Sandbox CLI with session IDs plus `start` / `exec` / `stop` automation begins with Windows 11 24H2; it is not available on this Windows 10 secondary validation device.
 
 A harmless local-only `.serena/` spike launched a custom `.wsb` successfully without elevation, with networking disabled and only a read-only mapped probe folder. However, on this Windows 10 Sandbox version there is no supported deterministic guest-to-host result/control channel while writable host mappings remain forbidden. The `LogonCommand` produced no host-observable completion result, and the Sandbox session remained running until the disposable instance was stopped from the host.
 
 Because a writable mapped results folder would itself create a host write channel forbidden by the candidate acceptance requirement, it was not used as a workaround.
 
-Work-PC Phase 0 proof matrix therefore remains **NOT PROVEN** for Internet/localhost/LAN denial, outside-Workspace/user-profile/credential sentinel denial, child/grandchild confinement, guest timeout/tree cleanup, and privilege/capability containment. No broad admin/global firewall mutation was attempted; fail-closed behavior and absence of an unsandboxed fallback remain preserved.
+secondary validation device Phase 0 proof matrix therefore remains **NOT PROVEN** for Internet/localhost/LAN denial, outside-Workspace/user-profile/credential sentinel denial, child/grandchild confinement, guest timeout/tree cleanup, and privilege/capability containment. No broad admin/global firewall mutation was attempted; fail-closed behavior and absence of an unsandboxed fallback remain preserved.
 
 ### Restricted Execute decision
 
@@ -1038,7 +1051,7 @@ Work-PC Phase 0 proof matrix therefore remains **NOT PROVEN** for Internet/local
 - Network DENY, Outside Workspace DENY, InternalRoot DENY, credential rules, Basic Approval, audit ordering, Workspace File, and Git Safety invariants remain unchanged
 - Local report: `.serena/reports/restricted-execute.md` (local-only, not committed)
 
-Historical Home-PC Phase 0 evidence remains relevant only as historical evidence: Windows 10 Pro 19045 there lacked a proven usable Sandbox/AppContainer route at the time. The Work-PC retry supersedes the current Restricted Execute decision but does not claim Home-PC support.
+Historical primary validation device Phase 0 evidence remains relevant only as historical evidence: Windows 10 Pro 19045 there lacked a proven usable Sandbox/AppContainer route at the time. The secondary validation device retry supersedes the current Restricted Execute decision but does not claim primary validation device support.
 
 ### Restricted Execute blocked-state review
 
@@ -1394,9 +1407,9 @@ Real M0.8 acceptance found a Windows process-tree race in the existing fixed int
 
 The launcher now treats a non-zero `taskkill` result as failure only when the owned root PID is still alive. This remains a fixed internal process boundary: renderer input cannot select the executable, PID, arguments, cwd, or environment, and actual surviving-process failures remain fail-closed.
 
-### M0.8 Home-PC Acceptance
+### M0.8 primary validation device Acceptance
 
-Fresh production-bundle acceptance on Home-PC verified:
+Fresh production-bundle acceptance on primary validation device verified:
 
 1. active workspace configured
 2. `CONTROL_PLANE_API_KEY` configured without exposing plaintext
@@ -1418,7 +1431,7 @@ The local acceptance harness used `CONTROL_PLANE_POLL_TIMEOUT=2s` only in the ch
 - At M0.8 completion, credentials remained session-only/environment-backed and were exposed to UI only as `configured | missing`; the post-M0.8 Secure Runtime API Key Setup section above supersedes that storage limitation with Windows Credential Manager while preserving the same renderer-facing status boundary.
 - Tunnel reference persistence continues through the existing non-secret connection-profile repository; renderer snapshots expose only `tunnelConfigured`.
 - Connection-profile audit metadata does not include tunnel reference or credential values.
-- The dedicated Home-PC SUD_D tunnel is resolved only from the configured backend reference; production code does not select or infer a tunnel by name and does not reuse the Serena tooling profile.
+- The dedicated primary validation device SUD_D tunnel is resolved only from the configured backend reference; production code does not select or infer a tunnel by name and does not reuse the Serena tooling profile.
 - MCP Gateway remains inert with zero privileged tools. M1 policy/tool execution was not started.
 
 ### M0.8 Verification Results
@@ -1433,7 +1446,7 @@ Fresh verification after the final lifecycle/UI fixes:
 - build: **PASS** for all packages and Desktop production bundles
 - `git diff --check`: **PASS**
 - Desktop production smoke: **PASS** with persisted Secure Tunnel setup, safe configured-state UI, and enabled Connect action
-- real Home-PC M0.8 acceptance: **PASS** for control-plane poll, dedicated SUD_D tunnel, gateway target, MCP identity, inert `tools/list`, clean stop, and fresh start
+- real primary validation device M0.8 acceptance: **PASS** for control-plane poll, dedicated SUD_D tunnel, gateway target, MCP identity, inert `tools/list`, clean stop, and fresh start
 
 ### Required M0.8 Code Review
 
@@ -1560,7 +1573,7 @@ M0.7 did not change the tunnel/gateway runtime lifecycle, so the heavyweight ext
 
 ### Required M0.7 Code Review
 
-Final review used two independent axes against fixed baseline `12ff6122b7f1ff4281524da405640359ba243e7a`. The exact external `code-review` skill resource was not exposed by the active Home-PC runtime during the resumed session; this limitation was reported before review. The installed `requesting-code-review` workflow plus the repository-required Standards/Spec checklist was used without weakening any required review criterion.
+Final review used two independent axes against fixed baseline `12ff6122b7f1ff4281524da405640359ba243e7a`. The exact external `code-review` skill resource was not exposed by the active primary validation device runtime during the resumed session; this limitation was reported before review. The installed `requesting-code-review` workflow plus the repository-required Standards/Spec checklist was used without weakening any required review criterion.
 
 - **Standards:** no blocking finding after final verification. Security invariants, strict IPC, bounded diagnostics, redaction, and milestone scope remain intact. Minor duplication in diagnostic/presentation mapping is a judgement-call cleanup and was intentionally not refactored outside M0.7.
 - **Spec:** one blocking finding was found and fixed: Activity originally filtered polling noise after `LIMIT`, allowing historical polling records to hide meaningful lifecycle events. Exclusion now occurs in the parameterized audit query before `LIMIT`, with RED→GREEN regression coverage. Final Spec review has no blocking finding.
@@ -1663,7 +1676,7 @@ ChatGPT
 → SUD_D MCP Gateway
 ```
 
-The Work-PC installed tunnel client inspected during M0.5 is:
+The secondary validation device installed tunnel client inspected during M0.5 is:
 
 ```text
 tunnel-client 0.0.12+881c9a8fed7cccbe6607cd419863bbca506b8215
@@ -2012,7 +2025,7 @@ Built successfully:
 
 **PASS.**
 
-Work-PC acceptance preflight found:
+secondary validation device acceptance preflight found:
 
 - `tunnel-client` installed and runnable (`0.0.12+881c9a8...`)
 - `CONTROL_PLANE_API_KEY` available locally; value was not read/reported
@@ -2068,11 +2081,11 @@ Exit code 0
 
 ## Immediate Next Action
 
-Branding Logo + App Icon v2 is COMPLETE on Home PC. Work PC should begin with `git status`, `git fetch origin`, and `git pull --ff-only origin master`, then rerun the fresh session bootstrap + Mandatory Skill Router Gate.
+Branding Logo + App Icon v2 is COMPLETE on primary validation device. secondary validation device should begin with `git status`, `git fetch origin`, and `git pull --ff-only origin master`, then rerun the fresh session bootstrap + Mandatory Skill Router Gate.
 
 The next explicit product UI task remains **Connection tab UX/UI + onboarding/state correctness pass**, but it is **NOT STARTED** and requires a new explicit instruction; the Mandatory Impeccable UI Gate requires loading `impeccable` before any renderer-visible UI/UX work.
 
-The product connector still has one separate external acceptance item: on Work-PC, connect real ChatGPT through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. Restricted Execute remains **BLOCKED** because sandbox enforcement was not proven on Work-PC.
+The product connector still has one separate external acceptance item: on secondary validation device, connect real ChatGPT through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. Restricted Execute remains **BLOCKED** because sandbox enforcement was not proven on secondary validation device.
 
 **STOP after Branding v2 handoff is committed/pushed and `origin/master...master` is `0 0`.** Do not begin Connection redesign, Personal Alpha retest, Restricted Execute implementation, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or another capability slice without a new explicit instruction.
 

@@ -87,8 +87,9 @@ describe('Desktop update provider security', () => {
     expect(source).toContain("autoUpdater.autoDownload = false");
     expect(source).toContain("autoUpdater.autoInstallOnAppQuit = false");
     expect(source).toContain("JekdoTH");
-    expect(source).toContain("SUD_D-Releases");
-    expect(source).toContain("https://github.com/JekdoTH/SUD_D-Releases/releases/latest/download/sud-d-release.json");
+    expect(source).toContain("RELEASE_REPO = 'SUD_D'");
+    expect(source).toContain("https://github.com/JekdoTH/SUD_D/releases/latest/download/sud-d-release.json");
+    expect(source).not.toContain("SUD_D-Releases");
     expect(source).not.toContain('GH_TOKEN');
     expect(source).not.toContain('process.env.GH');
     expect(source).not.toMatch(/providerUrl|rendererUrl|input\.url/);

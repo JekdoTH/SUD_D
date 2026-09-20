@@ -35,7 +35,7 @@ function validPayload(payload) {
   if (payload.schemaVersion !== 1 || payload.channel !== 'latest') return false;
   if (!SEMVER.test(payload.version) || !REVISION.test(payload.revision) || !SHA512.test(payload.artifactSha512)) return false;
   if (typeof payload.releaseDate !== 'string' || Number.isNaN(Date.parse(payload.releaseDate))) return false;
-  if (typeof payload.artifactFileName !== 'string' || payload.artifactFileName !== `SUD-D Setup ${payload.version}.exe`) return false;
+  if (typeof payload.artifactFileName !== 'string' || payload.artifactFileName !== `SUD-D-Setup-${payload.version}.exe`) return false;
   return validReleaseNotes(payload.releaseNotes);
 }
 

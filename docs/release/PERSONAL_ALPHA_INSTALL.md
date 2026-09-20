@@ -4,7 +4,7 @@ This guide is for the approved two-user Personal Alpha only. Installers are unsi
 
 ## First install
 
-1. Obtain `SUD-D Setup <version>.exe` only from the official SUD-D Personal Alpha release location approved by the Product Owner.
+1. Obtain `SUD-D-Setup-<version>.exe` only from the official SUD-D Personal Alpha release location approved by the Product Owner.
 2. Confirm the expected Version/Revision from the release notes before running it.
 3. Run the installer as the current Windows user. Normal installation is per-user, uses the default SUD-D install location, and must not require administrator elevation. Custom installation directories are not supported in this Personal Alpha MVP.
 4. If Windows SmartScreen warns about the unsigned Alpha, use **More info → Run anyway** only when you personally trust the artifact and its source.

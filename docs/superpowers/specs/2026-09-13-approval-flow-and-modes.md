@@ -4,7 +4,7 @@ Status: APPROVED PRODUCT DIRECTION — implementation scope below is intentional
 
 ## Context
 
-Real SUD-D-only Team Mode dogfood on Work PC reached `completed`, but `verify.run: diff_check` entered an approval loop: after the user approved the request, retrying the same bounded action created a new approval request instead of consuming/reusing the approved decision. This blocks the end-to-end flow before `secret_scan`, `git.commit`, and `work.checkpoint`.
+Real SUD-D-only Team Mode dogfood on secondary validation device reached `completed`, but `verify.run: diff_check` entered an approval loop: after the user approved the request, retrying the same bounded action created a new approval request instead of consuming/reusing the approved decision. This blocks the end-to-end flow before `secret_scan`, `git.commit`, and `work.checkpoint`.
 
 Observed approval request IDs during the same acceptance sequence included:
 
@@ -67,4 +67,4 @@ Implement now:
 
 ## Separate open dogfood follow-up
 
-DGF-007 remains open: launching the SUD-D Desktop app on Work PC visibly opens a DevTools/console window every time. Normal product launch should not show that console. Do not mix this UI/runtime-startup fix into the approval-flow patch unless separately authorized.
+DGF-007 remains open: launching the SUD-D Desktop app on secondary validation device visibly opens a DevTools/console window every time. Normal product launch should not show that console. Do not mix this UI/runtime-startup fix into the approval-flow patch unless separately authorized.

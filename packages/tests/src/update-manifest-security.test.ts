@@ -19,7 +19,7 @@ function payload(overrides: Record<string, unknown> = {}) {
     revision: REVISION,
     releaseDate: '2026-09-17T12:34:56.000Z',
     channel: 'latest',
-    artifactFileName: 'SUD-D Setup 0.2.0.exe',
+    artifactFileName: 'SUD-D-Setup-0.2.0.exe',
     artifactSha512: HASH,
     releaseNotes: { new: ['Signed updates'], improved: [], fixed: [] },
     ...overrides,
@@ -80,7 +80,7 @@ describe('signed release manifest verification', () => {
 
   it('hashes installer files with the exposed SHA-512 helper', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'sud-d-update-manifest-'));
-    const filePath = join(directory, 'SUD-D Setup 0.2.0.exe');
+    const filePath = join(directory, 'SUD-D-Setup-0.2.0.exe');
     await writeFile(filePath, 'trusted installer bytes');
 
     await expect(sha512FileHex(filePath)).resolves.toBe(

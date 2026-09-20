@@ -458,12 +458,12 @@ Require PASS.
 
 ---
 
-## Task 12 — Real Home-PC Personal Alpha Team Acceptance
+## Task 12 — Real primary validation device Personal Alpha Team Acceptance
 
 **Files**
 - Create: `packages/tests/src/team-mode-personal-alpha.acceptance.test.ts`
 
-Follow the repo's existing opt-in Home-PC acceptance pattern and use a disposable/test Git Workspace plus the real production MCP path.
+Follow the repo's existing opt-in primary validation device acceptance pattern and use a disposable/test Git Workspace plus the real production MCP path.
 
 Required scenario:
 1. Fresh MCP session; Team project call before `work.resume` → resume-required/no inner dispatch.
@@ -503,7 +503,7 @@ pnpm test -- \
 ```
 
 - [ ] Relevant Work Memory, Workspace/Git, Restricted Verify, MCP surface, Tool Kernel, Basic Approval regressions. Record exact counts.
-- [ ] Real Home-PC Team acceptance. Record exact counts.
+- [ ] Real primary validation device Team acceptance. Record exact counts.
 - [ ] `pnpm lint`
 - [ ] `pnpm typecheck`
 - [ ] Full repo once: `pnpm test`
@@ -528,7 +528,7 @@ git rev-list --left-right --count HEAD...origin/master
 
 Require `HEAD == origin/master`, divergence `0 0`.
 
-Final report includes exact Team facade/outcomes, tool counts, atomicity, Workspace binding, Task/rework/Validator flow, Work Memory mapping/resume, legacy migration, Home-PC acceptance, Impeccable result, focused/relevant/full counts, lint/typecheck/build/diff, Security/Data/Standards/Spec, staged scope/secret scan, commit SHA, push, equality/divergence, and preservation of local Restricted Execute note + `.serena/`.
+Final report includes exact Team facade/outcomes, tool counts, atomicity, Workspace binding, Task/rework/Validator flow, Work Memory mapping/resume, legacy migration, primary validation device acceptance, Impeccable result, focused/relevant/full counts, lint/typecheck/build/diff, Security/Data/Standards/Spec, staged scope/secret scan, commit SHA, push, equality/divergence, and preservation of local Restricted Execute note + `.serena/`.
 
 **STOP after Team Mode Personal Alpha MVP closes. Do not start real-world dogfooding or any later milestone until the user explicitly authorizes it.**
 

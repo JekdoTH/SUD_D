@@ -1547,7 +1547,7 @@ On Version A:
 
 - [ ] **Step 5: Work acceptance**
 
-Repeat independently on Work PC.
+Repeat independently on secondary validation device.
 
 - [ ] **Step 6: Failure-path spot check**
 

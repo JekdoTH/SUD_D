@@ -1321,7 +1321,7 @@ RED/GREEN:
 
 ### Slice 11 — Security/data regressions
 
-### Slice 12 — Real Home-PC acceptance
+### Slice 12 — Real primary validation device acceptance
 
 ### Slice 13 — Final closure
 
@@ -1455,7 +1455,7 @@ After source is stable:
 - relevant Workspace/Git/code/verify/Approval/Work Memory regressions
 - exact Team MCP surface = 4
 - exact production MCP surface = 26
-- one real Home-PC end-to-end Team acceptance
+- one real primary validation device end-to-end Team acceptance
 - Desktop Team smoke
 - Impeccable final detector on changed Team UI
 - lint

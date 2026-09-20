@@ -1,7 +1,15 @@
 {
-  "new": [],
-  "improved": [
-    "Windows in-app update flow is now ready for normal future releases"
+  "new": [
+    "SUD-D v1.0.0 establishes the stable release baseline",
+    "Git workflow capabilities are available through the packaged MCP Gateway",
+    "A new permanent update trust root and GitHub Releases feed prepare future in-app updates"
   ],
-  "fixed": []
+  "improved": [
+    "MCP Gateway packaging is more reliable in installed Windows builds",
+    "Installer compatibility and packaged runtime verification are hardened"
+  ],
+  "fixed": [
+    "Secure Tunnel compatibility fixes preserve the supported production connection path",
+    "Users upgrading from 0.1.x perform one manual v1.0.0 installation before future SUD-D Update releases"
+  ]
 }

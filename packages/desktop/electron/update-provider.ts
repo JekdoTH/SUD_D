@@ -5,8 +5,8 @@ import { autoUpdater } from 'electron-updater';
 import { normalizeElectronUpdateCheckResult } from './update-provider-result';
 
 export const RELEASE_OWNER = 'JekdoTH';
-export const RELEASE_REPO = 'SUD_D-Releases';
-export const RELEASE_MANIFEST_URL = 'https://github.com/JekdoTH/SUD_D-Releases/releases/latest/download/sud-d-release.json';
+export const RELEASE_REPO = 'SUD_D';
+export const RELEASE_MANIFEST_URL = 'https://github.com/JekdoTH/SUD_D/releases/latest/download/sud-d-release.json';
 
 const MAX_MANIFEST_BYTES = 256 * 1024;
 const MANIFEST_TIMEOUT_MS = 15_000;

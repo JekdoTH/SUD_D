@@ -20,7 +20,7 @@ SUD-D is not an unrestricted agent shell. Its distinguishing mechanism is a loca
 
 ## Operating Context
 
-SUD-D runs as an Electron desktop application on Windows. Normal use centers on choosing an approved workspace, configuring the local ChatGPT/Secure MCP connection, checking health and activity, and allowing AI work only through the exposed SUD-D tool surface. Home-PC and Work-PC are independent local devices with separate runtime state.
+SUD-D runs as an Electron desktop application on Windows. Normal use centers on choosing an approved workspace, configuring the local ChatGPT/Secure MCP connection, checking health and activity, and allowing AI work only through the exposed SUD-D tool surface. primary validation device and secondary validation device are independent local devices with separate runtime state.
 
 ## Capabilities and Constraints
 

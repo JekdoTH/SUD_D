@@ -47,7 +47,7 @@ MILESTONE A: PASS
 
 ## Compatibility Correction
 
-The committed plan sketched synchronous `execFileSync` installation. On Work-PC the first live `pnpm serena:spike` exercised Serena successfully but Vitest returned exit code `1` after a worker RPC timeout while the long uv install blocked the worker event loop. The harness was corrected to launch uv with asynchronous `spawn`, `shell: false`, `windowsHide: true`, bounded stdout/stderr counting, and no raw output persistence. This preserves the plan's security intent while making the live acceptance command deterministic under Vitest.
+The committed plan sketched synchronous `execFileSync` installation. On secondary validation device the first live `pnpm serena:spike` exercised Serena successfully but Vitest returned exit code `1` after a worker RPC timeout while the long uv install blocked the worker event loop. The harness was corrected to launch uv with asynchronous `spawn`, `shell: false`, `windowsHide: true`, bounded stdout/stderr counting, and no raw output persistence. This preserves the plan's security intent while making the live acceptance command deterministic under Vitest.
 
 ## Security/Scope Confirmation
 

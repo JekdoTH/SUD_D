@@ -1425,9 +1425,9 @@ If real GitHub credentials are unavailable in automated smoke, keep network smok
 Present verified build for one bounded real repository:
 
 ```text
-Home PC → work/commit → Push to GitHub
-Work PC → Sync from GitHub → work/commit → Push to GitHub
-Home PC → Sync from GitHub
+primary validation device → work/commit → Push to GitHub
+secondary validation device → Sync from GitHub → work/commit → Push to GitHub
+primary validation device → Sync from GitHub
 ```
 
 Also confirm one Standard manual Approval path and one eligible automatic Approval Mode path. Manual acceptance supplements mandatory automated proof.

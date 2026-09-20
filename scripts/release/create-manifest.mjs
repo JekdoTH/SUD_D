@@ -31,7 +31,7 @@ async function resolveCandidate(repoRoot) {
   const revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim();
   if (!REVISION.test(revision)) throw new Error('Release revision must be a full Git SHA.');
   const distRoot = resolve(repoRoot, 'dist-release');
-  const expectedName = `SUD-D Setup ${pkg.version}.exe`;
+  const expectedName = `SUD-D-Setup-${pkg.version}.exe`;
   const matches = (await readdir(distRoot)).filter((name) => name === expectedName);
   if (matches.length !== 1) throw new Error(`Expected exactly one ${expectedName} in dist-release/.`);
   return {

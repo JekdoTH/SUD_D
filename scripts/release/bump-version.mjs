@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 export async function bumpVersion({ repoRoot, mode }) {
-  if (mode !== 'patch' && mode !== 'minor') {
-    throw new Error('Version bump mode must be patch or minor.');
+  if (mode !== 'patch' && mode !== 'minor' && mode !== 'major') {
+    throw new Error('Version bump mode must be patch, minor, or major.');
   }
   const packagePath = resolve(repoRoot, 'packages/desktop/package.json');
   const parsed = JSON.parse(await readFile(packagePath, 'utf8'));
@@ -16,7 +16,9 @@ export async function bumpVersion({ repoRoot, mode }) {
   const [major, minor, patch] = parsed.version.split('.').map(Number);
   const next = mode === 'patch'
     ? `${major}.${minor}.${patch + 1}`
-    : `${major}.${minor + 1}.0`;
+    : mode === 'minor'
+      ? `${major}.${minor + 1}.0`
+      : `${major + 1}.0.0`;
   parsed.version = next;
   await writeFile(packagePath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
   return next;

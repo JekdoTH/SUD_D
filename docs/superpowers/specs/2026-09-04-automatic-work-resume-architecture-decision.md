@@ -108,7 +108,7 @@ General shell, Full Recovery/Delete, Auto-update, installer bundling, cross-plat
 
 For Personal Alpha, Work Memory may remain local-first per device.
 
-Automatic Home-PC ↔ Work-PC memory synchronization is not required for this MVP. Continue using repository/handoff flow for cross-device work until a separate sync design is approved.
+Automatic primary validation device ↔ secondary validation device memory synchronization is not required for this MVP. Continue using repository/handoff flow for cross-device work until a separate sync design is approved.
 
 ## Authority and source-of-truth rules
 

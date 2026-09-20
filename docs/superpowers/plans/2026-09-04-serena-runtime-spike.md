@@ -611,7 +611,7 @@ pnpm exec vitest run packages/tests/src/serena-runtime-spike.test.ts
 
 Expected: pure tests PASS; live test SKIPPED.
 
-- [ ] **Step 4: Run the real Home-PC spike**
+- [ ] **Step 4: Run the real primary validation device spike**
 
 Run from the repo root:
 

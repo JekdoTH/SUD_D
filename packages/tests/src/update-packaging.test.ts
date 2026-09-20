@@ -33,6 +33,7 @@ const desktopPackage = JSON.parse(readFileSync(new URL('../../desktop/package.js
 const viteSource = readFileSync(new URL('../../desktop/vite.config.ts', import.meta.url), 'utf8');
 const brandingPrepareSource = readFileSync(new URL('../../desktop/scripts/prepare-windows-branding.mjs', import.meta.url), 'utf8');
 const installerCompatSource = readFileSync(new URL('../../desktop/scripts/windows-installer-compat.nsh', import.meta.url), 'utf8');
+const updateConfigSource = readFileSync(new URL('../../desktop/scripts/ensure-app-update-config.mjs', import.meta.url), 'utf8');
 
 const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 
@@ -45,7 +46,7 @@ describe('Windows update packaging configuration', () => {
       allowElevation: false,
       allowToChangeInstallationDirectory: false,
     });
-    expect(desktopPackage.build.artifactName).toBe('SUD-D Setup ${version}.${ext}');
+    expect(desktopPackage.build.artifactName).toBe('SUD-D-Setup-${version}.${ext}');
   });
 
   it('keeps unsigned Personal Alpha packaging independent of winCodeSign resource editing', () => {
@@ -140,9 +141,11 @@ describe('Windows update packaging configuration', () => {
     expect(desktopPackage.build.publish).toEqual([{
       provider: 'github',
       owner: 'JekdoTH',
-      repo: 'SUD_D-Releases',
+      repo: 'SUD_D',
       releaseType: 'release',
     }]);
+    expect(updateConfigSource).toContain("'repo: SUD_D'");
+    expect(updateConfigSource).not.toContain('SUD_D-Releases');
   });
 
   it('keeps package commands non-publishing and revision-gated', () => {

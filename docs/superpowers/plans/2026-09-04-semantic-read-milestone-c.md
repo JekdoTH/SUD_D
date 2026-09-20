@@ -158,7 +158,7 @@ code.diagnostics     -> get_diagnostics_for_file
 
 - [ ] **Step 1: Extend the existing opt-in acceptance after runtime health.** Call all five `runtime.semanticRead(...)` operations against the copied TypeScript fixture: overview, find symbol, references, search, diagnostics.
 - [ ] **Step 2: Assert every result is bounded, observed raw upstream names contain only existing health calls + the five fixed mapped names, source `.serena` remains byte-equivalent, and cleanup kills the managed root PID.**
-- [ ] **Step 3: Run the real Home-PC Windows acceptance.** `pnpm serena:managed-runtime` must PASS.
+- [ ] **Step 3: Run the real primary validation device Windows acceptance.** `pnpm serena:managed-runtime` must PASS.
 
 ---
 

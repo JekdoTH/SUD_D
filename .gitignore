@@ -26,8 +26,8 @@ packages/*/src/*.d.ts.map
 .turbo/
 
 # Electron packaged
-release/
-dist-release/
+/release/
+/dist-release/
 packages/desktop/build/
 
 # Logs
@@ -41,3 +41,26 @@ Thumbs.db
 
 # Editor
 .vscode/settings.json
+
+# Local agent/tooling state
+.serena/
+
+# Local environment and credentials
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*release-private-key*
+*signing-private-key*
+
+# Keep the public update trust root tracked
+!packages/desktop/release/update-public-key.pem
+
+# Local runtime state
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm

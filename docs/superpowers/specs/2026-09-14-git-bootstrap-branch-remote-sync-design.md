@@ -9,11 +9,11 @@
 This design extends SUD_D's existing bounded Git foundation into the primary two-device workflow:
 
 ```text
-Home PC → work / verify / commit → Push to GitHub
+primary validation device → work / verify / commit → Push to GitHub
 → GitHub
-→ Work PC → Sync from GitHub → work / verify / commit → Push to GitHub
+→ secondary validation device → Sync from GitHub → work / verify / commit → Push to GitHub
 → GitHub
-→ Home PC → Sync from GitHub
+→ primary validation device → Sync from GitHub
 ```
 
 The design optimizes for one primary user and preserves SUD_D's existing security architecture. It is not a full Git client and does not grant the renderer shell/process authority.
@@ -54,7 +54,7 @@ The implementation must evolve these seams. It must not layer a separate generic
 - set upstream automatically on a safe first push
 - GitHub HTTPS using the machine's existing Git/Windows credential flow
 - GitHub SSH using the machine's existing Git/SSH configuration and agent flow
-- Home-PC ↔ GitHub ↔ Work-PC operation
+- primary validation device ↔ GitHub ↔ secondary validation device operation
 - compatibility with existing linked worktrees
 - a dedicated main-navigation **Git** page
 
@@ -752,7 +752,7 @@ After automated evidence is green, finish with one Product Owner manual acceptan
 - the Git page at practical Windows desktop size;
 - Initialize / repository state UX;
 - branch workflow;
-- real bounded Home-PC → GitHub → Work-PC → GitHub → Home-PC Sync/Push workflow using an approved test repository.
+- real bounded primary validation device → GitHub → secondary validation device → GitHub → primary validation device Sync/Push workflow using an approved test repository.
 
 Manual acceptance supplements; it does not replace mandatory Security / Data Critical automated proof.
 

@@ -20,8 +20,12 @@
     "package:win": "pnpm --filter @sud-d/desktop package:win",
     "release:bump:patch": "node scripts/release/bump-version.mjs patch",
     "release:bump:minor": "node scripts/release/bump-version.mjs minor",
+    "release:bump:major": "node scripts/release/bump-version.mjs major",
+    "release:notes": "node scripts/release/render-release-notes.mjs docs/release/release-notes.json",
     "release:manifest": "node scripts/release/create-manifest.mjs docs/release/release-notes.json",
-    "release:verify": "node scripts/release/verify-release.mjs"
+    "release:verify": "node scripts/release/verify-release.mjs",
+    "release:verify:signing-key": "node scripts/release/verify-signing-key.mjs",
+    "release:verify:windows": "node scripts/release/verify-windows-release.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.35.0",

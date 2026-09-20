@@ -974,7 +974,7 @@ Add to root `package.json`:
 "serena:managed-runtime": "cross-env SUD_D_SERENA_MANAGED_RUNTIME=1 vitest run packages/tests/src/serena-managed-runtime.acceptance.test.ts --reporter=verbose"
 ```
 
-- [ ] **Step 3: Run the real Work-PC acceptance**
+- [ ] **Step 3: Run the real secondary validation device acceptance**
 
 ```powershell
 pnpm serena:managed-runtime

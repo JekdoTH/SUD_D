@@ -102,7 +102,7 @@ Repository errors map to stable `WORK_MEMORY_PERSISTENCE_FAILED`; raw SQLite err
 7. Capability/MCP RED/GREEN: strict `work.*` schemas, server-specific session id, 26 exact tools, concise initialize instructions if supported.
 8. Integration regressions: existing Policy/Approval results remain unchanged after resume; team/workspace/git/code/verify consumers are updated only to bootstrap first.
 9. Activity/audit regression: routine successful work resume/checkpoint is filtered from main Activity; resume-required/security failures remain auditable with safe metadata only.
-10. Real Home-PC acceptance: disposable SQLite + two Workspaces + fresh server A/B proves restart persistence, session reset, Workspace switch isolation, Git drift, no raw secret/output persistence.
+10. Real primary validation device acceptance: disposable SQLite + two Workspaces + fresh server A/B proves restart persistence, session reset, Workspace switch isolation, Git drift, no raw secret/output persistence.
 
 ## Required attack regressions
 
@@ -115,7 +115,7 @@ After stable implementation only:
 - focused Work Memory/Resume suite
 - relevant persistence/Workspace/Git/Tool Kernel/MCP/security regressions
 - exact production tools/list = 26
-- one real session-restart/Workspace-switch/Git-drift Home-PC acceptance
+- one real session-restart/Workspace-switch/Git-drift primary validation device acceptance
 - lint
 - typecheck
 - full repository suite once

@@ -20,7 +20,7 @@ This milestone does not add a multi-model runtime, parallel agents, shell/proces
 
 Restricted Execute remains intentionally deferred:
 
-> Restricted Execute: DEFERRED — Windows sandbox enforcement is not yet proven because BIOS virtualization is disabled on the Home-PC. Revisit after virtualization is enabled and one real Windows sandbox path passes enforcement acceptance. Team Mode MVP must remain No-Execute until then.
+> Restricted Execute: DEFERRED — Windows sandbox enforcement is not yet proven because BIOS virtualization is disabled on the primary validation device. Revisit after virtualization is enabled and one real Windows sandbox path passes enforcement acceptance. Team Mode MVP must remain No-Execute until then.
 
 Any work requiring test/lint/typecheck/build must block with `EXECUTE_REQUIRED` rather than creating a process/shell workaround.
 
@@ -462,7 +462,7 @@ Deferred alternatives:
 
 After Team Mode MVP is stable:
 
-1. enable BIOS virtualization on Home-PC
+1. enable BIOS virtualization on primary validation device
 2. return to Restricted Execute
 3. prove a real Windows sandbox path
 4. add bounded `dev.verify`

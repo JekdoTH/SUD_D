@@ -14,6 +14,8 @@ import { createReleaseManifest } from '../../../scripts/release/create-manifest.
 import { renderReleaseNotes } from '../../../scripts/release/render-release-notes.mjs';
 // @ts-expect-error -- trusted release tooling is intentionally implemented as ESM JavaScript.
 import { verifyRelease } from '../../../scripts/release/verify-release.mjs';
+// @ts-expect-error -- trusted release tooling is intentionally implemented as ESM JavaScript.
+import { verifySigningKeyPair } from '../../../scripts/release/verify-signing-key.mjs';
 
 const SCRIPT_ROOT = resolve(import.meta.dirname, '../../../scripts/release');
 const NOTES = {
@@ -45,23 +47,24 @@ async function writeKey(root: string) {
 
 async function writeCandidate(root: string, version = '0.1.0') {
   await writeFile(join(root, 'docs', 'release', 'release-notes.json'), JSON.stringify(NOTES));
-  const installer = join(root, 'dist-release', `SUD-D Setup ${version}.exe`);
+  const installer = join(root, 'dist-release', `SUD-D-Setup-${version}.exe`);
   await writeFile(installer, 'candidate installer bytes');
   return installer;
 }
 
 describe('trusted release tooling', () => {
-  it('bumps patch then minor from the canonical desktop package version', async () => {
+  it('bumps patch, minor, then major from the canonical desktop package version', async () => {
     const root = await createFixture('0.1.0');
     await expect(bumpVersion({ repoRoot: root, mode: 'patch' })).resolves.toBe('0.1.1');
     await expect(bumpVersion({ repoRoot: root, mode: 'minor' })).resolves.toBe('0.2.0');
+    await expect(bumpVersion({ repoRoot: root, mode: 'major' })).resolves.toBe('1.0.0');
     const pkg = JSON.parse(await readFile(join(root, 'packages', 'desktop', 'package.json'), 'utf8'));
-    expect(pkg.version).toBe('0.2.0');
+    expect(pkg.version).toBe('1.0.0');
   });
 
   it('rejects an invalid bump mode', async () => {
     const root = await createFixture();
-    await expect(bumpVersion({ repoRoot: root, mode: 'major' })).rejects.toThrow(/patch|minor/);
+    await expect(bumpVersion({ repoRoot: root, mode: 'banana' })).rejects.toThrow(/patch|minor|major/);
   });
 
   it('rejects release notes with unknown keys or non-string entries', async () => {
@@ -108,7 +111,7 @@ describe('trusted release tooling', () => {
       revision: head,
       releaseDate: '2026-09-17T10:00:00.000Z',
       channel: 'latest',
-      artifactFileName: 'SUD-D Setup 0.2.0.exe',
+      artifactFileName: 'SUD-D-Setup-0.2.0.exe',
       artifactSha512: expectedHash,
       releaseNotes: NOTES,
     });
@@ -145,8 +148,20 @@ describe('trusted release tooling', () => {
       version: '0.2.0',
     });
 
-    await writeFile(join(root, 'dist-release', 'SUD-D Setup 0.2.0.exe'), 'tampered');
+    await writeFile(join(root, 'dist-release', 'SUD-D-Setup-0.2.0.exe'), 'tampered');
     await expect(verifyRelease({ repoRoot: root, publicKeyPem })).resolves.toMatchObject({ ok: false });
+  });
+
+  it('verifies that the release private key derives the committed public key', async () => {
+    const root = await createFixture();
+    const { privateKeyFile, publicKey } = await writeKey(root);
+    const publicKeyFile = join(root, 'release-public-key.pem');
+    await writeFile(publicKeyFile, publicKey.export({ format: 'pem', type: 'spki' }).toString());
+    await expect(verifySigningKeyPair({ repoRoot: root, privateKeyFile, publicKeyFile })).resolves.toEqual({ ok: true });
+
+    const other = generateKeyPairSync('ed25519').publicKey.export({ format: 'pem', type: 'spki' }).toString();
+    await writeFile(publicKeyFile, other);
+    await expect(verifySigningKeyPair({ repoRoot: root, privateKeyFile, publicKeyFile })).rejects.toThrow(/does not match/i);
   });
 
   it('renders Markdown from the same canonical release-note JSON', async () => {
@@ -165,8 +180,12 @@ describe('trusted release tooling', () => {
     expect(rootPackage.scripts).toMatchObject({
       'release:bump:patch': 'node scripts/release/bump-version.mjs patch',
       'release:bump:minor': 'node scripts/release/bump-version.mjs minor',
+      'release:bump:major': 'node scripts/release/bump-version.mjs major',
+      'release:notes': 'node scripts/release/render-release-notes.mjs docs/release/release-notes.json',
       'release:manifest': 'node scripts/release/create-manifest.mjs docs/release/release-notes.json',
       'release:verify': 'node scripts/release/verify-release.mjs',
+      'release:verify:signing-key': 'node scripts/release/verify-signing-key.mjs',
+      'release:verify:windows': 'node scripts/release/verify-windows-release.mjs',
     });
     const createSource = await readFile(join(SCRIPT_ROOT, 'create-manifest.mjs'), 'utf8');
     expect(createSource).toContain('SUD_D_RELEASE_PRIVATE_KEY_FILE');

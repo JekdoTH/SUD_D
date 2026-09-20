@@ -120,7 +120,7 @@ Sources:
 
 ## 6. Milestone A facts remain the runtime compatibility baseline
 
-Milestone A already proved on Work-PC:
+Milestone A already proved on secondary validation device:
 
 - `serena-agent==1.7.0`;
 - Python 3.13 via uv-managed isolated directories;

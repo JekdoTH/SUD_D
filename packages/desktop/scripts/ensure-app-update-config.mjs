@@ -14,7 +14,7 @@ if (
   || publish.length !== 1
   || publish[0]?.provider !== 'github'
   || publish[0]?.owner !== 'JekdoTH'
-  || publish[0]?.repo !== 'SUD_D-Releases'
+  || publish[0]?.repo !== 'SUD_D'
   || publish[0]?.releaseType !== 'release'
 ) {
   throw new Error('Unexpected Windows update publish configuration.');
@@ -23,7 +23,7 @@ if (
 const outputPath = resolve(desktopRoot, '../../dist-release/win-unpacked/resources/app-update.yml');
 const content = [
   'owner: JekdoTH',
-  'repo: SUD_D-Releases',
+  'repo: SUD_D',
   'provider: github',
   'releaseType: release',
   "updaterCacheDirName: '@sud-ddesktop-updater'",

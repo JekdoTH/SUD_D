@@ -83,9 +83,9 @@ Implementation status (2026-09-13): APPROVED FIX IMPLEMENTED AND LOCALLY VERIFIE
 
 ### Local production composition / acceptance — PASS
 
-A read-only/diagnostic inspection on the Home PC confirmed the built production gateway registers exactly 26 tools. The compiled list includes `work.resume`, `work.checkpoint`, and exactly four Team tools: `team.start`, `team.status`, `team.stop`, `team.submit`.
+A read-only/diagnostic inspection on the primary validation device confirmed the built production gateway registers exactly 26 tools. The compiled list includes `work.resume`, `work.checkpoint`, and exactly four Team tools: `team.start`, `team.status`, `team.stop`, `team.submit`.
 
-The existing gated Home-PC Team Mode production acceptance was then run with `SUD_D_TEAM_MODE_ACCEPTANCE=1` against the current local repo. Result: **1/1 PASS**. That acceptance performs MCP `tools/list`, requires the exact approved 26-tool list, verifies exactly four `team.*` tools, verifies pre-resume Team calls fail with `WORK_RESUME_REQUIRED`, then successfully calls `work.resume` and continues the production Team flow.
+The existing gated primary validation device Team Mode production acceptance was then run with `SUD_D_TEAM_MODE_ACCEPTANCE=1` against the current local repo. Result: **1/1 PASS**. That acceptance performs MCP `tools/list`, requires the exact approved 26-tool list, verifies exactly four `team.*` tools, verifies pre-resume Team calls fail with `WORK_RESUME_REQUIRED`, then successfully calls `work.resume` and continues the production Team flow.
 
 The running tunnel was also observed healthy/ready against the current SUD-D gateway, with successful control-plane polling. Together with the successful ChatGPT action refresh recovery, this closes the Team/Work Memory availability blocker without a SUD-D implementation change.
 

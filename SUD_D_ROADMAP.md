@@ -108,11 +108,11 @@ Current connection direction:
 
 ### Current device model
 
-- Home-PC uses its own Secure Tunnel.
-- Work-PC uses its own Secure Tunnel.
+- primary validation device uses its own Secure Tunnel.
+- secondary validation device uses its own Secure Tunnel.
 - Secure Tunnel setup is performed once per machine.
 - SUD_D Desktop hides profile/key/path/CLI complexity from normal UX.
-- Home-PC and Work-PC are independent local devices at this stage.
+- primary validation device and secondary validation device are independent local devices at this stage.
 
 Conceptual device state:
 
@@ -140,7 +140,7 @@ A future connection layer may support:
 SUD_D Connect
 → GitHub OAuth
 → Device Registry / discovery
-→ Home-PC / Work-PC
+→ primary validation device / secondary validation device
 → Cloud Relay
 → account / cross-device sync
 ```
@@ -651,7 +651,7 @@ Use both automatic state derived from SUD_D tool/task activity where reliable an
 
 Team Mode must reuse this same state model rather than create a second memory system. Shared concepts include Goal, Task/Subtask, Checkpoint, Artifact, Decision, Task History, Handoff, and Final Result.
 
-For Personal Alpha, Work Memory may remain local-first per device. Automatic Home-PC ↔ Work-PC memory synchronization is not required for this MVP; repository/handoff flow remains the cross-device continuity mechanism until a separate sync design is approved. `.serena/` remains local tooling state, not project memory.
+For Personal Alpha, Work Memory may remain local-first per device. Automatic primary validation device ↔ secondary validation device memory synchronization is not required for this MVP; repository/handoff flow remains the cross-device continuity mechanism until a separate sync design is approved. `.serena/` remains local tooling state, not project memory.
 
 Durable architecture contract: `docs/superpowers/specs/2026-09-04-automatic-work-resume-architecture-decision.md`.
 
@@ -669,7 +669,7 @@ Device concept:
 
 ### Current
 
-Home-PC and Work-PC are independent local devices. Each manages its own Secure Tunnel connection and local state.
+primary validation device and secondary validation device are independent local devices. Each manages its own Secure Tunnel connection and local state.
 
 ### Future optional
 

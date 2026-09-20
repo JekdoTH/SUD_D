@@ -26,7 +26,7 @@ If the tunnel is running but the local Serena MCP server is not listening, the t
 
 ## Important: tunnel profile can be overridden by environment
 
-On Home-PC, `CONTROL_PLANE_TUNNEL_ID` is also used by the normal SUD_D runtime. A PowerShell session can therefore inherit the SUD_D product tunnel ID.
+On primary validation device, `CONTROL_PLANE_TUNNEL_ID` is also used by the normal SUD_D runtime. A PowerShell session can therefore inherit the SUD_D product tunnel ID.
 
 `tunnel-client` environment configuration can override the `tunnel_id` stored in `serena-sudd.yaml`. If this happens, running:
 
@@ -34,7 +34,7 @@ On Home-PC, `CONTROL_PLANE_TUNNEL_ID` is also used by the normal SUD_D runtime. 
 tunnel-client run --profile serena-sudd
 ```
 
-may accidentally start the **SUD-D HOME** tunnel instead of **Serena SUD-D Home**, even though the Serena profile name was supplied.
+may accidentally start the **SUD-D Primary** tunnel instead of **Serena SUD-D Primary**, even though the Serena profile name was supplied.
 
 This failure was confirmed on 2026-09-01: the Serena profile contained its own tunnel ID, while the inherited `CONTROL_PLANE_TUNNEL_ID` pointed at the normal SUD_D HOME tunnel. The resulting ChatGPT Serena connector calls returned 404/429 even though the local Serena server itself was healthy.
 
@@ -47,41 +47,41 @@ tunnel-client run --profile serena-sudd
 
 This does **not** delete the Windows/User environment value and does not change SUD_D configuration. It only removes the override from that PowerShell process so the Serena profile's own tunnel ID wins.
 
-A healthy Home Serena tunnel log should identify the tunnel name as approximately:
+A healthy primary Serena tunnel log should identify the tunnel name as approximately:
 
 ```text
-Serena SUD-D Home
+Serena SUD-D Primary
 ```
 
 and should show an MCP session initialized against the local Serena server.
 
 ---
 
-## Serena SUD-D Home
+## Serena SUD-D Primary
 
 ### Current validated launcher workflow
 
-**Validated on Home-PC on 2026-09-01:** the preferred launcher is the v4 pattern using **one Windows Terminal window with two tabs**.
+**Validated on primary validation device on 2026-09-01:** the preferred launcher is the v4 pattern using **one Windows Terminal window with two tabs**.
 
 ```text
-Start-Serena-Home-v4.bat
+Start-Serena-Primary.bat
 → PowerShell 7 launcher
 → Windows Terminal
-   ├─ Tab 1: Serena MCP Home — port 7006
-   └─ Tab 2: Serena SUD-D Home Tunnel — health/admin port 7005
+   ├─ Tab 1: Serena MCP Primary — port 7006
+   └─ Tab 2: Serena SUD-D Primary Tunnel — health/admin port 7005
 ```
 
 The launcher behavior that worked successfully is:
 
-1. verify PowerShell 7, Windows Terminal, Serena, tunnel-client, and the Home SUD_D project path
+1. verify PowerShell 7, Windows Terminal, Serena, tunnel-client, and the primary SUD-D project path
 2. refuse to start if port 7006 or 7005 is already occupied by a previous Serena/tunnel process
 3. open the Serena tab first
 4. start Serena on `127.0.0.1:7006`
 5. the Tunnel tab waits until port 7006 is listening
 6. the Tunnel tab clears `CONTROL_PLANE_TUNNEL_ID` **only inside that tab/process**
 7. start `tunnel-client run --profile serena-sudd`
-8. verify the tunnel log identifies `Serena SUD-D Home`
-9. use `@Serena SUD-D Home` in ChatGPT
+8. verify the tunnel log identifies `Serena SUD-D Primary`
+9. use `@Serena SUD-D Primary` in ChatGPT
 
 No API key or Tunnel ID is embedded in the launcher. Existing machine/profile configuration is reused, so normal startup does **not** require reinstalling Serena/tunnel-client or re-entering API key/Tunnel ID.
 
@@ -135,7 +135,7 @@ $env:CONTROL_PLANE_TUNNEL_ID=$null
 tunnel-client run --profile serena-sudd
 ```
 
-3. Confirm the tunnel log identifies `Serena SUD-D Home`, then retry the connector in ChatGPT.
+3. Confirm the tunnel log identifies `Serena SUD-D Primary`, then retry the connector in ChatGPT.
 
 ### If Serena MCP server stops but the tunnel is still running
 
@@ -182,30 +182,30 @@ If the environment tunnel ID and profile tunnel ID differ, clear the environment
 
 ---
 
-## Serena Work
+## Serena Secondary
 
-Work uses the **same architecture and preferred launcher pattern**:
+The secondary environment uses the **same architecture and preferred launcher pattern**:
 
 ```text
 one Windows Terminal window
-├─ Tab 1: local Serena MCP server for Work repo
-└─ Tab 2: Work Serena tunnel-client profile
+├─ Tab 1: local Serena MCP server for secondary repo
+└─ Tab 2: secondary Serena tunnel-client profile
 ```
 
-When configuring Work-PC, reuse the Home v4 design but **discover and verify the Work-specific values first**:
+When configuring secondary validation device, reuse the primary-device launcher design but **discover and verify the secondary-device-specific values first**:
 
-- Work SUD_D project path
-- Work Serena MCP port
-- Work tunnel health/admin port
-- Work Serena tunnel-client profile name
-- Work Serena tunnel identity/name
-- whether Work-PC also has `CONTROL_PLANE_TUNNEL_ID` set for the normal SUD_D runtime
+- secondary SUD-D project path
+- secondary Serena MCP port
+- secondary tunnel health/admin port
+- secondary Serena tunnel-client profile name
+- secondary Serena tunnel identity/name
+- whether secondary validation device also has `CONTROL_PLANE_TUNNEL_ID` set for the normal SUD_D runtime
 
-The same environment-override risk may apply on Work-PC. The Work launcher should clear `CONTROL_PLANE_TUNNEL_ID` only inside its Tunnel tab/process before starting the Work Serena profile.
+The same environment-override risk may apply on secondary validation device. The secondary launcher should clear `CONTROL_PLANE_TUNNEL_ID` only inside its Tunnel tab/process before starting the secondary Serena profile.
 
-Do **not** blindly copy Home tunnel IDs, project path, or ports. Keep Home and Work launchers separate so configuration cannot be mixed accidentally.
+Do **not** blindly copy primary-device tunnel IDs, project path, or ports. Keep primary and secondary launchers separate so configuration cannot be mixed accidentally.
 
-Once Work values are confirmed on the Work-PC, update this runbook with the exact validated Work commands and launcher behavior.
+Once secondary-device values are confirmed, update this runbook with the exact validated secondary-device commands and launcher behavior.
 
 ---
 
@@ -235,18 +235,18 @@ If automatic restart is later desired, prefer explicit health-aware supervision 
 
 ---
 
-## When asked how to start Serena Home
+## When asked how to start Serena Primary
 
 Use this concise answer:
 
 ```text
 Preferred:
-1. Double-click the validated Start-Serena-Home-v4.bat launcher.
+1. Double-click the validated Start-Serena-Primary.bat launcher.
 2. Keep the Windows Terminal window open with both tabs:
-   - Serena MCP Home — 7006
-   - Serena SUD-D Home Tunnel — 7005
-3. Confirm the Tunnel tab identifies Serena SUD-D Home.
-4. Use @Serena SUD-D Home in ChatGPT.
+   - Serena MCP Primary — 7006
+   - Serena SUD-D Primary Tunnel — 7005
+3. Confirm the Tunnel tab identifies Serena SUD-D Primary.
+4. Use @Serena SUD-D Primary in ChatGPT.
 
 Manual fallback:
 1. Start Serena MCP:
@@ -256,7 +256,7 @@ Manual fallback:
    tunnel-client run --profile serena-sudd
 ```
 
-## When asked how to stop Serena Home
+## When asked how to stop Serena Primary
 
 Use this concise answer:
 

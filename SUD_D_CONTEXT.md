@@ -71,7 +71,7 @@ The gateway remains the entry boundary for the future privileged path; connectio
 
 The current domain contract supports `openai_secure_mcp_tunnel` through `stdio`. Preserve the `ConnectionProvider` direction so future providers can be added behind the same secure lifecycle and status boundaries without leaking provider internals or weakening policy. A provider abstraction is an architectural seam, not permission to implement another provider early.
 
-Home-PC and Work-PC use separate Secure Tunnel instances and local device state. Each machine is configured, operated, and diagnosed independently; one machine's tunnel, credentials, or runtime ownership must not be assumed on the other.
+primary validation device and secondary validation device use separate Secure Tunnel instances and local device state. Each machine is configured, operated, and diagnosed independently; one machine's tunnel, credentials, or runtime ownership must not be assumed on the other.
 
 GitHub OAuth, a Cloud Relay, cloud device discovery, account sync, and a SUD_D cloud service are future optional directions only. They must not be introduced without an explicitly approved milestone and security review.
 

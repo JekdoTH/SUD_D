@@ -74,12 +74,12 @@
       "uninstallerIcon": "build/sud-d-app-icon.ico",
       "installerHeaderIcon": "build/sud-d-app-icon.ico"
     },
-    "artifactName": "SUD-D Setup ${version}.${ext}",
+    "artifactName": "SUD-D-Setup-${version}.${ext}",
     "publish": [
       {
         "provider": "github",
         "owner": "JekdoTH",
-        "repo": "SUD_D-Releases",
+        "repo": "SUD_D",
         "releaseType": "release"
       }
     ]

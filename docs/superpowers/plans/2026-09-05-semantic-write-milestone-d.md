@@ -150,7 +150,7 @@ Also assert `'callTool' in runtime === false`.
 
 ---
 
-### Task 5: Real Home-PC Windows managed semantic-write acceptance
+### Task 5: Real primary validation device Windows managed semantic-write acceptance
 
 **Files:**
 - Modify: `packages/tests/src/serena-managed-runtime.acceptance.test.ts`
@@ -179,7 +179,7 @@ Also assert `'callTool' in runtime === false`.
 - [ ] **Step 4: Run `pnpm build` and `git diff --check`.**
 - [ ] **Step 5: Security/data-boundary review.** Prove four `modify` effects; exact 23-tool surface; no `code.run`; no generic/raw Serena passthrough; fixed mapping + allowlist/schema revalidation; Workspace/path/InternalRoot fail-closed behavior; existing Policy/Approval semantics preserved; stable sanitized failures; no raw result/body/secret persistence; no Network/Delete/general Execute authority; `.serena/` untracked.
 - [ ] **Step 6: Current-phase router → `code-review`, then two-axis review from fixed point `57246e7a07572c57ed747509c421ea42d52ee858`.** Standards = `AGENTS.md` + security invariants; Spec = uploaded Milestone D task + approved Serena architecture. Blocking findings must be 0 / 0.
-- [ ] **Step 7: Current-phase router → `writing-for-agents`, then update `SUD_D_HANDOFF.md` with Milestone D PASS, exact mappings, 23-tool surface, fresh verification, known blockers if any, and next gate requiring new explicit authorization.** Keep the pre-existing Restricted Execute Home-PC note as an unstaged unrelated hunk.
+- [ ] **Step 7: Current-phase router → `writing-for-agents`, then update `SUD_D_HANDOFF.md` with Milestone D PASS, exact mappings, 23-tool surface, fresh verification, known blockers if any, and next gate requiring new explicit authorization.** Keep the pre-existing Restricted Execute primary validation device note as an unstaged unrelated hunk.
 - [ ] **Step 8: Stage only Milestone D files/handoff hunk.** Inspect staged/unstaged diff, `git diff --cached --check`, staged secrets/scope, and verify `.serena/` remains untracked.
 - [ ] **Step 9: Commit/push only after all gates are green.** Fetch, prove `HEAD == origin/master` and `origin/master...HEAD` divergence `0 0`.
 - [ ] **Step 10: STOP.** Do not start Restricted Verify, Work Memory/Automatic Resume, Team Mode, `code.run`, Computer Use, or Full Recovery/Delete.

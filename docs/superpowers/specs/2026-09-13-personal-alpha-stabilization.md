@@ -84,7 +84,7 @@ Required behavior:
 
 ### DGF-007 — Desktop launch opens DevTools/console automatically
 
-Observed on Work PC: launching the SUD-D Desktop app opens a visible DevTools/console surface automatically.
+Observed on secondary validation device: launching the SUD-D Desktop app opens a visible DevTools/console surface automatically.
 
 Required behavior:
 
@@ -227,7 +227,7 @@ Follow the repo Skill Router. Renderer-visible work requires the repo's mandator
 
 ## Final SUD-D-only acceptance
 
-After implementation is verified and the Work-PC SUD-D runtime/actions are restarted/refreshed, run one fresh acceptance against the linked worktree used for `feature/playwright-automation-platform` (or an equivalent standard linked-worktree fixture if the original target is unavailable).
+After implementation is verified and the secondary validation device SUD-D runtime/actions are restarted/refreshed, run one fresh acceptance against the linked worktree used for `feature/playwright-automation-platform` (or an equivalent standard linked-worktree fixture if the original target is unavailable).
 
 Required flow:
 
