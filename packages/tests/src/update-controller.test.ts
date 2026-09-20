@@ -108,6 +108,12 @@ async function flushAsyncWork() {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+async function flushMicrotasksUntil(predicate: () => boolean, maxTurns = 8) {
+  for (let turn = 0; turn < maxTurns && !predicate(); turn += 1) {
+    await Promise.resolve();
+  }
+}
+
 describe('desktop update controller', () => {
   it('startup check enters checking then up_to_date without blocking startup', async () => {
     const pending = deferred<{ available: false }>();
@@ -189,7 +195,7 @@ describe('desktop update controller', () => {
     const downloadResult = controller.download();
     expect(controller.getStatus().phase).toBe('downloading');
     pendingDownload.resolve({ filePath: artifactPath });
-    await flushAsyncWork();
+    await flushMicrotasksUntil(() => controller.getStatus().phase === 'verifying');
     expect(controller.getStatus().phase).toBe('verifying');
 
     await expect(downloadResult).resolves.toMatchObject({ ok: true, value: { phase: 'ready', targetVersion: '0.2.0' } });
