@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ApprovalModeDto, DesktopConnectionSnapshotDto, WorkspaceDto } from '@sud-d/contracts';
 import type { AppPage } from '../App';
 import {
@@ -68,6 +68,10 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
   const [error, setError] = useState('');
   const [tunnelReference, setTunnelReference] = useState('');
   const [editingTunnel, setEditingTunnel] = useState(false);
+  const [editingKey, setEditingKey] = useState(false);
+  const [keyError, setKeyError] = useState('');
+  const [keyInputPresent, setKeyInputPresent] = useState(false);
+  const keyInputRef = useRef<HTMLInputElement>(null);
   const [approvalMode, setApprovalMode] = useState<ApprovalModeDto>('approve_for_me');
   const [modeSaving, setModeSaving] = useState(false);
   const [approvalModeError, setApprovalModeError] = useState('');
@@ -128,35 +132,31 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
     await refresh();
   };
 
-  const setupRuntimeKey = async (): Promise<void> => {
+  const saveRuntimeKey = async (): Promise<void> => {
     if (!snapshot?.profile) return;
-    setBusy(true);
-    setError('');
-    const result = await window.sudD.connection.setupCredential({
-      profileId: snapshot.profile.profileId,
-    });
-    setBusy(false);
-    if (result.ok) {
-      setSnapshot(result.value);
-      await refresh();
-    } else {
-      setError(result.error.message);
+    const key = keyInputRef.current?.value.trim() ?? '';
+    if (!key) {
+      setKeyError('Enter a new API Key before saving.');
+      return;
     }
-  };
-
-  const removeRuntimeKey = async (): Promise<void> => {
-    if (!snapshot?.profile) return;
     setBusy(true);
-    setError('');
-    const result = await window.sudD.connection.removeCredential({
-      profileId: snapshot.profile.profileId,
-    });
-    setBusy(false);
-    if (result.ok) {
-      setSnapshot(result.value);
-      await refresh();
-    } else {
-      setError(result.error.message);
+    setKeyError('');
+    try {
+      await navigator.clipboard.writeText(key);
+      const result = await window.sudD.connection.importCredentialFromClipboard({ profileId: snapshot.profile.profileId });
+      if (result.ok) {
+        if (keyInputRef.current) keyInputRef.current.value = '';
+        setKeyInputPresent(false);
+        setSnapshot(result.value);
+        setEditingKey(false);
+        await refresh();
+      } else {
+        setKeyError(result.error.message);
+      }
+    } catch {
+      setKeyError('Could not save the API Key. Check clipboard access and try again.');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -206,7 +206,7 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
         onNavigate('workspaces');
         return;
       case 'setup_credential':
-        await setupRuntimeKey();
+        setEditingKey(true);
         return;
       case 'setup_tunnel':
         await setupSecureTunnel();
@@ -370,25 +370,45 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
               {snapshot?.credentialStatus === 'configured' ? 'Configured' : 'Missing'}
             </span>
           </div>
-          <p className="card-description">The API Key is managed through the Windows-native secure prompt and is never displayed here.</p>
-          {snapshot?.profile && snapshot.credentialStatus === 'configured' && (
+          <p className="card-description">Your API Key is stored securely on this device. The current key cannot be shown or verified here.</p>
+          {snapshot?.profile && (
             <div className="button-row setup-card-action-row">
               <button
                 id="connection-credential-setup"
                 className="btn btn-ghost"
                 disabled={busy || snapshot.runtime.state !== 'stopped'}
-                onClick={() => void setupRuntimeKey()}
+                onClick={() => {
+                  if (keyInputRef.current) keyInputRef.current.value = '';
+                  setKeyInputPresent(false);
+                  setKeyError('');
+                  setEditingKey((current) => !current);
+                }}
               >
-                Replace API Key
+                {editingKey ? 'Cancel' : snapshot.credentialStatus === 'configured' ? 'Change API Key' : 'Set up API Key'}
               </button>
-              <button
-                id="connection-credential-remove"
-                className="btn btn-ghost"
-                disabled={busy || snapshot.runtime.state !== 'stopped'}
-                onClick={() => void removeRuntimeKey()}
-              >
-                Remove API Key
+            </div>
+          )}
+          {editingKey && snapshot?.profile && (
+            <div className="setup-form compact-setup-form">
+              <label htmlFor="connection-api-key-change"><strong>New API Key</strong></label>
+              <input
+                id="connection-api-key-change"
+                ref={keyInputRef}
+                className="input"
+                type="password"
+                onChange={(event) => setKeyInputPresent(event.currentTarget.value.trim().length > 0)}
+                placeholder="sk-..."
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                disabled={busy}
+              />
+              <p className="fine-print">Enter the new key. The saved key cannot be shown; Configured means saved, not verified with OpenAI.</p>
+              {keyError && <div className="callout callout-error" role="alert">{keyError}</div>}
+              <button className="btn btn-ghost" disabled={busy || !keyInputPresent} onClick={() => void saveRuntimeKey()}>
+                {busy ? 'Saving…' : 'Save API Key'}
               </button>
+              <p className="fine-print">SUD-D briefly uses the clipboard to save the key and then clears it. Windows clipboard history may retain copied text.</p>
             </div>
           )}
           <button
@@ -414,6 +434,9 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
               ? 'Secure Tunnel is ready.'
               : 'Enter the Tunnel ID in the primary setup step above.'}
           </p>
+          {snapshot?.profile?.tunnelReferenceHint && (
+            <p className="fine-print">Current Tunnel ID: {snapshot.profile.tunnelReferenceHint}</p>
+          )}
           {snapshot?.profile?.tunnelConfigured && (
             <>
               <button
@@ -445,6 +468,7 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
                     autoComplete="off"
                     spellCheck={false}
                   />
+                  <p className="fine-print">Enter the full new Tunnel ID. The current ID above is shortened for display.</p>
                   <button
                     className="btn btn-ghost"
                     disabled={busy || !tunnelInputValid}

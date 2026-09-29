@@ -37,6 +37,7 @@ export interface DesktopConnectionController {
   stop(input: ConnectionStopInput): Result<DesktopConnectionSnapshotDto, AppError>;
   restart(input: ConnectionRestartInput): Result<DesktopConnectionSnapshotDto, AppError>;
   setupCredential(input: DesktopConnectionCredentialSetupInput): Result<DesktopConnectionSnapshotDto, AppError>;
+  setupCredentialBuffer(input: DesktopConnectionCredentialSetupInput, credentialUtf16: Buffer): Result<DesktopConnectionSnapshotDto, AppError>;
   removeCredential(input: DesktopConnectionCredentialRemoveInput): Result<DesktopConnectionSnapshotDto, AppError>;
   configureTunnel(input: DesktopConnectionTunnelSetupInput): Result<DesktopConnectionSnapshotDto, AppError>;
   updatePreferences(input: DesktopConnectionPreferencesUpdateInput): Result<DesktopConnectionSnapshotDto, AppError>;
@@ -75,6 +76,7 @@ function toDesktopRuntimeStatus(status: ConnectionServiceStatus): DesktopConnect
 }
 
 function toDesktopProfile(profile: ConnectionProfile): NonNullable<DesktopConnectionSnapshotDto['profile']> {
+  const reference = profile.tunnelReference;
   return {
     profileId: profile.profileId,
     displayName: profile.displayName,
@@ -83,7 +85,8 @@ function toDesktopProfile(profile: ConnectionProfile): NonNullable<DesktopConnec
     deviceName: profile.deviceName,
     autoStart: profile.autoStart,
     autoRestart: profile.autoRestart,
-    tunnelConfigured: typeof profile.tunnelReference === 'string' && profile.tunnelReference.length > 0,
+    tunnelConfigured: typeof reference === 'string' && reference.length > 0,
+    tunnelReferenceHint: reference ? `tunnel_…${reference.slice(-4)}` : null,
     createdAt: profile.createdAt.toISOString(),
     updatedAt: profile.updatedAt.toISOString(),
   };
@@ -206,6 +209,22 @@ export function createDesktopConnectionController(
       const configured = options.configService.setupCredential(input.profileId);
       if (!configured.ok) return err(configured.error);
       if (configured.value === 'configured') cachedCredentialStatus = 'configured';
+      return getSnapshot();
+    },
+
+    setupCredentialBuffer(input: DesktopConnectionCredentialSetupInput, credentialUtf16: Buffer): Result<DesktopConnectionSnapshotDto, AppError> {
+      const profile = ensureProfile();
+      if (!profile.ok) return err(profile.error);
+      if (profile.value.profileId !== input.profileId) {
+        return err({ code: 'CONNECTION_PROFILE_NOT_FOUND', message: 'Connection profile not found' });
+      }
+      if (options.connectionService.getStatus().state !== 'stopped') {
+        return err(appError('VALIDATION_FAILED', 'Disconnect ChatGPT before changing the Runtime API Key.'));
+      }
+
+      const configured = options.configService.setupCredentialBuffer(input.profileId, credentialUtf16);
+      if (!configured.ok) return err(configured.error);
+      cachedCredentialStatus = 'configured';
       return getSnapshot();
     },
 

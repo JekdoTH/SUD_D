@@ -139,8 +139,8 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_STOP, input) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
     restart: (input: ConnectionRestartInput): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>
       ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_RESTART, input) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
-    setupCredential: (input: DesktopConnectionCredentialSetupInput): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>
-      ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_CREDENTIAL_SETUP, input) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
+    importCredentialFromClipboard: (input: DesktopConnectionCredentialSetupInput): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_CREDENTIAL_CLIPBOARD_IMPORT, input) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
     removeCredential: (input: DesktopConnectionCredentialRemoveInput): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>
       ipcRenderer.invoke(IPC_CHANNELS.CONNECTION_CREDENTIAL_REMOVE, input) as Promise<IpcResult<DesktopConnectionSnapshotDto>>,
     configureTunnel: (input: DesktopConnectionTunnelSetupInput): Promise<IpcResult<DesktopConnectionSnapshotDto>> =>

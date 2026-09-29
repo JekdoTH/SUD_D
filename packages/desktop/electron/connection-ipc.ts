@@ -26,6 +26,11 @@ export interface DesktopIpcMain {
 
 export type DesktopIpcSenderValidator = (sender: unknown) => boolean;
 
+export interface CredentialClipboard {
+  readText(): string;
+  clear(): void;
+}
+
 function ipcResult<T>(result: Result<T, AppError>): IpcResult<T> {
   return result.ok
     ? { ok: true, value: result.value }
@@ -47,6 +52,7 @@ export function registerDesktopConnectionIpcHandlers(
   ipcMain: DesktopIpcMain,
   controller: DesktopConnectionController,
   isSenderValid: DesktopIpcSenderValidator,
+  credentialClipboard?: CredentialClipboard,
 ): void {
   ipcMain.handle(IPC_CHANNELS.CONNECTION_STATUS, (event) => {
     if (!isSenderValid(event.sender)) return invalidSender();
@@ -74,12 +80,39 @@ export function registerDesktopConnectionIpcHandlers(
     return ipcResult<DesktopConnectionSnapshotDto>(controller.restart(parsed.data));
   });
 
-  ipcMain.handle(IPC_CHANNELS.CONNECTION_CREDENTIAL_SETUP, (event, raw) => {
-    if (!isSenderValid(event.sender)) return invalidSender();
-    const parsed = DesktopConnectionCredentialSetupInputSchema.safeParse(raw);
-    if (!parsed.success) return validationError('Invalid Runtime API Key setup request');
-    return ipcResult<DesktopConnectionSnapshotDto>(controller.setupCredential(parsed.data));
-  });
+  if (credentialClipboard) {
+    ipcMain.handle(IPC_CHANNELS.CONNECTION_CREDENTIAL_CLIPBOARD_IMPORT, (event, raw) => {
+      if (!isSenderValid(event.sender)) return invalidSender();
+      const parsed = DesktopConnectionCredentialSetupInputSchema.safeParse(raw);
+      if (!parsed.success) return validationError('Invalid Runtime API Key import request');
+      const snapshot = controller.getSnapshot();
+      if (!snapshot.ok) return ipcResult(snapshot);
+      if (snapshot.value.profile?.profileId !== parsed.data.profileId) {
+        return validationError('Connection profile not found');
+      }
+      if (snapshot.value.runtime.state !== 'stopped') {
+        return validationError('Disconnect ChatGPT before changing the Runtime API Key.');
+      }
+      let credential: Buffer | null = null;
+      try {
+        const copied = credentialClipboard.readText().trim();
+        if (!copied || copied.length > 1280 || Array.from(copied).some((character) => {
+          const code = character.charCodeAt(0);
+          return code <= 31 || code === 127;
+        })) {
+          return validationError('Copy a single API Key before saving.');
+        }
+        credential = Buffer.from(copied, 'utf16le');
+        credentialClipboard.clear();
+        const result = controller.setupCredentialBuffer(parsed.data, credential);
+        return ipcResult(result);
+      } catch {
+        return validationError('Runtime API Key could not be saved. Copy the key and try again.');
+      } finally {
+        credential?.fill(0);
+      }
+    });
+  }
 
   ipcMain.handle(IPC_CHANNELS.CONNECTION_CREDENTIAL_REMOVE, (event, raw) => {
     if (!isSenderValid(event.sender)) return invalidSender();

@@ -25,7 +25,7 @@ export const IPC_CHANNELS = {
   CONNECTION_STOP: 'connection:stop',
   CONNECTION_RESTART: 'connection:restart',
   CONNECTION_TUNNEL_SETUP: 'connection:tunnelSetup',
-  CONNECTION_CREDENTIAL_SETUP: 'connection:credentialSetup',
+  CONNECTION_CREDENTIAL_CLIPBOARD_IMPORT: 'connection:credentialClipboardImport',
   CONNECTION_CREDENTIAL_REMOVE: 'connection:credentialRemove',
   CONNECTION_PREFERENCES_UPDATE: 'connection:preferences:update',
   ACTIVITY_LIST: 'activity:list',
@@ -682,6 +682,7 @@ export const DesktopConnectionProfileDtoSchema = z.object({
   autoStart: z.boolean(),
   autoRestart: z.boolean(),
   tunnelConfigured: z.boolean(),
+  tunnelReferenceHint: z.string().regex(/^tunnel_…(?:[A-Za-z0-9_-]{4})?$/u).nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 }).strict();

@@ -1,5 +1,12 @@
 # SUD_D Handoff
 
+## Connection API Key inline field — owner-test candidate (2026-09-29)
+
+- The owner requested direct entry like Tunnel ID. Connection now shows a masked `New API Key` input after `Change API Key` / `Set up API Key`. `Save API Key` briefly writes the value to the clipboard, then invokes the existing profile-only main-process import; Electron clears the current clipboard and saves to Windows Credential Manager. The key is absent from IPC payloads and React state, but temporarily exists in the renderer input and OS clipboard. Windows clipboard history may retain it. `Configured` means saved, not verified with OpenAI.
+- The earlier native Win32 inline field was removed because it could not be clicked. The visible `Remove API Key` button and renderer-callable Windows prompt route were removed. Tunnel ID change remains available and displays a shortened current-ID hint.
+- Before integration, focused credential tests passed 22/22; typecheck, lint, build, Impeccable detector, and `git diff --check` passed. After rebasing onto `origin/master` at `3288126`, focused Connection/API Key/App Shell tests passed 64/64 and `pnpm build` passed. The remote base introduced unrelated typecheck errors in `git-safety-read-integration.test.ts:148-149` (`serverInfo` / `capabilities` fixture typing) and `desktop/electron/update-provider.ts:5` (missing ESM import extension); full typecheck is not green. A prior isolated built-app smoke covered clipboard import with generated test credentials. The new inline input still needs owner acceptance in the live Electron app; no real API Key was used in tests. Full-suite closure was not claimed. The owner authorized commit and push on 2026-09-29. `.serena/` remains local-only.
+- Next action: close old SUD-D windows, run `pnpm dev`, then Connection → Change API Key → enter `New API Key` → `Save API Key`. Report any visible error. Stop before unrelated work, packaging, or release.
+
 ## Public Readiness + v1 Release Pipeline Scaffolding — READY FOR KEY PROVISIONING (2026-09-20)
 
 **Status: implementation complete on `release/v1-public-readiness`; no push, tag, publication, or repository-visibility change has occurred.**

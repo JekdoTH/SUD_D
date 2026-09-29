@@ -262,6 +262,10 @@ export function createWin32CredentialNativePort(): WindowsCredentialNativePort {
       vault.deleteStoredCredential(targetName);
     },
 
+    storeCredentialBuffer(targetName: string, credentialUtf16: Buffer): void {
+      vault.writeStoredCredential(targetName, credentialUtf16);
+    },
+
     materializeStoredCredential(
       targetName: string,
       environment: NodeJS.ProcessEnv,

@@ -11,6 +11,7 @@ export type CredentialSetupOutcome = 'configured' | 'cancelled';
 export interface ManagedCredentialStore extends CredentialStore {
   prepareCredential(profileId: string): boolean;
   setupCredential(profileId: string): CredentialSetupOutcome;
+  storeCredentialBuffer(profileId: string, credentialUtf16: Buffer): void;
 }
 
 export function isManagedCredentialStore(store: CredentialStore): store is ManagedCredentialStore {
@@ -20,6 +21,7 @@ export function isManagedCredentialStore(store: CredentialStore): store is Manag
 export interface WindowsCredentialNativePort {
   hasStoredCredential(targetName: string): boolean;
   promptAndStoreCredential(targetName: string): CredentialSetupOutcome;
+  storeCredentialBuffer?(targetName: string, credentialUtf16: Buffer): void;
   deleteStoredCredential(targetName: string): void;
   materializeStoredCredential(
     targetName: string,
@@ -112,6 +114,18 @@ export function createWindowsCredentialStoreWithDependencies(
 
     setupCredential(profileId: string): CredentialSetupOutcome {
       return nativePort.promptAndStoreCredential(windowsCredentialTargetNameForProfile(profileId));
+    },
+
+    storeCredentialBuffer(profileId: string, credentialUtf16: Buffer): void {
+      if (!nativePort.storeCredentialBuffer) throw new Error('Native credential storage is unavailable');
+      if (credentialUtf16.length === 0 || credentialUtf16.length > 2560 || credentialUtf16.length % 2 !== 0) {
+        throw new Error('Invalid Runtime API Key');
+      }
+      for (let offset = 0; offset < credentialUtf16.length; offset += 2) {
+        const unit = credentialUtf16.readUInt16LE(offset);
+        if (unit === 0 || unit === 10 || unit === 13) throw new Error('Invalid Runtime API Key');
+      }
+      nativePort.storeCredentialBuffer(windowsCredentialTargetNameForProfile(profileId), credentialUtf16);
     },
 
     prepareCredential(profileId: string): boolean {

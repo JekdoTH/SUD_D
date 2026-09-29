@@ -224,7 +224,9 @@ describe('App Shell + Overview', () => {
   it('adds fixed OpenAI setup links below existing Connection setup controls', () => {
     const connection = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/ConnectionPage.tsx'), 'utf8');
 
-    expect(connection).toMatch(/id="connection-credential-setup"[\s\S]*Replace API Key[\s\S]*id="connection-credential-remove"[\s\S]*Remove API Key[\s\S]*setup-external-link-row[\s\S]*Get API Key from OpenAI/u);
+    expect(connection).toMatch(/id="connection-credential-setup"[\s\S]*Change API Key[\s\S]*setup-external-link-row[\s\S]*Get API Key from OpenAI/u);
+    expect(connection).not.toContain('Remove API Key');
+    expect(connection).not.toContain('connection-credential-remove');
     expect(connection).toMatch(/Change Tunnel configuration[\s\S]*setup-external-link-row[\s\S]*Open Tunnel Settings/u);
     expect(connection).toContain('openOpenAiApiKeysPage');
     expect(connection).toContain('openOpenAiTunnelSettingsPage');

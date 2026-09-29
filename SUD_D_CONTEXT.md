@@ -10,6 +10,8 @@ The MCP Gateway is a foundation rather than the final product destination. Team 
 
 SUD_D is local-first by design: project state and continuity live in Git, device runtime state stays local, and cloud infrastructure is not a prerequisite for the core product.
 
+SUD_D is built for one primary owner who tests local changes in the app. The near-term delivery rhythm is a small working owner-test candidate, one relevant app check, then owner feedback; broad test suites normally belong to explicit milestone or publication closure unless the changed boundary requires them earlier. This preference changes development effort, not the Workspace, Policy, Approval, Audit, Recovery, or credential boundaries. [AGENTS.md](AGENTS.md) defines the verification rules.
+
 ## Security Model
 
 The five security pillars are:
@@ -91,15 +93,15 @@ Protected work should surface a clear Approve / Deny decision with enough contex
 
 Work Memory / Automatic Resume is an approved prerequisite immediately before Team Mode MVP. It is intended to let a new ChatGPT session resume unfinished Workspace work from bounded SUD_D-owned Goal/Task/checkpoint state rather than depend on an old chat transcript. This is approved product direction, not permission to implement it from an unrelated task.
 
-Until that capability is implemented, Git plus `SUD_D_HANDOFF.md` remains the continuity mechanism: sync the repository, read the handoff, inspect recent commits, perform scoped work, update the handoff when project state changes, verify, commit, and push. `.serena/` is local tooling state and must not be treated as project memory or committed.
+Until that capability is implemented, Git plus `SUD_D_HANDOFF.md` remains the continuity mechanism: inspect local state, read the relevant handoff, perform scoped work, and update the handoff when project state materially changes. Sync, commit, and push when the task calls for them and local work can be preserved. `.serena/` is local tooling state and must not be treated as project memory or committed.
 
 ## Document Responsibilities
 
 Development agents are expected to follow the repository-defined skill routing in [AGENTS.md](AGENTS.md) autonomously. `AGENTS.md` is the sole source of truth for routing details and progressive-disclosure rules.
 
-SUD_D follows a risk-based development model: security and data-critical boundaries receive strict verification, while low-risk UI/cosmetic work favors lightweight verification and fast iteration.
+SUD_D follows a risk-based development model: use focused proof for changed security/data boundaries and quick app checks for ordinary UI work. The owner can test a local candidate before broader milestone/release verification.
 
-Before changing production source, agents must perform the Pre-Implementation Compliance Check defined in [AGENTS.md](AGENTS.md), covering risk level, selected skills, verification plan, and stop condition.
+Before changing production source, agents use the concise risk/verification check in [AGENTS.md](AGENTS.md); the detailed four-heading form applies to security/data changes and explicit milestone gates.
 
 - [AGENTS.md](AGENTS.md) — operating rules for every coding agent.
 - [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) — stable product, security, architecture, connection, and UX context.

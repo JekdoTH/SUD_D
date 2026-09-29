@@ -24,7 +24,7 @@ describe('Post-M0.8 โ€” secure Runtime API Key contracts', () => {
       DesktopConnectionCredentialRemoveInputSchema?: { parse(input: unknown): unknown; safeParse(input: unknown): { success: boolean } };
     };
 
-    expect(contracts.IPC_CHANNELS.CONNECTION_CREDENTIAL_SETUP).toBe('connection:credentialSetup');
+    expect(contracts.IPC_CHANNELS.CONNECTION_CREDENTIAL_CLIPBOARD_IMPORT).toBe('connection:credentialClipboardImport');
     expect(contracts.IPC_CHANNELS.CONNECTION_CREDENTIAL_REMOVE).toBe('connection:credentialRemove');
     expect(contracts.DesktopConnectionCredentialSetupInputSchema).toBeDefined();
     expect(contracts.DesktopConnectionCredentialRemoveInputSchema).toBeDefined();
@@ -146,6 +146,50 @@ describe('Post-M0.8 โ€” secure Runtime API Key store orchestration', () =>
     expect(remove).toHaveBeenCalledTimes(1);
     expect(materialize).not.toHaveBeenCalled();
     expect(environment[derivedName]).toBeUndefined();
+  });
+
+  it('stores a trusted native input buffer without a renderer credential payload', async () => {
+    const infrastructure = await import('../../infrastructure/src/index.js');
+    const write = vi.fn();
+    const environment: NodeJS.ProcessEnv = {};
+    const store = infrastructure.createWindowsCredentialStoreWithDependencies(environment, {
+      hasStoredCredential: () => false,
+      promptAndStoreCredential: () => 'cancelled',
+      storeCredentialBuffer: write,
+      deleteStoredCredential: () => undefined,
+      materializeStoredCredential: () => false,
+    });
+    const input = Buffer.from('test-only-key', 'utf16le');
+    try {
+      store.storeCredentialBuffer(PROFILE_ID, input);
+      expect(write).toHaveBeenCalledWith(
+        infrastructure.windowsCredentialTargetNameForProfile(PROFILE_ID), input,
+      );
+      expect(environment).toEqual({});
+    } finally {
+      input.fill(0);
+    }
+  });
+
+  it('rejects unusable native input before writing it to Windows credentials', async () => {
+    const infrastructure = await import('../../infrastructure/src/index.js');
+    const write = vi.fn();
+    const store = infrastructure.createWindowsCredentialStoreWithDependencies({}, {
+      hasStoredCredential: () => false,
+      promptAndStoreCredential: () => 'cancelled',
+      storeCredentialBuffer: write,
+      deleteStoredCredential: () => undefined,
+      materializeStoredCredential: () => false,
+    });
+    for (const value of ['', 'bad\nkey', 'bad\rkey', 'bad\0key']) {
+      const input = Buffer.from(value, 'utf16le');
+      try {
+        expect(() => store.storeCredentialBuffer(PROFILE_ID, input)).toThrow();
+      } finally {
+        input.fill(0);
+      }
+    }
+    expect(write).not.toHaveBeenCalled();
   });
 });
 
@@ -275,6 +319,7 @@ describe('Post-M0.8 — Desktop credential actions', () => {
     const credentialStatus: 'configured' | 'missing' = 'missing';
     let runtimeState = 'stopped';
     const setupCredential = vi.fn(() => ({ ok: true as const, value: 'configured' as const }));
+    const setupCredentialBuffer = vi.fn(() => ({ ok: true as const, value: undefined }));
     const deleteCredential = vi.fn(() => ({ ok: true as const, value: undefined }));
     const configService = {
       listProfiles: () => ({ ok: true as const, value: [profile] }),
@@ -284,6 +329,7 @@ describe('Post-M0.8 — Desktop credential actions', () => {
       getCredentialStatus: () => ({ ok: true as const, value: credentialStatus }),
       setCredential: vi.fn(),
       setupCredential,
+      setupCredentialBuffer,
       deleteCredential,
     };
     const connectionService = {
@@ -299,6 +345,7 @@ describe('Post-M0.8 — Desktop credential actions', () => {
       environment: {},
     }) as unknown as {
       setupCredential(input: { profileId: string }): { ok: boolean; value?: unknown; error?: { message: string } };
+      setupCredentialBuffer(input: { profileId: string }, credentialUtf16: Buffer): { ok: boolean; value?: unknown; error?: { message: string } };
       removeCredential(input: { profileId: string }): { ok: boolean; value?: unknown; error?: { message: string } };
     };
 
@@ -306,7 +353,23 @@ describe('Post-M0.8 — Desktop credential actions', () => {
     expect(setup.ok).toBe(true);
     expect(setupCredential).toHaveBeenCalledTimes(1);
 
-    runtimeState = 'waiting_for_client';
+    const credentialBuffer = Buffer.from('test-only-key', 'utf16le');
+    try {
+      const inlineSetup = controller.setupCredentialBuffer({ profileId: PROFILE_ID }, credentialBuffer);
+      expect(inlineSetup.ok).toBe(true);
+      expect(setupCredentialBuffer).toHaveBeenCalledWith(PROFILE_ID, credentialBuffer);
+
+      runtimeState = 'waiting_for_client';
+      const blockedInlineSetup = controller.setupCredentialBuffer({ profileId: PROFILE_ID }, credentialBuffer);
+      expect(blockedInlineSetup).toMatchObject({
+        ok: false,
+        error: { message: 'Disconnect ChatGPT before changing the Runtime API Key.' },
+      });
+      expect(setupCredentialBuffer).toHaveBeenCalledTimes(1);
+    } finally {
+      credentialBuffer.fill(0);
+    }
+
     const blockedRemove = controller.removeCredential({ profileId: PROFILE_ID });
     expect(blockedRemove).toMatchObject({
       ok: false,
@@ -317,7 +380,69 @@ describe('Post-M0.8 — Desktop credential actions', () => {
 });
 
 describe('Post-M0.8 — fixed Desktop credential IPC and renderer surface', () => {
-  it('registers profileId-only setup/remove handlers and rejects secret/process payloads', async () => {
+  it('imports a copied key through profileId-only IPC and clears the current clipboard after saving', async () => {
+    const contracts = await import('../../contracts/src/index.js');
+    const { registerDesktopConnectionIpcHandlers } = await import('../../desktop/electron/connection-ipc.js');
+    const handlers = new Map<string, (event: { sender: unknown }, raw?: unknown) => unknown>();
+    const snapshot = {
+      profile: { profileId: PROFILE_ID },
+      credentialStatus: 'configured',
+      runtime: { state: 'stopped', session: null, error: null },
+    };
+    const stored: Buffer[] = [];
+    const setupCredentialBuffer = vi.fn((_request: { profileId: string }, buffer: Buffer) => {
+      stored.push(buffer);
+      expect(buffer.toString('utf16le')).toBe('test-only-key');
+      return { ok: true as const, value: snapshot };
+    });
+    const clipboard = { readText: vi.fn(() => 'test-only-key'), clear: vi.fn() };
+    registerDesktopConnectionIpcHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { getSnapshot: () => ({ ok: true, value: snapshot }), setupCredentialBuffer } as never,
+      () => true,
+      clipboard,
+    );
+    const sender = { sender: {} };
+    const save = handlers.get(contracts.IPC_CHANNELS.CONNECTION_CREDENTIAL_CLIPBOARD_IMPORT)!;
+    expect(save(sender, { profileId: PROFILE_ID, apiKey: 'renderer-secret-sentinel' })).toMatchObject({ ok: false });
+    expect(setupCredentialBuffer).not.toHaveBeenCalled();
+    expect(clipboard.readText).not.toHaveBeenCalled();
+    expect(save(sender, { profileId: PROFILE_ID })).toEqual({ ok: true, value: snapshot });
+    expect(setupCredentialBuffer).toHaveBeenCalledTimes(1);
+    expect(setupCredentialBuffer.mock.calls[0]?.[0]).toEqual({ profileId: PROFILE_ID });
+    expect(stored[0]?.every((byte) => byte === 0)).toBe(true);
+    expect(clipboard.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not read an invalid request and clears copied text before attempting storage', async () => {
+    const contracts = await import('../../contracts/src/index.js');
+    const { registerDesktopConnectionIpcHandlers } = await import('../../desktop/electron/connection-ipc.js');
+    const handlers = new Map<string, (event: { sender: unknown }, raw?: unknown) => unknown>();
+    const snapshot = {
+      profile: { profileId: PROFILE_ID },
+      runtime: { state: 'stopped' },
+    };
+    const clipboard = { readText: vi.fn(() => 'test-only-key'), clear: vi.fn() };
+    const setupCredentialBuffer = vi.fn(() => ({ ok: false as const, error: { code: 'INTERNAL_ERROR', message: 'Could not save credential' } }));
+    registerDesktopConnectionIpcHandlers(
+      { handle: (channel, listener) => handlers.set(channel, listener) },
+      { getSnapshot: () => ({ ok: true, value: snapshot }), setupCredentialBuffer } as never,
+      (sender) => sender === 'trusted',
+      clipboard,
+    );
+    const save = handlers.get(contracts.IPC_CHANNELS.CONNECTION_CREDENTIAL_CLIPBOARD_IMPORT)!;
+    expect(save({ sender: 'untrusted' }, { profileId: PROFILE_ID })).toMatchObject({ ok: false });
+    expect(save({ sender: 'trusted' }, { profileId: 'wrong-profile' })).toMatchObject({ ok: false });
+    expect(clipboard.readText).not.toHaveBeenCalled();
+    expect(save({ sender: 'trusted' }, { profileId: PROFILE_ID })).toMatchObject({ ok: false });
+    expect(clipboard.clear).toHaveBeenCalledTimes(1);
+    setupCredentialBuffer.mockClear();
+    clipboard.clear.mockImplementationOnce(() => { throw new Error('clipboard unavailable'); });
+    expect(save({ sender: 'trusted' }, { profileId: PROFILE_ID })).toMatchObject({ ok: false });
+    expect(setupCredentialBuffer).not.toHaveBeenCalled();
+  });
+
+  it('registers profileId-only remove handler without the old popup setup handler', async () => {
     const contracts = await import('../../contracts/src/index.js');
     const { registerDesktopConnectionIpcHandlers } = await import('../../desktop/electron/connection-ipc.js');
     const handlers = new Map<string, (event: { sender: unknown }, raw?: unknown) => unknown>();
@@ -344,43 +469,32 @@ describe('Post-M0.8 — fixed Desktop credential IPC and renderer surface', () =
       () => true,
     );
 
-    const setupHandler = handlers.get(contracts.IPC_CHANNELS.CONNECTION_CREDENTIAL_SETUP);
     const removeHandler = handlers.get(contracts.IPC_CHANNELS.CONNECTION_CREDENTIAL_REMOVE);
-    expect(setupHandler).toBeDefined();
     expect(removeHandler).toBeDefined();
-
-    expect(await setupHandler?.({ sender: {} }, { profileId: PROFILE_ID })).toEqual({ ok: true, value: snapshot });
-    expect(setupCredential).toHaveBeenCalledWith({ profileId: PROFILE_ID });
-    setupCredential.mockClear();
-
-    for (const extra of [
-      { apiKey: 'renderer-secret-sentinel' },
-      { credential: 'renderer-secret-sentinel' },
-      { env: { CONTROL_PLANE_API_KEY: 'renderer-secret-sentinel' } },
-      { command: 'cmd.exe' },
-      { argv: ['x'] },
-      { cwd: 'C:\\' },
-    ]) {
-      const result = await setupHandler?.({ sender: {} }, { profileId: PROFILE_ID, ...extra });
-      expect(result).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } });
-    }
     expect(setupCredential).not.toHaveBeenCalled();
 
     expect(await removeHandler?.({ sender: {} }, { profileId: PROFILE_ID })).toEqual({ ok: true, value: snapshot });
     expect(removeCredential).toHaveBeenCalledWith({ profileId: PROFILE_ID });
   });
 
-  it('exposes setup/remove controls without a renderer API-key input', () => {
+  it('accepts a masked API-key field while keeping the credential out of IPC payloads', () => {
     const preload = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/electron/preload.ts'), 'utf8');
     const page = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/ConnectionPage.tsx'), 'utf8');
 
-    expect(preload).toContain('setupCredential');
+    expect(preload).toContain('importCredentialFromClipboard');
+    expect(preload).not.toContain('setupCredential:');
     expect(preload).toContain('removeCredential');
     expect(preload).not.toMatch(/apiKey\s*:|credentialValue\s*:|CONTROL_PLANE_API_KEY/);
     expect(page).toContain('Set up API Key');
-    expect(page).toContain('Replace API Key');
-    expect(page).toContain('Remove API Key');
-    expect(page).not.toMatch(/type=["']password["']|CONTROL_PLANE_API_KEY|apiKey\s*=/);
+    expect(page).toContain('Change API Key');
+    expect(page).toContain('New API Key');
+    expect(page).toContain('Save API Key');
+    expect(page).toContain('type="password"');
+    expect(page).toContain('navigator.clipboard.writeText(key)');
+    expect(page).not.toContain('Remove API Key');
+    expect(page).not.toContain('native-key-slot');
+    expect(page).not.toContain('connection-credential-remove');
+    expect(page).not.toMatch(/CONTROL_PLANE_API_KEY|apiKey\s*=/);
   });
 });
 

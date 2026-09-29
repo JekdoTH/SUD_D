@@ -28,6 +28,7 @@ export interface ConnectionConfigService {
   getCredentialStatus(profileId: string): Result<ConnectionCredentialStatus, AppError>;
   setCredential(profileId: string, credential: string): Result<void, AppError>;
   setupCredential(profileId: string): Result<CredentialSetupOutcome, AppError>;
+  setupCredentialBuffer(profileId: string, credentialUtf16: Buffer): Result<void, AppError>;
   deleteCredential(profileId: string): Result<void, AppError>;
 }
 
@@ -209,6 +210,26 @@ export function createConnectionConfigService(
           start,
         );
         return ok(outcome);
+      } catch {
+        audit('credential:setup', 'INTERNAL_ERROR', { profileId }, start);
+        return err(appError('INTERNAL_ERROR', 'Runtime API Key setup failed'));
+      }
+    },
+
+    setupCredentialBuffer(profileId: string, credentialUtf16: Buffer): Result<void, AppError> {
+      const start = Date.now();
+      try {
+        const existing = requireProfile(profileId);
+        if (!existing.ok) return err(existing.error);
+        if (!isManagedCredentialStore(credentialStore)) {
+          return err(appError('INTERNAL_ERROR', 'Runtime API Key setup is unavailable'));
+        }
+        if (!Buffer.isBuffer(credentialUtf16) || credentialUtf16.length === 0) {
+          return err(appError('VALIDATION_FAILED', 'Enter a Runtime API Key before saving.'));
+        }
+        credentialStore.storeCredentialBuffer(profileId, credentialUtf16);
+        audit('credential:setup', 'OK', { profileId, status: 'configured' }, start);
+        return ok(undefined);
       } catch {
         audit('credential:setup', 'INTERNAL_ERROR', { profileId }, start);
         return err(appError('INTERNAL_ERROR', 'Runtime API Key setup failed'));

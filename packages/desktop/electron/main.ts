@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   ipcMain,
   dialog,
   shell,
@@ -363,6 +364,7 @@ function registerIpcHandlers(): void {
     ipcMain as unknown as DesktopIpcMain,
     connectionController,
     validateDesktopSender,
+    clipboard,
   );
   registerDesktopDiagnosticsIpcHandlers(
     ipcMain as unknown as DiagnosticsIpcMain,

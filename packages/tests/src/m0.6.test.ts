@@ -187,6 +187,10 @@ describe('M0.6 — renderer-facing connection contracts', () => {
       ...snapshot,
       profile: { ...snapshot.profile, tunnelReference: 'tunnel_home' },
     }).success).toBe(false);
+    expect(DesktopConnectionSnapshotDtoSchema.safeParse({
+      ...snapshot,
+      profile: { ...snapshot.profile, tunnelReferenceHint: 'tunnel_0123456789abcdef' },
+    }).success).toBe(false);
   });
 });
 
@@ -231,6 +235,7 @@ describe('M0.6 — Desktop connection controller', () => {
       'removeCredential',
       'restart',
       'setupCredential',
+      'setupCredentialBuffer',
       'start',
       'stop',
       'updatePreferences',
@@ -264,8 +269,20 @@ describe('M0.6 — Desktop connection controller', () => {
     if (!updated.ok) return;
     expect(updated.value.profile?.tunnelConfigured).toBe(true);
     expect(profileRepo.findById(input.profileId)?.tunnelReference).toBe('tunnel_home');
+    expect(updated.value.profile?.tunnelReferenceHint).toBe('tunnel_…home');
     expect(getConnectionPrimaryAction(updated.value, true)).toEqual({ action: 'connect', enabled: true });
     expect(JSON.stringify(updated.value)).not.toContain('tunnel_home');
+  });
+
+  it('shows a shortened configured Tunnel ID without returning the full reference', () => {
+    const reference = 'tunnel_0123456789abcdef';
+    const { controller } = makeHarness({ CONTROL_PLANE_TUNNEL_ID: reference });
+    const result = controller.getSnapshot();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.profile?.tunnelReferenceHint).toBe('tunnel_…cdef');
+    expect(JSON.stringify(result.value)).not.toContain(reference);
   });
 
   it('does not require CONTROL_PLANE_TUNNEL_ID for normal in-app tunnel setup', () => {
@@ -399,6 +416,7 @@ describe('M0.6 — Desktop connection IPC wiring', () => {
     const stop = vi.fn(() => ({ ok: true as const, value: snapshot }));
     const restart = vi.fn(() => ({ ok: true as const, value: snapshot }));
     const setupCredential = vi.fn(() => ({ ok: true as const, value: snapshot }));
+    const setupCredentialBuffer = vi.fn(() => ({ ok: true as const, value: snapshot }));
     const removeCredential = vi.fn(() => ({ ok: true as const, value: snapshot }));
     const configureTunnel = vi.fn(() => ({ ok: true as const, value: snapshot }));
     const updatePreferences = vi.fn(() => ({ ok: true as const, value: snapshot }));
@@ -413,7 +431,7 @@ describe('M0.6 — Desktop connection IPC wiring', () => {
           handlers.set(channel, listener);
         },
       },
-      { getSnapshot, start, stop, restart, setupCredential, removeCredential, configureTunnel, updatePreferences },
+      { getSnapshot, start, stop, restart, setupCredential, setupCredentialBuffer, removeCredential, configureTunnel, updatePreferences },
       () => senderValid,
     );
 
@@ -427,7 +445,6 @@ describe('M0.6 — Desktop connection IPC wiring', () => {
       IPC_CHANNELS.CONNECTION_START,
       IPC_CHANNELS.CONNECTION_STATUS,
       IPC_CHANNELS.CONNECTION_STOP,
-      IPC_CHANNELS.CONNECTION_CREDENTIAL_SETUP,
       IPC_CHANNELS.CONNECTION_CREDENTIAL_REMOVE,
       IPC_CHANNELS.CONNECTION_TUNNEL_SETUP,
       IPC_CHANNELS.CONNECTION_PREFERENCES_UPDATE,
