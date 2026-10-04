@@ -205,6 +205,15 @@ export function createWindowsTunnelProcessLauncher(): TunnelProcessLauncher {
           ...approvalRuntimeEnvironment,
           ELECTRON_RUN_AS_NODE: '1',
         };
+        // tunnel-client gives host environment precedence over YAML. The SUD-D
+        // profile owns control-plane configuration; credentials have already
+        // been materialized under its SUD_D_CONTROL_PLANE_API_KEY_* reference.
+        // Filter case-insensitively for Windows without mutating process.env.
+        for (const name of Object.keys(childEnvironment)) {
+          if (/^CONTROL_PLANE_/i.test(name) || /^OPENAI_API_KEY$/i.test(name)) {
+            delete childEnvironment[name];
+          }
+        }
         child = spawn(plan.executablePath, [...plan.args], {
           cwd: plan.workingDirectory,
           shell: false,
