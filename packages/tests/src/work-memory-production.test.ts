@@ -57,7 +57,7 @@ const gitSafety: GitSafetyAdapter = {
   diffCheck: () => ok({ passed: true, findingCount: 0, output: 'git diff --check passed' }),
   secretScan: () => ok({ passed: true, findingCount: 0, output: 'secret signature scan passed' }),
 };
-interface RpcMessage { readonly result?: { readonly instructions?: string; readonly tools?: Array<{ readonly name?: string }>; readonly content?: Array<{ readonly type?: string; readonly text?: string }>; readonly isError?: boolean }; }
+interface RpcMessage { readonly result?: { readonly instructions?: string; readonly tools?: Array<{ readonly name?: string; readonly description?: string }>; readonly content?: Array<{ readonly type?: string; readonly text?: string }>; readonly isError?: boolean }; }
 function reader(output: PassThrough) {
   let buffer = ''; const queue: RpcMessage[] = []; const waiters: Array<(m: RpcMessage) => void> = [];
   output.setEncoding('utf8'); output.on('data', (chunk: string) => { buffer += chunk; for (;;) { const i=buffer.indexOf('\n'); if(i<0) break; const line=buffer.slice(0,i).trim(); buffer=buffer.slice(i+1); if(!line) continue; const msg=JSON.parse(line) as RpcMessage; const w=waiters.shift(); if(w) w(msg); else queue.push(msg); } });
@@ -93,11 +93,23 @@ describe('Work Memory production MCP bootstrap', () => {
     const make=()=>createProductionMcpServer({ workspaceRepo,gitSettingsRepo:createWorkspaceGitSettingsRepository(db),auditRepo,internalRoots:[],fileSystem:createWorkspaceTextFileSystem(),gitSafety,teamRepo:createTeamRepository(db),teamTransitionUow:createTeamTransitionUnitOfWork(db),semanticRead:{read:async()=>({content:[]})},semanticWrite:{write:async()=>({content:[]})},restrictedVerify:{run:async(_c,r)=>({action:r.action,passed:true,exitCode:0,output:'',truncated:false,durationMs:1})},workMemoryRepo });
 
     const serverA=make(); const a=await connect(serverA);
-    expect(a.initialized.result?.instructions).toContain('work.resume');
+    const instructions = a.initialized.result?.instructions;
+    expect(instructions).toContain('Call work.resume before substantive project work');
+    expect(instructions).toContain('If an active Team mission exists, call team.status');
+    expect(instructions).toContain('If no active Team mission exists, continue in Normal Mode');
+    expect(instructions).toContain('Do not start a new Team mission automatically');
+    expect(instructions).toContain('current user request explicitly asks to use Team Mode');
+    expect(instructions).toContain('No automatic complexity-based Team routing exists today');
+    expect(instructions).toContain('Skills, code edits, validation, or review');
     const listed=await a.list(); const names=(listed.result?.tools??[]).map((t)=>t.name).filter((v):v is string=>typeof v==='string').sort(); expect(names).toHaveLength(39); expect(names).toContain('work.resume'); expect(names).toContain('work.checkpoint');
+    expect(names.filter((name) => name.startsWith('team.'))).toEqual(['team.start', 'team.status', 'team.stop', 'team.submit']);
+    expect(listed.result?.tools?.find((tool) => tool.name === 'team.start')?.description).toContain('current user request explicitly asks to use Team Mode');
+    expect(listed.result?.tools?.find((tool) => tool.name === 'team.status')?.description).toContain('when none exists, use Normal Mode');
+    expect(payload(await a.call('team.start',{goal:'Must resume first'}))).toMatchObject({ok:false,code:'WORK_RESUME_REQUIRED'});
     expect(payload(await a.call('git.status',{}))).toMatchObject({ok:false,code:'WORK_RESUME_REQUIRED'});
     expect(payload(await a.call('work.resume',{}))).toMatchObject({ok:true,code:'EXECUTED',value:{workspaceId:ws.id}});
     expect(payload(await a.call('git.status',{}))).toMatchObject({ok:true,code:'EXECUTED'});
+    expect(db.prepare('SELECT COUNT(*) AS count FROM team_missions').get()).toMatchObject({count:0});
     const checkpoint={goal:'Ship Work Memory',task:{title:'Production bootstrap',status:'in_progress'},completed:['domain'],decisions:['bounded'],blockers:[],nextAction:'Restart server',artifacts:[],verification:['focused']};
     expect(payload(await a.call('work.checkpoint',checkpoint))).toMatchObject({ok:true,code:'EXECUTED',value:{context:{goal:'Ship Work Memory'}}});
     await serverA.close();

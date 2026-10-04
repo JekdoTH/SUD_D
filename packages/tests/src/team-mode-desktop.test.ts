@@ -143,7 +143,7 @@ describe('Team Mode - Desktop contracts, IPC, and UI surface', () => {
       ok: true,
       value: {
         task: { title: 'Use existing Workspace tools', status: 'blocked' },
-        nextAction: 'Team mission stopped; start a new Team mission to continue this Goal.',
+        nextAction: 'Team mission stopped; continue in Normal Mode. Start a new Team mission only when the current user explicitly requests Team Mode.',
       },
     });
     expect(h.auditRepo.list(100).filter((event) => event.action === 'team.mission_stopped')).toHaveLength(1);
@@ -210,7 +210,7 @@ describe('Team Mode - Desktop contracts, IPC, and UI surface', () => {
       goalSummary: 'safe',
       state: 'stopped' as const,
       reviewRound: 0,
-      nextAction: 'Team mission stopped; start a new Team mission to continue this Goal.',
+      nextAction: 'Team mission stopped; continue in Normal Mode. Start a new Team mission only when the current user explicitly requests Team Mode.',
       taskCount: 0,
       workItems: [],
       handoffs: [],

@@ -6,7 +6,7 @@ This document holds stable project context, not milestone progress. For approved
 
 SUD_D is a local-first Windows AI control gateway/runtime whose secure core supports the long-term North Star: a domain-agnostic **Personal AI Team Harness / Orchestrator**. A user defines a goal and constraints; Team Mode coordinates planning, specialist work, verification, review, handoff, memory, and final artifacts for user review or approval.
 
-The MCP Gateway is a foundation rather than the final product destination. Team Mode remains above the existing secure execution boundary, every agent role uses the same Tool Kernel → Policy → Approval → Execution path, and Serena is an optional specialist integration rather than a required core runtime dependency. For software workflows, the target product experience is that SUD_D manages Serena as a built-in dependency behind its own control plane and `code.*` facade rather than requiring manual Serena setup. Detailed Team Mode implementation remains gated by the approved roadmap prerequisites.
+The MCP Gateway is a foundation rather than the final product destination. Implemented Team Mode V3 coordinates sequential logical Planner / Worker / Validator / Reviewer assignments through the connected AI session. Every role uses the same Tool Kernel → Policy → Approval → Execution path. Serena is an optional specialist integration behind the SUD_D-managed runtime and `code.*` facade; clean-machine bootstrap and controlled runtime update remain future work. Broader orchestration follows the approved roadmap.
 
 SUD_D is local-first by design: project state and continuity live in Git, device runtime state stays local, and cloud infrastructure is not a prerequisite for the core product.
 
@@ -51,7 +51,7 @@ SUD_D is a pnpm TypeScript monorepo with these current packages:
 - `packages/contracts` — strict Zod schemas and typed DTOs for IPC and runtime boundaries. It must expose validated, non-secret representations rather than host internals.
 - `packages/infrastructure` — SQLite repositories, data-root and path adapters, Doctor checks, credential-store boundary, and fixed-purpose Secure Tunnel process/profile/health adapters. It depends on domain rules.
 - `packages/application` — use-case orchestration for workspaces, connection configuration, and connection lifecycle through fixed-purpose ports. It coordinates domain and infrastructure without exposing generic host control.
-- `packages/mcp-gateway` — the stdio MCP boundary. It is currently a deliberately inert gateway boundary; privileged tools must wait for the roadmap's Tool Kernel, Policy, Approval, Audit, and Recovery gates.
+- `packages/mcp-gateway` — the production stdio MCP boundary for approved Workspace, Git, semantic code, Restricted Verify, Work Memory, and Team tools. Calls pass through the guarded Tool Kernel; unavailable capabilities remain unexposed.
 - `packages/desktop` — Electron main/preload and React renderer. Main owns privileged integrations, preload exposes validated IPC, and the renderer consumes safe contracts.
 - `packages/tests` — milestone, integration, boundary, and regression coverage across packages.
 
@@ -69,7 +69,7 @@ ChatGPT
 → SUD_D MCP Gateway
 ```
 
-The gateway remains the entry boundary for the future privileged path; connection transport alone is not permission to expose privileged tools.
+The gateway is the entry boundary for the enforced privileged path; connection transport alone grants no additional permission.
 
 The current domain contract supports `openai_secure_mcp_tunnel` through `stdio`. Preserve the `ConnectionProvider` direction so future providers can be added behind the same secure lifecycle and status boundaries without leaking provider internals or weakening policy. A provider abstraction is an architectural seam, not permission to implement another provider early.
 
@@ -91,9 +91,11 @@ Protected work should surface a clear Approve / Deny decision with enough contex
 
 ## Work Memory / Automatic Resume and Session Continuity
 
-Work Memory / Automatic Resume is an approved prerequisite immediately before Team Mode MVP. It is intended to let a new ChatGPT session resume unfinished Workspace work from bounded SUD_D-owned Goal/Task/checkpoint state rather than depend on an old chat transcript. This is approved product direction, not permission to implement it from an unrelated task.
+Work Memory / Automatic Resume is implemented. A new MCP session calls `work.resume` before substantive project work; the guard requires a fresh resume for the active Workspace. SUD_D owns bounded local Goal/Task/checkpoint state, live Git drift information, and Resume Context rather than raw chat transcripts. Team transitions derive continuation through the same atomic Work Memory boundary.
 
-Until that capability is implemented, Git plus `SUD_D_HANDOFF.md` remains the continuity mechanism: inspect local state, read the relevant handoff, perform scoped work, and update the handoff when project state materially changes. Sync, commit, and push when the task calls for them and local work can be preserved. `.serena/` is local tooling state and must not be treated as project memory or committed.
+New Team missions are opt-in: call `team.start` only when the current user explicitly requests Team Mode, or a future explicit SUD_D-owned routing policy authorizes it. No automatic complexity-based routing exists today. After `work.resume`, an existing active mission resumes through `team.status` and its bounded assignment; without an active mission, use Normal Mode. Complexity, Skills, file edits, validation, and review do not authorize a new mission. This is the model-facing routing contract, not a new kernel authorization mechanism.
+
+Git plus `SUD_D_HANDOFF.md` remains the cross-device development continuity mechanism; local Work Memory is not cloud-synchronized. Inspect local state, read the relevant handoff, perform scoped work, and update it when project state materially changes. Commit/push only when authorized. `.serena/` is local tooling state and must not be committed.
 
 ## Document Responsibilities
 

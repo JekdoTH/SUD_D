@@ -65,6 +65,7 @@ SUD_D is currently a pnpm TypeScript monorepo with these package boundaries:
 - `packages/contracts` — Zod schemas and typed DTOs for IPC/runtime boundaries.
 - `packages/infrastructure` — SQLite repositories, path/data-root adapters, audit persistence, and Doctor checks.
 - `packages/application` — orchestration/use-case services such as workspace management.
+- `packages/mcp-gateway` — guarded production stdio tools and model-facing session instructions.
 - `packages/desktop` — Electron main/preload plus renderer UI shell.
 - `packages/tests` — phase/integration coverage.
 
@@ -214,11 +215,11 @@ Post-M0.8 Secure Runtime API Key Setup and Connection UI/UX Simplification are c
 
 ## 5. Accelerated Personal Alpha Roadmap
 
-SUD_D is currently personal-first: one primary Windows user with approximately one occasional tester. The approved near-term priority is to reach a useful **Personal Alpha and Team Mode MVP as quickly as practical** while keeping the core security boundary intact.
+SUD_D is currently personal-first: one primary Windows user with approximately one occasional tester. Personal Alpha, Work Memory, and Team Mode MVP V3 are implemented. The current phase is post-MVP dogfooding, owner feedback, and bounded hardening while keeping the core security boundary intact.
 
-### Next Approved Major Milestone — Git Bootstrap + Branch + Remote Sync
+### Implemented — Git Bootstrap + Branch + Remote Sync
 
-The Product Owner-approved design is [Git Bootstrap + Branch + Remote Sync Design](docs/superpowers/specs/2026-09-14-git-bootstrap-branch-remote-sync-design.md), and its implementation sequence is defined in [Git Bootstrap + Branch + Remote Sync Implementation Plan](docs/superpowers/plans/2026-09-14-git-bootstrap-branch-remote-sync.md). Runtime/UI implementation begins only from a separately authorized execution task after these docs are integrated to `master`.
+The implemented Product Owner-approved design is [Git Bootstrap + Branch + Remote Sync Design](docs/superpowers/specs/2026-09-14-git-bootstrap-branch-remote-sync-design.md), with its sequence in [Git Bootstrap + Branch + Remote Sync Implementation Plan](docs/superpowers/plans/2026-09-14-git-bootstrap-branch-remote-sync.md). Current production includes the bounded bootstrap, branch, remote, fetch/sync/push/clone workflow; verification history lives in the handoff.
 
 Durable scope:
 
@@ -236,17 +237,17 @@ The near-term execution order is intentionally capability-driven rather than str
 
 ```text
 Connection Foundation + Connection UX COMPLETE
-→ M1 Tool Execution Kernel
-→ Personal Alpha Workspace File Tools: Read / Search / Write
-→ Git Safety + Integration
-→ Basic Approval
+→ M1 Tool Execution Kernel COMPLETE
+→ Personal Alpha Workspace File Tools: Read / Search / Write COMPLETE
+→ Git Safety + Integration COMPLETE (including bounded network Git)
+→ Basic Approval COMPLETE
 → Milestone B CLOSED (Managed Serena Runtime Foundation)
-→ Semantic Read
-→ Semantic Write
-→ Restricted Verify
-→ Work Memory / Automatic Resume MVP
-→ Team Mode MVP
-→ real-world dogfooding
+→ Semantic Read COMPLETE
+→ Semantic Write COMPLETE
+→ Restricted Verify COMPLETE
+→ Work Memory / Automatic Resume MVP COMPLETE
+→ Team Mode MVP V3 COMPLETE
+→ real-world dogfooding CURRENT
 → later hardening only when usage proves the need
 ```
 
@@ -262,7 +263,7 @@ M1 is complete. Its typed request/result, policy/classification, execution dispa
 
 This near-term slice combines the original M2 read-only goal with a deliberately narrow early portion of file mutation so SUD_D becomes useful for real project work sooner.
 
-Initial capabilities may include:
+Implemented capabilities:
 
 - list
 - read
@@ -286,7 +287,7 @@ Rules for the Personal Alpha slice:
 
 Git is promoted ahead of full Recovery because it provides high value for a personal development workflow: inspectable diffs, checkpoints, repository state, and a practical rollback baseline for committed project files.
 
-The first Git slice should remain local-first and bounded. Prefer capabilities such as repository detection, status, diff, and safe checkpoint/commit workflows before broad Git mutation or network operations.
+The implemented local-first slice includes detection, status, diff, checkpoint/commit and bounded bootstrap/branch/remote workflows. Fixed-purpose GitHub network operations are also implemented; generic network authority remains denied.
 
 Git operations must use the same Kernel / Policy / Approval / Audit model. Network Git operations such as push/fetch remain separate from local repository operations and must not silently bypass the default Network DENY policy.
 
@@ -294,13 +295,13 @@ Git is an **Alpha recovery aid**, not a complete recovery guarantee. Untracked f
 
 ### Basic Approval — Pulled Before Full Recovery
 
-Implement the smallest approval workflow needed for protected Personal Alpha actions with clear request context and explicit Approve / Deny decisions.
+Implemented: pending requests, trusted Desktop Approve / Deny, exact retry binding and one-time grants for protected Personal Alpha actions.
 
 The goal is not a generalized enterprise approval system. It is a simple, reliable user boundary for actions whose policy is ASK, especially restricted process execution and later sensitive Git/file operations.
 
 ### Restricted Verify — Early Team Mode Prerequisite
 
-Add only the fixed/validated project verification actions needed for useful development workflows before Work Memory / Automatic Resume and Team Mode MVP.
+Implemented: `verify.run` supports fixed/validated test, lint, typecheck, build, diff_check, and secret_scan actions with their existing Policy / Approval decisions. It does not implement general shell or project packaging/release actions.
 
 The Restricted Verify slice must remain narrow:
 
@@ -335,7 +336,7 @@ This allows the Personal Alpha to become useful earlier without exposing Delete,
 
 ### Team Mode MVP — Primary Product Target
 
-After the secure Personal Alpha foundation, Semantic Read, Semantic Write, Restricted Verify, and Work Memory / Automatic Resume MVP are sufficiently usable and verified, begin a deliberately small Team Mode MVP.
+Implemented and verified: Team Mode V3 uses one connected AI session with sequential logical Planner / Worker / Validator / Reviewer roles, bounded Tasks/rework, persisted state, and atomic Team/Work Memory/audit transitions. New missions require an explicit user Team request; existing active missions resume through `work.resume` / `team.status`. Task complexity alone does not authorize `team.start`.
 
 The MVP should prove the North Star flow:
 
@@ -358,12 +359,25 @@ The following remain future product capabilities, but they do not block the firs
 - Safe Delete semantics and recoverable delete
 - Serena auto-update / unattended runtime promotion
 - Computer Use implementation unless separately approved earlier
-- bundled installer / packaged distribution polish
+- further packaged distribution polish (Windows installer and signed in-app updates are implemented)
 - cross-platform support
 - enterprise/load/multi-user hardening
 - non-critical UI polish
 
 Prioritize real-world dogfooding after Team Mode MVP; promote later hardening when usage demonstrates the need.
+
+### Current Capability Classification
+
+This inventory distinguishes shipped bounded tools from approved future directions; current evidence and owner acceptance belong in the handoff. None of the future items below authorizes implementation in the current task.
+
+| Status | Capability / boundary |
+| --- | --- |
+| Implemented / Complete | Workspace read/search/create/write; Tool Kernel / Basic Approval / Audit; local and bounded GitHub Git workflows; managed Serena 1.7.0 lifecycle/repair and semantic `code.*`; Restricted Verify; local Work Memory; sequential Team Mode V3; Windows installer and signed in-app update. |
+| Approved, not implemented | Restricted Project Runner / self-development packaging actions beyond Restricted Verify; full File Recovery / Safe Delete; self-contained clean-machine Serena bootstrap; controlled Serena update/rollback; connection autoStart/autoRestart execution; production cross-process client-connected signal; Computer Use. Each requires its own explicit bounded task. |
+| Blocked | Restricted Execute / general process execution: sandbox enforcement was not proven on the secondary device. No generic shell or unsandboxed fallback is exposed. Fixed-purpose Restricted Verify is implemented independently. |
+| Deferred / optional | Cross-device/cloud state sync; scheduler/background agents; parallel Team execution; domain Team presets; provider/model selection runtime; broader orchestration conflict handling; cross-platform and enterprise hardening. |
+
+`autoStart` / `autoRestart` are stored preferences, not running automation. The tunnel has a client-signal port, but production wiring is absent; this limitation does not invalidate the owner's real ChatGPT connection acceptance on Home and Work. Managed Serena can provision its pinned version through an available trusted `uv`; it is not a self-contained bootstrap on a machine without `uv`. The model-facing Team opt-in contract is instruction guidance, not a kernel proof of natural-language user intent.
 
 ### Privileged capability gate
 
@@ -377,11 +391,11 @@ Incremental Alpha exposure may use only the capabilities whose own gates are rea
 
 ---
 
-## Future Program — Team Mode / Agent Orchestration
+## Team Mode / Agent Orchestration — Implemented MVP and Future Expansion
 
-**STATUS: APPROVED PRIMARY PRODUCT TARGET; MVP FOLLOWS THE ACCELERATED PERSONAL ALPHA FOUNDATION.**
+**STATUS: MVP V3 IMPLEMENTED; BROADER ORCHESTRATION REMAINS FUTURE SCOPE.**
 
-Team Mode is the domain-agnostic orchestration layer above SUD_D's secure execution foundation. It coordinates specialized agents toward a user goal and produces inspectable workspace artifacts and results. Detailed implementation remains deferred until the accelerated prerequisites in Section 5 are sufficiently ready, but Team Mode MVP is now an explicit near-term product milestone rather than an indefinitely deferred program.
+Team Mode is the orchestration layer above SUD_D's secure execution foundation. The current V3 MVP coordinates sequential logical roles through one connected AI session and produces inspectable artifacts/results. Independent agent runtimes, parallel dispatch, schedulers, and domain presets remain future expansions requiring explicit scope.
 
 ### Core Team Model
 
@@ -411,7 +425,7 @@ Lead / Orchestrator
  └─ Handoff / Memory
 ```
 
-The Lead / Orchestrator coordinates work; it is not a security superuser. Role names and workflow details remain conceptual until Team Mode design begins.
+The Lead / Orchestrator coordinates work; it is not a security superuser. The implemented V3 workflow is Planner → Worker → Validator → Reviewer. The broader role diagrams and preset examples describe future expansion.
 
 ### Domain-Agnostic Presets
 
@@ -441,7 +455,7 @@ These examples establish domain independence only; preset definitions and workfl
 
 ### Conceptual Orchestration Vocabulary
 
-Future Team Mode design is expected to reason about these concepts without creating schemas or domain implementation before its approved milestone:
+The current model implements Goal, Task, logical Role, checkpoint/Work Memory, handoff, findings and Final Result. The vocabulary below also includes future extensions; it is not a claim that presets, independent agents or a scheduler exist:
 
 - Goal
 - Task
@@ -535,23 +549,22 @@ For Git-backed Personal Alpha projects, the latest committed repository state is
 **Approved:**
 
 - Team Mode / Personal AI Team Harness is the primary product North Star.
-- Team Mode MVP is a near-term milestone after the accelerated Personal Alpha foundation.
+- Team Mode MVP V3 and its Personal Alpha prerequisites are implemented; current work is dogfooding and bounded fixes.
 - Orchestration is domain-agnostic: user goal → team → artifacts and results.
 - The secure SUD_D core remains the execution boundary for every agent role.
 - Serena is optional and is not a required core runtime dependency.
 - Full Recovery/Delete and broad Execute may follow the first Team Mode MVP rather than blocking it.
 
-**Deferred until Team Mode design begins:**
+**Future expansion; not implemented by the V3 MVP:**
 
-- exact agent runtime
+- independent/background agent runtime
 - model and provider selection
 - parallel execution design
 - task scheduler
 - conflict resolution
-- memory storage format
+- cross-device/cloud Work Memory synchronization (bounded local SQLite storage is implemented)
 - Team Preset format
-- detailed UI
-- exact Team Mode MVP milestone breakdown
+- expanded orchestration UI (current Desktop Team status/stop UI is implemented)
 
 ---
 
@@ -620,16 +633,16 @@ Normal users should not need to manage tunnel profile names, keys, executable pa
 
 ## 7. Work Memory / Automatic Resume
 
-**APPROVED PREREQUISITE — implement only under a new explicit task.**
+**IMPLEMENTED — Workspace-scoped resume/checkpoint and guarded session bootstrap.**
 
-Work Memory / Automatic Resume is now a required foundation immediately before Team Mode MVP. The goal is that a new ChatGPT conversation can connect to SUD_D and continue unfinished Workspace work without copying the previous chat. SUD_D owns continuation state; ChatGPT and Serena are not authoritative memory stores.
+Work Memory / Automatic Resume is the implemented continuity foundation used by Team Mode V3. A new ChatGPT conversation can connect and resume bounded Workspace state without copying the previous chat. SUD_D owns continuation state; ChatGPT and Serena are not authoritative memory stores.
 
 The intended flow is:
 
 ```text
 New ChatGPT conversation
 → connect to SUD_D
-→ automatic SUD_D session/workspace bootstrap
+→ call work.resume (required before substantive project work)
 → load bounded Resume Context for the active Workspace
 → validate live Workspace/Git state
 → continue unfinished work

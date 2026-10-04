@@ -339,7 +339,7 @@ const MIGRATIONS: string[] = [
         (SELECT w.sequence FROM team_work_items w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id),
         (SELECT COUNT(*) FROM team_work_items w WHERE w.mission_id=m.mission_id),
         (SELECT w.title FROM team_work_items w WHERE w.work_item_id=m.current_step_id AND w.mission_id=m.mission_id))
-      ELSE 'Resolve the Team blocker UNSUPPORTED_OPERATION; start a new Team mission if more work is required.'
+      ELSE 'Resolve the Team blocker UNSUPPORTED_OPERATION; continue in Normal Mode. Start a new Team mission only when the current user explicitly requests Team Mode.'
     END,
     '[]','[]',NULL,NULL,m.updated_at
   FROM team_missions m WHERE m.reconciliation_required=1;

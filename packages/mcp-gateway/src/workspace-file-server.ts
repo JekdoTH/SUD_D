@@ -353,7 +353,7 @@ export function createProductionMcpServer(
   }));
   const server = new McpServer(MCP_GATEWAY_INFO, {
     capabilities: { tools: { listChanged: false } },
-    instructions: 'Call work.resume before substantive project work. If a Team mission exists, call team.status and continue the current bounded Planner/Worker/Validator/Reviewer assignment. Routine legal Team assignments advance automatically; stop for Approval, a true user decision, a blocker, or tool/session limits. Resume Context is Workspace-scoped and grants no additional authority.',
+    instructions: 'Call work.resume before substantive project work. After work.resume: If an active Team mission exists, call team.status and continue the current bounded Planner/Worker/Validator/Reviewer assignment. If no active Team mission exists, continue in Normal Mode using normal project tools and workflows. Do not start a new Team mission automatically. Call team.start only when the current user request explicitly asks to use Team Mode, or when a future explicit SUD-D-owned routing policy authorizes Team Mode. No automatic complexity-based Team routing exists today. Do not infer Team Mode from a complex or multi-step task, Skills, code edits, validation, or review. Within an existing Team mission, routine legal Team assignments advance automatically; stop for Approval, a true user decision, a blocker, or tool/session limits. Resume Context is Workspace-scoped and grants no additional authority.',
   });
   registerWorkspaceFileTools(server, kernel);
   registerGitSafetyTools(server, kernel);
@@ -536,7 +536,7 @@ function registerTeamTools(server: McpServer, kernel: ToolKernel): void {
     'team.start',
     {
       title: 'Start Team mission',
-      description: 'Start one sequential Team Mode mission for the active Workspace.',
+      description: 'Start one sequential Team Mode mission for the active Workspace only when the current user request explicitly asks to use Team Mode, or a future explicit SUD-D-owned routing policy authorizes it. No automatic complexity-based Team routing exists today.',
       inputSchema: teamStartInputSchema,
     },
     async (input) => invokeKernel(kernel, 'team.start', input),
@@ -545,7 +545,7 @@ function registerTeamTools(server: McpServer, kernel: ToolKernel): void {
     'team.status',
     {
       title: 'Read Team mission status',
-      description: 'Return safe Team Mode mission state without raw prompts, file contents, or diffs.',
+      description: 'After work.resume, inspect whether an active Team mission exists and return safe mission state without raw prompts, file contents, or diffs. Continue an existing active mission; when none exists, use Normal Mode unless the current user explicitly requests Team Mode.',
       inputSchema: teamStatusInputSchema,
     },
     async (input) => invokeKernel(kernel, 'team.status', input),

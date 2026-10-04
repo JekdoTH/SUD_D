@@ -92,7 +92,7 @@ describe('Team Mode migration 006', () => {
   it('fails closed when an active legacy mission cannot resolve a current Task', () => {
     const db = openDatabase(legacyFixture('missing-task'));
     expect(createTeamRepository(db).findById('mission-a')).toMatchObject({ ok: true, value: { state: 'blocked', blockedReason: 'UNSUPPORTED_OPERATION', blockedReasonSummary: 'Legacy Team mission cannot resolve a current Task' } });
-    expect(createWorkMemoryRepository(db).loadCurrent('ws-a')).toMatchObject({ ok: true, value: { task: { status: 'blocked' }, nextAction: 'Resolve the Team blocker UNSUPPORTED_OPERATION; start a new Team mission if more work is required.' } });
+    expect(createWorkMemoryRepository(db).loadCurrent('ws-a')).toMatchObject({ ok: true, value: { task: { status: 'blocked' }, nextAction: 'Resolve the Team blocker UNSUPPORTED_OPERATION; continue in Normal Mode. Start a new Team mission only when the current user explicitly requests Team Mode.' } });
     db.close();
   });
 });

@@ -127,10 +127,10 @@ function nextActionFor(
       value = 'Team mission completed; review the Final Result.';
       break;
     case 'blocked':
-      value = `Resolve the Team blocker ${mission.blockedReason ?? 'UNSUPPORTED_OPERATION'}; start a new Team mission if more work is required.`;
+      value = `Resolve the Team blocker ${mission.blockedReason ?? 'UNSUPPORTED_OPERATION'}; continue in Normal Mode. Start a new Team mission only when the current user explicitly requests Team Mode.`;
       break;
     case 'stopped':
-      value = 'Team mission stopped; start a new Team mission to continue this Goal.';
+      value = 'Team mission stopped; continue in Normal Mode. Start a new Team mission only when the current user explicitly requests Team Mode.';
       break;
   }
   const bounded = boundedText(value, WORK_MEMORY_LIMITS.maxNextActionChars);

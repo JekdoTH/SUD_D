@@ -291,7 +291,7 @@ describe('Team Mode - state machine and persistence', () => {
     requireOk(stopped.service.stop());
     expect(stopped.workMemoryRepo.loadCurrent(stopped.workspace.id)).toMatchObject({
       ok: true,
-      value: { task: { status: 'blocked' }, nextAction: 'Team mission stopped; start a new Team mission to continue this Goal.' },
+      value: { task: { status: 'blocked' }, nextAction: 'Team mission stopped; continue in Normal Mode. Start a new Team mission only when the current user explicitly requests Team Mode.' },
     });
   });
   it('applies role-specific freshness: Worker adopts; Validator and Reviewer must match; blocked ignores Git drift', () => {

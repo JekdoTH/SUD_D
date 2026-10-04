@@ -1,12 +1,22 @@
 # SUD_D Handoff
 
+## Team Mode opt-in — OWNER-TEST CANDIDATE (2026-10-05)
+
+- Baseline `9548fb8`; clean `master` at task start. Owner reports real ChatGPT connection and `work.resume` PASS on Home and Work. Work Memory and Team V3 remain implemented/verified.
+- Root cause: MCP instructed continuation for an existing mission but left the no-mission branch and new-mission opt-in unspecified. Available `team.start` could be selected by the model. Runtime initialization now requires Normal Mode without an active mission and permits a new mission only for an explicit current user Team request (or a future explicit SUD-D-owned policy; none exists today). Complexity, Skills, edits, validation/review do not authorize Team startup.
+- Updated only model-facing instructions, `team.start` / `team.status` descriptions, and stopped/blocked continuation wording, including the legacy migration's text literal. Schema, state transitions, tool names/inputs, Kernel / Policy / Approval and resume guard remain unchanged. Already persisted old checkpoints are not rewritten; fresh server instructions govern them.
+- Focused proof: instruction contract RED before fix; stopped/blocked continuation RED before copy fix. MCP bootstrap, Work Resume guard, Team service/production surface, Desktop Team DTO and migration tests: 25 PASS, one opt-in full Work Memory acceptance test skipped. MCP still exposes exactly 39 tools / four Team tools; pre-resume start is blocked, normal resumed tools create no mission, direct `team.start` remains functional. Legacy migration rerun PASS after text fix; its earlier cleanup EBUSY followed the failing assertion and did not recur.
+- Infrastructure typecheck/build, Application build, Gateway typecheck/build PASS. `git diff --check` PASS. No full suite, installer, tag or release for this candidate. Owner subsequently authorized commit/push before continuing testing tomorrow. Local detailed report: `.serena/reports/team-mode-opt-in-owner-test-candidate.md`.
+- Owner dev screenshots show the previous Team mission is stopped and Desktop reports **No active Team mission**; ChatGPT states it will use the canonical ghost-horror Skill after an explicit Normal Mode instruction. This proves return from Team, not automatic Normal Mode routing from the unchanged Brief. Fresh-session unchanged-Brief test and explicit Team control remain pending.
+- Ready for owner test of unchanged production-script bootstrap in a fresh MCP session/new ChatGPT chat. Confirm no active mission with `team.status`, choose “บันทึกเรื่องหลอน”, provide the normal Brief, and verify canonical ghost-horror Skill starts directly without `team.start`. Separate control chat explicitly requests Team Mode. Real ChatGPT routing acceptance remains pending; instruction tests cannot prove stochastic model obedience or authenticate natural-language intent.
+
 ## v1.0.2 startup update notice release — PUBLISHED (2026-10-04)
 
 - Owner-authorized patch v1.0.2 is published. Release commit/tag: `a3f70579858da690a82132eb3ad80441bd561064`, contained in origin/master. Scope: shared renderer update status, in-app startup notice with View Update / Later, and persistent navigation indication during the app session; download/install remain explicit user actions.
 - Local release proof: workflow-required seven files plus Update UI = 79/79 PASS across the initial run and targeted rerun; renderer typecheck, focused lint, Desktop build, 17-assertion built Electron UI smoke, and diff checks PASS. The targeted rerun fixed existing device wording in this handoff and isolated controller-test LOCALAPPDATA under `.serena/` after sandbox denied real app-data access. No real user data or signing private key was used locally.
 - Release Windows run https://github.com/JekdoTH/SUD_D/actions/runs/37216441247 SUCCESS: focused release tests, Windows installer packaging, Version/Revision/master ancestry/MCP provenance, signing identity, signed manifest/hash verification, publication and temporary-key cleanup all PASS. Existing release-environment reviewer approval was fulfilled under the owner's explicit publication authorization; protections were retained.
 - Latest stable release: https://github.com/JekdoTH/SUD_D/releases/tag/v1.0.2. Anonymous HEAD HTTP 200 verified for all five assets. Public manifest signature, revision, canonical notes and latest.yml SHA-512 consistency independently PASS. Installer SHA-256 from GitHub digest: `39b2a9abc84d508b087253ba5bb8d65956332c042f7a40eafd40e918be42b51a`. Local-only evidence: `.serena/reports/v1.0.2-public-verification.json`.
-- Next action: owner uses installed app → Update → Check for Updates → Download Update → Restart & Update, then verifies v1.0.2 / Revision a3f7057. The new notice appears only when a newer verified release exists; it is absent in pnpm dev and when up to date. Installed-app A→B owner acceptance remains pending. Stop before another release or unrelated capability work.
+- Installed-app Owner Acceptance: **PASS**, confirmed by the owner on 2026-10-05; Check for Updates → Download Update → Restart & Update to v1.0.2 works normally. The new notice appears only when a newer verified release exists; it is absent in pnpm dev and when up to date. Current next action is the Team opt-in owner test above; no further release is authorized by this candidate.
 
 ## Desktop startup update notice — IMPLEMENTED IN v1.0.2 (2026-10-04)
 
@@ -2110,7 +2120,7 @@ Exit code 0
 
 ## Open Issues
 
-1. The M0.5 production adapter reaches `waiting_for_client` after tunnel readiness. A production cross-process client-connected signal is not yet wired; a fixed signal seam exists for later integration.
+1. The production adapter reaches `waiting_for_client` after tunnel readiness. A production cross-process client-connected signal is not yet wired; a fixed signal seam exists for later integration. Owner-confirmed real ChatGPT connections on Home/Work are PASS independently of this Desktop status limitation.
 2. Persistent Runtime API Key storage is now Windows Credential Manager-backed. Legacy `CONTROL_PLANE_API_KEY` remains only as a backend session-only migration/development fallback and is never silently persisted; removing the Windows-stored credential does not modify a User environment variable.
 3. The current fixed gateway entry is JavaScript and therefore validates a trusted installed `node.exe`, while the tunnel profile command uses the `node` executable token for `tunnel-client` Windows command parsing compatibility. Future packaged runtime distribution may choose a bundled/fixed runtime, but renderer-controlled executable selection must remain forbidden.
 4. Windows process cleanup uses fixed internal `taskkill.exe /T /F` because the current M0.3 lifecycle port is synchronous; no generic process-control API is exposed.
@@ -2119,15 +2129,15 @@ Exit code 0
 
 ## Immediate Next Action
 
-Branding Logo + App Icon v2 is COMPLETE on primary validation device. secondary validation device should begin with `git status`, `git fetch origin`, and `git pull --ff-only origin master`, then rerun the fresh session bootstrap + Mandatory Skill Router Gate.
+Owner tests the local Team opt-in candidate using fresh MCP initialization and a new ChatGPT chat. Call `work.resume`, inspect `team.status` for no active mission, then use the unchanged production-script bootstrap → “บันทึกเรื่องหลอน” → normal Brief. Expect canonical ghost-horror Skill / normal handshake and duration workflow, with no `team.start`. Use a separate fresh chat explicitly requesting Team Mode for the control. Do not stop an existing mission silently; use a Workspace without an active mission or obtain an explicit owner stop decision.
 
-The next explicit product UI task remains **Connection tab UX/UI + onboarding/state correctness pass**, but it is **NOT STARTED** and requires a new explicit instruction; the Mandatory Impeccable UI Gate requires loading `impeccable` before any renderer-visible UI/UX work.
+The published installed-app v1.0.2 is accepted; this local source candidate needs a restarted development gateway to load its new instructions. It is not included in the installed release. Do not package or release it in this task.
 
-The product connector still has one separate external acceptance item: on secondary validation device, connect real ChatGPT through the configured SUD-D Secure Tunnel and confirm MCP initialize plus the exact 14-tool production surface. Restricted Execute remains **BLOCKED** because sandbox enforcement was not proven on secondary validation device.
-
-**STOP after Branding v2 handoff is committed/pushed and `origin/master...master` is `0 0`.** Do not begin Connection redesign, Personal Alpha retest, Restricted Execute implementation, broader Team Mode, generic Execute, Delete/Recovery, network Git, scheduler/background agents, provider/model runtime, or another capability slice without a new explicit instruction.
+**STOP after owner-authorized commit/push of this candidate.** Resume the fresh-session unchanged-Brief test tomorrow; do not mark routing acceptance PASS yet. Restricted Execute remains BLOCKED; no release, new capability or milestone starts here.
 
 ## Last Commit SHA
+
+Current candidate baseline: `9548fb8` — `docs: record verified v1.0.2 publication`. Owner authorized the Team opt-in candidate commit/push; resolve its SHA from Git history. The entries below are historical milestone references.
 
 Branding Logo + App Icon v2 implementation:
 
