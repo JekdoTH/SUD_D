@@ -1,5 +1,12 @@
 # SUD_D Handoff
 
+## v1.0.1 patch release — approved / workflow verification pending (2026-10-04)
+
+- Scope: only the owner-accepted Secure Tunnel environment fix, commit `c0476e70f4ce62bfa7e67ee1d1508dbe6495f07a`, pushed to master with local/remote equality verified. No unrelated changes or Windows environment edits.
+- Canonical Desktop version bumped with repository tooling from 1.0.0 to 1.0.1; canonical notes contain only the approved Fixed entry. Focused closure tests 24/24 PASS and the workflow-required seven release test files 63/63 PASS; diff checks PASS. Existing typecheck/build evidence for unchanged runtime remains valid; unrelated baseline failures were not repaired or broadly rerun.
+- Release environment signing secret name is present and committed Ed25519 public key parses successfully. Actual key matching, package Version/Revision/MCP contract, signatures, and hashes must pass Release Windows before publication. The protected release environment requires reviewer approval; preserve that gate.
+- Product Owner explicitly approved publishing v1.0.1. Next: tag the exact release commit contained in origin/master, follow Release Windows, and verify the five assets. Stop on required release verification or signing failure; Home Check for Updates readiness is pending successful publication.
+
 ## Secure Tunnel environment isolation — Owner acceptance PASS (2026-10-04)
 
 - At baseline `d759a2d`, the generated profile's Tunnel ID differed from the Windows Process/User `CONTROL_PLANE_TUNNEL_ID`. The launcher copied `process.env` into tunnel-client; installed client help documents flags > environment > YAML precedence. Existing profiles are not overwritten by the controller's bootstrap fallback, but the child could still use the inherited override.
