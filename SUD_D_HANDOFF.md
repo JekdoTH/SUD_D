@@ -1,5 +1,12 @@
 # SUD_D Handoff
 
+## Builder Skill Runtime Handshake — diagnosed integration blocker (2026-10-05)
+
+- Read-only inspection of local Desktop DB confirms active Workspace `Builder Skill` at `C:\1.งานโด้\Skill builder\Skill-Script-ALL`; two recent `restricted_verify.run` audit entries show action `test`, result `INTERNAL_ERROR`, matching the owner report.
+- Reproduced the profile resolution failure against that Workspace using the built Infrastructure resolver: root `package.json` is absent, so `readFileSync` throws `ENOENT` before any project script/verifier launches. `executeRestrictedVerify` maps this untyped exception to `INTERNAL_ERROR`. Current Verify supports declared project actions, not a caller-selected Python script.
+- Inspected the canonical verifier (read-only hashing/marker checks) and ran it with Codex bundled Python using `-B`: `ghost-horror-script v4.10.9`, signature `GH-4.10.9-XMACHINE-HASH-V1`, `pass: true`, `failures: []`, exit 0. No Skill files, old creative outputs, runtime DB, or production scripts were modified. This proves current package contract integrity, not the production Skill workflow or SUD-D verification integration.
+- Next action: address supported verification-profile configuration and safe missing-profile error handling; any bounded Python/project runner expansion needs explicit scope and existing execution/security gates. Do not bypass Runtime Handshake or add arbitrary shell authority. No production source change, commit/push, installer or release in this diagnosis.
+
 ## Team Mode opt-in — OWNER-TEST CANDIDATE (2026-10-05)
 
 - Baseline `9548fb8`; clean `master` at task start. Owner reports real ChatGPT connection and `work.resume` PASS on Home and Work. Work Memory and Team V3 remain implemented/verified.
