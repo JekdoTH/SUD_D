@@ -12,6 +12,7 @@ import { UpdatePage } from './pages/UpdatePage';
 import sudDLogo from './assets/sud-d-logo.png';
 import { UiIcon, type UiIconName } from './ui-icons';
 import { presentConnectionState, type ConnectionStatePresentation } from './connection-ui-model';
+import { DesktopUpdateContext, useDesktopUpdateState } from './desktop-update-state';
 
 export type AppPage =
   | 'overview'
@@ -51,6 +52,10 @@ const CONNECTION_UNAVAILABLE_PRESENTATION: ConnectionStatePresentation = {
 };
 
 export function App(): React.ReactElement {
+  const updates = useDesktopUpdateState();
+  const [dismissedUpdate, setDismissedUpdate] = useState<string | null>(null);
+  const updateAvailable = updates.status?.phase === 'available' || updates.status?.phase === 'ready';
+  const updateVersion = updateAvailable ? updates.status?.targetVersion : null;
   const [page, setPage] = useState<AppPage>('overview');
   const [shellConnectionPresentation, setShellConnectionPresentation] = useState<ConnectionStatePresentation>(
     CHECKING_CONNECTION_PRESENTATION,
@@ -112,7 +117,10 @@ export function App(): React.ReactElement {
               aria-current={page === item.id ? 'page' : undefined}
             >
               <UiIcon name={item.icon} size={20} className="nav-icon" />
-              <span>{item.label}</span>
+              <span className="nav-label">{item.label}</span>
+              {item.id === 'update' && updateVersion && (
+                <span className="update-nav-marker" aria-label={`Update v${updateVersion} available`} />
+              )}
             </button>
           ))}
         </nav>
@@ -158,7 +166,20 @@ export function App(): React.ReactElement {
           </div>
         )}
 
+        <DesktopUpdateContext.Provider value={updates}>
         <main className="main">
+          {updateVersion && dismissedUpdate !== updateVersion && page !== 'update' && (
+            <section className="update-notice" aria-label="Software update" role="status">
+              <div>
+                <strong>SUD-D v{updateVersion} {updates.status?.phase === 'ready' ? 'is ready to install' : 'is available'}</strong>
+                <p>You choose when to update.</p>
+              </div>
+              <div className="update-notice-actions">
+                <button className="btn btn-primary" onClick={() => setPage('update')}>View Update</button>
+                <button className="btn btn-ghost" onClick={() => setDismissedUpdate(updateVersion)}>Later</button>
+              </div>
+            </section>
+          )}
           {page === 'overview' && <HomePage onNavigate={setPage} />}
           {page === 'workspaces' && <ProjectsPage />}
           {page === 'git' && <GitPage onNavigate={setPage} />}
@@ -170,6 +191,7 @@ export function App(): React.ReactElement {
           {page === 'recovery' && <RecoveryPage />}
           {page === 'environment' && <DoctorPage />}
         </main>
+        </DesktopUpdateContext.Provider>
       </section>
     </div>
   );

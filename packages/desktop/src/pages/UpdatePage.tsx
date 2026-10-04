@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import type { DesktopUpdateStatusDto } from '@sud-d/contracts';
+import { DesktopUpdateContext } from '../desktop-update-state';
 
 type UpdateNoteSection = {
   heading: 'New' | 'Improved' | 'Fixed';
@@ -72,11 +73,15 @@ async function refreshAfterFailure(): Promise<DesktopUpdateStatusDto | null> {
 }
 
 export function UpdatePage(): React.ReactElement {
-  const [status, setStatus] = useState<DesktopUpdateStatusDto | null>(null);
+  const shared = useContext(DesktopUpdateContext);
+  const [localStatus, setLocalStatus] = useState<DesktopUpdateStatusDto | null>(null);
+  const status = shared ? shared.status : localStatus;
+  const setStatus = shared ? shared.setStatus : setLocalStatus;
   const [requestBusy, setRequestBusy] = useState(false);
   const [localError, setLocalError] = useState('');
 
   useEffect(() => {
+    if (shared) return;
     let active = true;
     void window.sudD.update.status()
       .then((result) => {
@@ -88,7 +93,7 @@ export function UpdatePage(): React.ReactElement {
         if (active) setLocalError('Update status is unavailable.');
       });
     return () => { active = false; };
-  }, []);
+  }, [shared]);
 
   const view = useMemo(() => status ? presentUpdateStatus(status) : null, [status]);
 
@@ -145,7 +150,7 @@ export function UpdatePage(): React.ReactElement {
 
       {!view ? (
         <div className="card update-status-card" role="status">
-          <strong>Reading update status…</strong>
+          <strong>{shared?.readFailed || localError ? 'Update status is unavailable. Retrying…' : 'Reading update status…'}</strong>
         </div>
       ) : (
         <div className="card update-status-card">
@@ -213,6 +218,7 @@ export function UpdatePage(): React.ReactElement {
           </div>
 
           {localError && <p className="update-local-error" role="alert">{localError}</p>}
+          {shared?.readFailed && <p className="update-local-error" role="alert">Unable to refresh update status. Retrying…</p>}
         </div>
       )}
     </section>

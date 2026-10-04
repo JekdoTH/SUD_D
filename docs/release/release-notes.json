@@ -1,7 +1,11 @@
 {
-  "new": [],
-  "improved": [],
+  "new": [
+    "Show an in-app update notice on startup with View Update and Later, leaving download and installation to the user."
+  ],
+  "improved": [
+    "Keep update availability visible in navigation after deferring the notice for the current app session."
+  ],
   "fixed": [
-    "Prevent host CONTROL_PLANE environment variables from overriding the SUD-D managed Secure Tunnel configuration."
+    "Refresh Update status while the page is open, so completed checks appear without switching tabs."
   ]
 }
