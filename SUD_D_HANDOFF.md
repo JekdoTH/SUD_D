@@ -1,12 +1,14 @@
 # SUD_D Handoff
 
-## v1.0.3 — owner-authorized installed-app release preparation (2026-10-05)
+## v1.0.3 — installed-app release PUBLISHED (2026-10-05)
 
 - Owner requested the installed Desktop app release after dev acceptance: current Workspace has no active Team mission; live Desktop audit records `VERIFY_PASSED` for `verify.run(test)` with exit 0 and untruncated output. ChatGPT reports canonical v4.10.9 Runtime Handshake PASS and starts FRESH workflow. This confirms the current Normal Mode/Handshake flow, not completion of all production/final-file validators or the separate explicit Team control test.
 - Authorized publication scope: Team opt-in instructions from `313e5b9` plus safe missing/invalid verification-profile errors. Patch version v1.0.3 uses the existing release workflow, signing and provenance gates. No new tool/action, broad Project Runner, generic Execute, dependency, UI redesign or Skill change.
-- Local closure: workflow-required seven release files 63/63 PASS with isolated test LOCALAPPDATA. Changed Verify evidence remains valid: 16 focused tests plus 5 project-profile negatives PASS, Infrastructure typecheck/build, focused lint and diff checks PASS. Owner-authorized SUD-D commit/push/tag follows; installer/package/sign/publication evidence will be recorded after CI completes.
+- Local closure: workflow-required seven release files 63/63 PASS with isolated test LOCALAPPDATA. Changed Verify evidence remains valid: 16 focused tests plus 5 project-profile negatives PASS, Infrastructure typecheck/build, focused lint and diff checks PASS. Release commit/tag `v1.0.3`: `56d3a5eda356cadb56a350f54fa4c7c4256e71e7`, pushed to origin/master.
+- Release Windows run https://github.com/JekdoTH/SUD_D/actions/runs/37268970948 SUCCESS: required tests, Windows packaging, version/revision/master ancestry/provenance, signing identity, manifest/hash verification, publication and temporary-key cleanup PASS. Existing protected-environment approval was fulfilled under the owner's publication authorization; protections were retained.
+- Latest stable release https://github.com/JekdoTH/SUD_D/releases/tag/v1.0.3 is public, non-draft and non-prerelease. Anonymous HEAD HTTP 200 for all five assets; independent public manifest signature, version/revision, notes and feed SHA-512 consistency PASS. Installer SHA-256 from GitHub asset digest: `771ef099006d27b792427636e7067eb9d98604162be96c6dbc8d849e349192f0`. Local evidence: `.serena/reports/v1.0.3-public-verification.json`. Installed-app v1.0.3 owner acceptance remains pending.
 - Builder Skill's declared project profile remains in that separate local Workspace, not in the SUD-D installer or Git history. It uses the existing `verify.run(test)` action. Other machines need the project configuration and its documented local host runtime prerequisites; publishing the app does not install a Skill or synchronize Workspaces.
-- STOP after verified publication and public asset/signature/feed checks, or on a required gate/environment blocker. Installed-app v1.0.3 update acceptance follows publication; owner authorization now permits the required SUD-D commit/push/tag. Do not commit the separate Builder Skill repository without explicit authorization for that repository.
+- Publication STOP reached after successful gates and public checks. Owner next action: installed-app Update → Check for Updates → Download Update → Restart & Update, then confirm v1.0.3 / revision `56d3a5e` and retry the normal Brief in a fresh connected chat. Do not commit the separate Builder Skill repository without explicit authorization for that repository.
 
 ## Builder Skill Runtime Handshake — OWNER-TEST CANDIDATE (2026-10-05)
 
@@ -2153,7 +2155,7 @@ Exit code 0
 
 ## Immediate Next Action
 
-Current checkpoint: publish the owner-authorized v1.0.3 installed-app release after the existing required release gates. After publication, installed-app Check for Updates → Download Update → Restart & Update and verify v1.0.3/revision. The candidate notes below retain their earlier verification scope; current Normal Mode/Handshake dev acceptance is confirmed above.
+Current checkpoint: v1.0.3 publication and public verification complete. Owner next action: installed-app Check for Updates → Download Update → Restart & Update and verify v1.0.3 / revision `56d3a5e`. The candidate notes above retain their earlier verification scope; current Normal Mode/Handshake dev acceptance is confirmed, while installed v1.0.3 acceptance remains pending.
 
 After installed-app update, open a fresh ChatGPT session and use the normal unchanged production bootstrap/Brief. Expect canonical ghost-horror Runtime Handshake through the configured project profile and no unsolicited `team.start`. Use a separate fresh chat explicitly requesting Team Mode for the control. Do not stop an existing mission silently; use a Workspace without one or obtain the owner's explicit stop decision. Other final production validators remain outside this profile's scope.
 
@@ -2161,7 +2163,7 @@ Team opt-in candidate was committed/pushed as `313e5b9`; diagnosis notes as `7be
 
 ## Last Commit SHA
 
-Current release baseline: `7be9473` — `docs: record Skill verification integration blocker`. Resolve the owner-authorized v1.0.3 release commit/tag from Git history after preparation. The entries below are historical milestone references.
+Published v1.0.3 release commit/tag: `56d3a5eda356cadb56a350f54fa4c7c4256e71e7` — `fix: release v1.0.3 Team opt-in and verify profile errors`. Publication record is a subsequent documentation-only commit. The entries below are historical milestone references.
 
 Branding Logo + App Icon v2 implementation:
 
