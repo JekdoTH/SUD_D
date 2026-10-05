@@ -6,7 +6,9 @@ This document holds stable project context, not milestone progress. For approved
 
 SUD_D is a local-first Windows AI control gateway/runtime whose secure core supports the long-term North Star: a domain-agnostic **Personal AI Team Harness / Orchestrator**. A user defines a goal and constraints; Team Mode coordinates planning, specialist work, verification, review, handoff, memory, and final artifacts for user review or approval.
 
-The MCP Gateway is a foundation rather than the final product destination. Implemented Team Mode V3 coordinates sequential logical Planner / Worker / Validator / Reviewer assignments through the connected AI session. Every role uses the same Tool Kernel → Policy → Approval → Execution path. Serena is an optional specialist integration behind the SUD_D-managed runtime and `code.*` facade; clean-machine bootstrap and controlled runtime update remain future work. Broader orchestration follows the approved roadmap.
+The MCP Gateway is a foundation rather than the final product destination. Implemented Team Mode V3 coordinates sequential logical Planner / Worker / Validator / Reviewer assignments through the connected AI session. Every role uses the same Tool Kernel → Policy → Approval → Execution path. Serena is an optional specialist integration behind the SUD_D-managed runtime and `code.*` facade. With trusted uv already installed on the machine, SUD_D provisions and manages its pinned Python/Serena runtime; self-contained uv bootstrap and controlled runtime update/rollback remain later work. Broader orchestration follows the approved roadmap.
+
+Approved future Parallel Coding uses the user's current conversation as Requirement / Lead Chat after an explicit Parallel Team request, with Worker chats opened manually by the user. SUD_D does not create ChatGPT conversations or add an OpenAI API/model runtime for this approach. This is future direction, not current sequential V3 behavior; design and gates belong in the roadmap.
 
 SUD_D is local-first by design: project state and continuity live in Git, device runtime state stays local, and cloud infrastructure is not a prerequisite for the core product.
 
@@ -75,7 +77,7 @@ The current domain contract supports `openai_secure_mcp_tunnel` through `stdio`.
 
 primary validation device and secondary validation device use separate Secure Tunnel instances and local device state. Each machine is configured, operated, and diagnosed independently; one machine's tunnel, credentials, or runtime ownership must not be assumed on the other.
 
-GitHub OAuth, a Cloud Relay, cloud device discovery, account sync, and a SUD_D cloud service are future optional directions only. They must not be introduced without an explicitly approved milestone and security review.
+Git commit/push/pull is the accepted cross-device project continuity mechanism for the current Windows users. Cloud Relay, cloud device discovery and cloud Work Memory sync are not currently planned. Each machine retains its own connection/runtime state; existing provider seams grant no cloud or model-selection runtime authority.
 
 ## UI / UX Principles
 

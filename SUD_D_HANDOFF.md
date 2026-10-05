@@ -1,5 +1,11 @@
 # SUD_D Handoff
 
+## Post-MVP roadmap sync — owner-approved documentation (2026-10-05)
+
+- Updated README, stable Context and the authoritative Roadmap for the owner's approved post-MVP direction; sequencing and rationale live only in [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md). No runtime/source, installer or package changes. Owner reviewed the documentation summary and explicitly authorized commit/push on 2026-10-05.
+- Current execution remains v1.0.3 installed-app / Team opt-in owner acceptance. Do not start Connection lifecycle or Parallel Coding implementation from this documentation approval.
+- Documentation checks: cross-checked current vs planned wording against implementation and install/release docs; `git diff --check` PASS and 23 local Markdown links resolve. Only the four documentation files changed; no product suite/build/package was run.
+
 ## v1.0.3 — installed-app release PUBLISHED (2026-10-05)
 
 - Owner requested the installed Desktop app release after dev acceptance: current Workspace has no active Team mission; live Desktop audit records `VERIFY_PASSED` for `verify.run(test)` with exit 0 and untruncated output. ChatGPT reports canonical v4.10.9 Runtime Handshake PASS and starts FRESH workflow. This confirms the current Normal Mode/Handshake flow, not completion of all production/final-file validators or the separate explicit Team control test.
@@ -2156,6 +2162,8 @@ Exit code 0
 ## Immediate Next Action
 
 Current checkpoint: v1.0.3 publication and public verification complete. Owner next action: installed-app Check for Updates → Download Update → Restart & Update and verify v1.0.3 / revision `56d3a5e`. The candidate notes above retain their earlier verification scope; current Normal Mode/Handshake dev acceptance is confirmed, while installed v1.0.3 acceptance remains pending.
+
+The owner authorized committing/pushing the roadmap documentation. Later work follows [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md), with a separate implementation instruction for each phase.
 
 After installed-app update, open a fresh ChatGPT session and use the normal unchanged production bootstrap/Brief. Expect canonical ghost-horror Runtime Handshake through the configured project profile and no unsolicited `team.start`. Use a separate fresh chat explicitly requesting Team Mode for the control. Do not stop an existing mission silently; use a Workspace without one or obtain the owner's explicit stop decision. Other final production validators remain outside this profile's scope.
 
