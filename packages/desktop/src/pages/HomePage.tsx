@@ -3,7 +3,6 @@ import type {
   DesktopActivityEventDto,
   DesktopConnectionSnapshotDto,
   DesktopOverviewWorkStatusDto,
-  DesktopTeamMissionDto,
   WorkspaceDto,
 } from '@sud-d/contracts';
 import type { AppPage } from '../App';
@@ -12,6 +11,7 @@ import {
   presentConnectionState,
 } from '../connection-ui-model';
 import { UiIcon } from '../ui-icons';
+import { presentCurrentActivityStatus } from '../current-activity-ui-model';
 
 interface HomePageProps {
   onNavigate: (page: AppPage) => void;
@@ -21,23 +21,29 @@ function formatEventTime(timestamp: string): string {
   return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+function formatResultCode(resultCode: string): string {
+  if (resultCode === 'OK') return 'OK';
+  return resultCode
+    .toLowerCase()
+    .replace(/[_:.]+/gu, ' ')
+    .replace(/\b\w/gu, (letter) => letter.toUpperCase());
+}
+
 export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
   const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]);
   const [recentEvents, setRecentEvents] = useState<DesktopActivityEventDto[]>([]);
   const [connection, setConnection] = useState<DesktopConnectionSnapshotDto | null>(null);
-  const [teamMission, setTeamMission] = useState<DesktopTeamMissionDto | null>(null);
-  const [teamStatusAvailable, setTeamStatusAvailable] = useState(true);
   const [workStatus, setWorkStatus] = useState<DesktopOverviewWorkStatusDto | null>(null);
+  const [workStatusAvailable, setWorkStatusAvailable] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const workStatusRefreshInFlight = useRef(false);
 
   const refresh = useCallback(async () => {
-    const [workspaceResult, activityResult, connectionResult, teamResult] = await Promise.all([
+    const [workspaceResult, activityResult, connectionResult] = await Promise.all([
       window.sudD.workspace.list(),
       window.sudD.activity.list({ limit: 5 }),
       window.sudD.connection.status(),
-      window.sudD.team.status({}),
     ]);
 
     if (workspaceResult.ok) setWorkspaces(workspaceResult.value);
@@ -48,13 +54,6 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
     } else {
       setError(connectionResult.error.message);
     }
-    if (teamResult.ok) {
-      setTeamMission(teamResult.value);
-      setTeamStatusAvailable(true);
-    } else {
-      setTeamMission(null);
-      setTeamStatusAvailable(false);
-    }
   }, []);
 
   const refreshWorkStatus = useCallback(async () => {
@@ -62,6 +61,7 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
     workStatusRefreshInFlight.current = true;
     try {
       const result = await window.sudD.overview.workStatus();
+      setWorkStatusAvailable(result.ok);
       setWorkStatus(result.ok ? result.value : null);
     } finally {
       workStatusRefreshInFlight.current = false;
@@ -82,46 +82,86 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
 
   const activeWorkspace = workspaces.find((workspace) => workspace.isActive);
   const visibleWorkspaces = activeWorkspace ? [activeWorkspace] : [];
-  const teamWorkState = !teamStatusAvailable
-    ? 'Unavailable'
-    : teamMission
-      ? teamMission.state === 'planning'
-        ? 'Planning'
-        : teamMission.state === 'implementing'
-          ? 'Working'
-          : teamMission.state === 'validating'
-            ? 'Validating'
-            : teamMission.state === 'reviewing'
-              ? 'Reviewing'
-              : teamMission.state === 'blocked'
-                ? 'Blocked'
-                : teamMission.state === 'completed'
-                  ? 'Completed'
-                  : 'Stopped'
-      : 'Idle';
-  const currentActivityTitle = !teamStatusAvailable
-    ? 'Current activity unavailable'
-    : teamMission
-      ? teamMission.state === 'blocked'
-        ? 'Blocked — Team Mode'
-        : 'Working — Team Mode'
-      : 'Idle';
-  const currentActivityDescription = !teamStatusAvailable
-    ? 'Trusted Team status is unavailable right now.'
-    : teamMission
-      ? teamMission.goalSummary
-      : 'No active Team work is reported for this workspace.';
-  const gitStatusLabel = workStatus?.git.availability === 'available'
-    ? workStatus.git.clean
+  const currentWorkStatus = activeWorkspace && workStatus?.workspaceId === activeWorkspace.id
+    ? workStatus
+    : null;
+  const workStatusChecking = Boolean(activeWorkspace)
+    && workStatusAvailable !== false
+    && currentWorkStatus === null;
+  const teamStatus = currentWorkStatus?.team;
+  const teamMission = teamStatus?.availability === 'available' ? teamStatus.mission : null;
+  const approvalStatus = currentWorkStatus?.approval.availability === 'available'
+    ? currentWorkStatus.approval
+    : null;
+  const checkpoint = currentWorkStatus?.checkpoint;
+  const latestActivity = currentWorkStatus?.latestActivity;
+
+  const currentActivityStatus = presentCurrentActivityStatus({
+    hasActiveWorkspace: Boolean(activeWorkspace),
+    workStatusAvailable,
+    workStatusChecking,
+    teamStatusAvailable: teamStatus
+      ? teamStatus.availability === 'available'
+      : null,
+    teamState: teamMission?.state ?? null,
+    pendingApprovalCount: approvalStatus?.pendingCount ?? 0,
+    pendingTeamStart: approvalStatus?.pendingTeamStart ?? false,
+    checkpointState: checkpoint?.availability === 'available'
+      ? checkpoint.taskStatus
+      : checkpoint?.availability ?? 'none',
+  });
+  const activityModeLabel = currentActivityStatus.modeLabel;
+  const activityStateLabel = currentActivityStatus.stateLabel;
+  const activityBadgeClass = currentActivityStatus.badgeClass;
+
+  const currentActivityTask = !activeWorkspace
+    ? 'Choose an approved Workspace to read current activity.'
+    : workStatusAvailable === false || teamStatus?.availability === 'unavailable'
+      ? 'Trusted current-work status could not be read.'
+      : workStatusChecking
+        ? 'Reading the selected Workspace state.'
+        : teamMission
+          ? `Mission: ${teamMission.goalSummary}`
+          : checkpoint?.availability === 'available'
+            ? `Recorded task: ${checkpoint.taskSummary}`
+            : checkpoint?.availability === 'unavailable'
+              ? 'Recorded task unavailable.'
+              : 'No recorded task for this Workspace.';
+
+  const currentActivityStep = teamMission
+    ? `Recorded next step: ${teamMission.nextAction}`
+    : checkpoint?.availability === 'available'
+      ? `Recorded next step: ${checkpoint.nextActionSummary}`
+      : 'No recorded next step.';
+
+  const activityUpdatedAt = teamMission?.updatedAt
+    ?? (checkpoint?.availability === 'available' ? checkpoint.updatedAt : undefined);
+  const teamDetail = teamMission
+    ? [
+        teamMission.currentRole ? `Role: ${teamMission.currentRole[0]?.toUpperCase()}${teamMission.currentRole.slice(1)}` : null,
+        teamMission.currentTaskSequence ? `Task ${teamMission.currentTaskSequence}/${teamMission.taskCount}` : `${teamMission.taskCount} tasks`,
+        `Mission state: ${teamMission.state[0]?.toUpperCase()}${teamMission.state.slice(1)}`,
+      ].filter(Boolean).join(' · ')
+    : null;
+  const approvalDetail = approvalStatus && approvalStatus.pendingCount > 0
+    ? approvalStatus.pendingTeamStart && !teamMission
+      ? 'Approval: Waiting to start Team Mode'
+      : `Approval: ${approvalStatus.pendingCount} pending action${approvalStatus.pendingCount === 1 ? '' : 's'}`
+    : currentWorkStatus?.approval.availability === 'unavailable'
+      ? 'Approval status unavailable'
+      : null;
+
+  const gitStatusLabel = currentWorkStatus?.git.availability === 'available'
+    ? currentWorkStatus.git.clean
       ? 'Clean'
-      : `${workStatus.git.changedFiles}${workStatus.git.truncated ? '+' : ''} changed`
+      : `${currentWorkStatus.git.changedFiles}${currentWorkStatus.git.truncated ? '+' : ''} changed`
     : 'Unavailable';
-  const gitBranchLabel = workStatus?.git.availability === 'available'
-    ? workStatus.git.branch ?? (workStatus.git.detached ? 'Detached HEAD' : 'Unknown')
+  const gitBranchLabel = currentWorkStatus?.git.availability === 'available'
+    ? currentWorkStatus.git.branch ?? (currentWorkStatus.git.detached ? 'Detached HEAD' : 'Unknown')
     : 'Unavailable';
-  const checkpointLabel = workStatus?.checkpoint.availability === 'available'
-    ? `${workStatus.checkpoint.taskStatus.replace('_', ' ')} · ${formatEventTime(workStatus.checkpoint.updatedAt)}`
-    : workStatus?.checkpoint.availability === 'none'
+  const checkpointLabel = checkpoint?.availability === 'available'
+    ? `${checkpoint.taskStatus.replace('_', ' ')} · ${formatEventTime(checkpoint.updatedAt)}`
+    : checkpoint?.availability === 'none'
       ? 'No checkpoint'
       : 'Unavailable';
   const statePresentation = connection
@@ -318,15 +358,41 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
             <UiIcon name="team" size={19} />
             <h2 id="current-activity-title">Current activity</h2>
           </div>
-          <span className={`badge ${teamWorkState === 'Blocked' || teamWorkState === 'Unavailable' ? 'badge-yellow' : teamWorkState === 'Idle' ? 'badge-gray' : 'badge-green'}`}>
-            {teamWorkState}
-          </span>
+          <span className={`badge ${activityBadgeClass}`}>{activityStateLabel}</span>
         </div>
         <div className="overview-current-activity-body">
-          <strong>{currentActivityTitle}</strong>
-          <span>Current task: {currentActivityDescription}</span>
-          <span title={teamMission?.nextAction}>Current step: {teamMission?.nextAction ?? 'Unavailable'}</span>
-          {teamMission && <time dateTime={teamMission.updatedAt}>Updated {formatEventTime(teamMission.updatedAt)}</time>}
+          <strong>{activityModeLabel}</strong>
+          <span title={currentActivityTask}>{currentActivityTask}</span>
+          <span title={currentActivityStep}>{currentActivityStep}</span>
+          {teamDetail && <span>{teamDetail}</span>}
+          {approvalDetail && <span>{approvalDetail}</span>}
+          <span>Connection: {statePresentation.label}</span>
+          {latestActivity?.availability === 'available' && (
+            <span>
+              Latest observed: {latestActivity.operationSummary}
+              {' · '}
+              {formatResultCode(latestActivity.resultSummary)}
+              {' · '}
+              <time dateTime={latestActivity.observedAt}>{formatEventTime(latestActivity.observedAt)}</time>
+            </span>
+          )}
+          {latestActivity?.availability === 'unavailable' && <span>Latest observed result unavailable.</span>}
+          {activityUpdatedAt && <time dateTime={activityUpdatedAt}>Updated {formatEventTime(activityUpdatedAt)}</time>}
+          {approvalStatus?.latestCreatedAt && approvalStatus.pendingCount > 0 && (
+            <time dateTime={approvalStatus.latestCreatedAt}>Approval requested {formatEventTime(approvalStatus.latestCreatedAt)}</time>
+          )}
+        </div>
+        <div className="overview-current-activity-actions">
+          <button className="btn btn-link" onClick={() => onNavigate('activity')}>
+            View activity
+            <UiIcon name="arrow-right" size={15} />
+          </button>
+          {teamMission && (
+            <button className="btn btn-link" onClick={() => onNavigate('team')}>
+              Team details
+              <UiIcon name="arrow-right" size={15} />
+            </button>
+          )}
         </div>
       </section>
 
@@ -383,7 +449,7 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
             </div>
             <div>
               <dt>Team / work state</dt>
-              <dd>{teamWorkState}</dd>
+              <dd>{activityModeLabel} · {activityStateLabel}</dd>
             </div>
             <div>
               <dt>Working tree</dt>

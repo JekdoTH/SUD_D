@@ -153,15 +153,19 @@ describe('App Shell + Overview', () => {
 
   it('uses trusted Team, Activity, Git/checkpoint status for current work and keeps safety posture on Security', () => {
     const home = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/HomePage.tsx'), 'utf8');
+    const currentActivityModel = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/current-activity-ui-model.ts'), 'utf8');
     const security = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/pages/SettingsPage.tsx'), 'utf8');
 
-    expect(home).toContain('window.sudD.team.status({})');
+    expect(home).not.toContain('window.sudD.team.status({})');
     expect(home).toContain('window.sudD.activity.list({ limit: 5 })');
     expect(home).toContain('window.sudD.overview.workStatus()');
     expect(home).toContain('const refreshWorkStatus = useCallback');
     expect(home).toContain('workStatusRefreshInFlight.current');
     expect(home).toContain('window.setInterval(() => void refreshWorkStatus(), 5000)');
-    expect(home).toContain('teamMission?.nextAction');
+    expect(home).toContain('workStatus?.workspaceId === activeWorkspace.id');
+    expect(currentActivityModel).toContain("input.checkpointState === 'blocked'");
+    expect(currentActivityModel).toContain("'Recorded work'");
+    expect(home).toContain('approvalStatus?.pendingTeamStart');
     expect(home).toContain('Current activity');
     expect(home).toContain('Current Session / Work Status');
     expect(home).toContain('View all activity');

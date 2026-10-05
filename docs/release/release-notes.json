@@ -1,10 +1,9 @@
 {
   "new": [],
   "improved": [
-    "Match Team Mode approval requests between your chat and SUD-D using a request identifier."
+    "Show Normal and Team Mode, recorded work, pending approvals and meaningful recent activity in Overview."
   ],
   "fixed": [
-    "Require manual user approval before starting every new Team mission, including in Full Access mode.",
-    "Prevent a Workspace change from redirecting an approved Team startup to another Workspace."
+    "Keep current activity scoped to the selected Workspace and distinguish recorded work from live execution."
   ]
 }

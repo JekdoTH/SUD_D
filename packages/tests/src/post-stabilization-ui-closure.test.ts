@@ -32,10 +32,16 @@ describe('Post-stabilization Overview trusted status seam', () => {
       },
       workMemoryReader: {
         loadCurrent: () => ok({
+          workspaceId: '00000000-0000-4000-8000-000000000001',
+          goal: 'Close the stabilization UI',
           task: { title: 'Close stabilization UI', status: 'in_progress' as const },
+          nextAction: 'Run closure checks',
           updatedAt: '2026-09-13T15:00:00.000Z',
         }),
       },
+      teamReader: { status: () => ok(null) },
+      approvalReader: { list: () => ok([]) },
+      activityReader: { listForWorkspace: () => ok([]) },
     });
 
     const result = controller.workStatus();
@@ -55,8 +61,14 @@ describe('Post-stabilization Overview trusted status seam', () => {
       checkpoint: {
         availability: 'available',
         taskStatus: 'in_progress',
+        goalSummary: 'Close the stabilization UI',
+        taskSummary: 'Close stabilization UI',
+        nextActionSummary: 'Run closure checks',
         updatedAt: '2026-09-13T15:00:00.000Z',
       },
+      team: { availability: 'available', mission: null },
+      approval: { availability: 'available', pendingCount: 0, pendingTeamStart: false },
+      latestActivity: { availability: 'none' },
     });
     expect(JSON.stringify(result.value)).not.toMatch(/headSha|statusId|diff|contents|stdout|stderr|argv|cwd|env|secret/i);
   });
@@ -79,6 +91,15 @@ describe('Post-stabilization Overview trusted status seam', () => {
       workMemoryReader: {
         loadCurrent: () => ({ ok: false as const, error: { code: 'WORK_MEMORY_PERSISTENCE_FAILED', message: 'Unavailable' } }),
       },
+      teamReader: {
+        status: () => ({ ok: false as const, error: { code: 'INTERNAL_ERROR', message: 'Team unavailable' } }),
+      },
+      approvalReader: {
+        list: () => ({ ok: false as const, error: { code: 'INTERNAL_ERROR', message: 'Approval unavailable' } }),
+      },
+      activityReader: {
+        listForWorkspace: () => ({ ok: false as const, error: { code: 'INTERNAL_ERROR', message: 'Activity unavailable' } }),
+      },
     });
 
     expect(controller.workStatus()).toEqual({
@@ -87,6 +108,9 @@ describe('Post-stabilization Overview trusted status seam', () => {
         workspaceId: '00000000-0000-4000-8000-000000000002',
         git: { availability: 'unavailable' },
         checkpoint: { availability: 'unavailable' },
+        team: { availability: 'unavailable' },
+        approval: { availability: 'unavailable' },
+        latestActivity: { availability: 'unavailable' },
       },
     });
   });
@@ -98,6 +122,9 @@ describe('Post-stabilization Overview trusted status seam', () => {
       value: {
         git: { availability: 'unavailable' as const },
         checkpoint: { availability: 'none' as const },
+        team: { availability: 'unavailable' as const },
+        approval: { availability: 'unavailable' as const },
+        latestActivity: { availability: 'unavailable' as const },
       },
     }));
 

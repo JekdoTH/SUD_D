@@ -639,7 +639,15 @@ tbody tr:hover td { background: #fafcff; }
   font-size: 11.5px;
 }
 .overview-current-activity-body strong { color: #263b5e; font-size: 13px; }
+.overview-current-activity-body span { min-width: 0; overflow-wrap: anywhere; }
 .overview-current-activity-body time { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.overview-current-activity-actions {
+  padding: 0 14px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
 
 .overview-bottom-grid {
   display: grid;

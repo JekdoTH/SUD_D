@@ -132,11 +132,6 @@ const teamService = createTeamService({
   },
 });
 const teamController = createDesktopTeamController(teamService);
-const overviewStatusController = createDesktopOverviewStatusController({
-  workspaceReader: workspaceRepo,
-  gitReader: gitSafety,
-  workMemoryReader: workMemoryRepo,
-});
 const workspaceService = createWorkspaceService(workspaceRepo, auditRepo, internalRoots);
 const gitController = createDesktopGitWorkerController();
 const connectionProfileRepo = createConnectionProfileRepository(db);
@@ -179,6 +174,16 @@ const diagnosticsController = createDesktopDiagnosticsController({
   connectionStatus: () => connectionService.getStatus(),
   tunnelRuntimeStatus: () => connectionRuntime.getStatus(),
   listAuditEvents: (limit, excludeActions) => auditRepo.list(limit, excludeActions),
+});
+const overviewStatusController = createDesktopOverviewStatusController({
+  workspaceReader: workspaceRepo,
+  gitReader: gitSafety,
+  workMemoryReader: workMemoryRepo,
+  teamReader: { status: () => teamController.status({}) },
+  approvalReader: { list: () => approvalService.list() },
+  activityReader: {
+    listForWorkspace: (workspaceId, limit) => diagnosticsController.listActivityForWorkspace(workspaceId, limit),
+  },
 });
 const updateController = createDesktopUpdateController({
   currentVersion: app.getVersion(),

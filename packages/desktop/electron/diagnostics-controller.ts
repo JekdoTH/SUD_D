@@ -38,6 +38,7 @@ export interface DesktopDiagnosticsDependencies {
 export interface DesktopDiagnosticsController {
   checkDoctor(): Result<DoctorCheckDto, AppError>;
   listActivity(input: ActivityListInput): Result<DesktopActivityEventDto[], AppError>;
+  listActivityForWorkspace(workspaceId: string, limit: number): Result<DesktopActivityEventDto[], AppError>;
 }
 
 function doctorCheck(
@@ -379,6 +380,22 @@ function toActivityEvent(event: AuditEvent): DesktopActivityEventDto {
   };
 }
 
+function listSafeActivityEvents(
+  dependencies: DesktopDiagnosticsDependencies,
+  limit: number,
+  workspaceId?: string,
+): DesktopActivityEventDto[] {
+  return dependencies.listAuditEvents(limit, [...ACTIVITY_NOISE_ACTIONS])
+    .filter((event) => !workspaceId || event.workspaceId === workspaceId)
+    .filter((event) => !ACTIVITY_NOISE_ACTIONS.has(event.action))
+    .filter((event) => !isRoutineSemanticReadActivity(event))
+    .filter((event) => !isRoutineSemanticWriteAuthorization(event))
+    .filter((event) => !isRoutineRestrictedVerifyKernelActivity(event))
+    .filter((event) => !isRoutineWorkMemoryActivity(event))
+    .filter((event) => !isRoutineTeamKernelActivity(event))
+    .map(toActivityEvent);
+}
+
 export function createDesktopDiagnosticsController(
   dependencies: DesktopDiagnosticsDependencies,
 ): DesktopDiagnosticsController {
@@ -457,16 +474,15 @@ export function createDesktopDiagnosticsController(
 
     listActivity(input: ActivityListInput): Result<DesktopActivityEventDto[], AppError> {
       try {
-        return ok(
-          dependencies.listAuditEvents(input.limit, [...ACTIVITY_NOISE_ACTIONS])
-            .filter((event) => !ACTIVITY_NOISE_ACTIONS.has(event.action))
-            .filter((event) => !isRoutineSemanticReadActivity(event))
-            .filter((event) => !isRoutineSemanticWriteAuthorization(event))
-            .filter((event) => !isRoutineRestrictedVerifyKernelActivity(event))
-            .filter((event) => !isRoutineWorkMemoryActivity(event))
-            .filter((event) => !isRoutineTeamKernelActivity(event))
-            .map(toActivityEvent),
-        );
+        return ok(listSafeActivityEvents(dependencies, input.limit));
+      } catch {
+        return err(appError('INTERNAL_ERROR', 'Failed to retrieve activity'));
+      }
+    },
+
+    listActivityForWorkspace(workspaceId: string, limit: number): Result<DesktopActivityEventDto[], AppError> {
+      try {
+        return ok(listSafeActivityEvents(dependencies, limit, workspaceId));
       } catch {
         return err(appError('INTERNAL_ERROR', 'Failed to retrieve activity'));
       }

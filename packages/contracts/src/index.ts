@@ -413,6 +413,9 @@ export const DesktopOverviewCheckpointDtoSchema = z.discriminatedUnion('availabi
   z.object({
     availability: z.literal('available'),
     taskStatus: z.enum(['pending', 'in_progress', 'blocked', 'completed']),
+    goalSummary: z.string().min(1).max(240),
+    taskSummary: z.string().min(1).max(240),
+    nextActionSummary: z.string().min(1).max(240),
     updatedAt: z.string().datetime(),
   }).strict(),
   z.object({ availability: z.literal('none') }).strict(),
@@ -420,10 +423,55 @@ export const DesktopOverviewCheckpointDtoSchema = z.discriminatedUnion('availabi
 ]);
 export type DesktopOverviewCheckpointDto = z.infer<typeof DesktopOverviewCheckpointDtoSchema>;
 
+export const DesktopOverviewTeamStatusDtoSchema = z.discriminatedUnion('availability', [
+  z.object({
+    availability: z.literal('available'),
+    mission: z.object({
+      missionId: z.string().uuid(),
+      workspaceId: WorkspaceIdSchema,
+      goalSummary: z.string().min(1).max(240),
+      state: z.enum(['planning', 'implementing', 'validating', 'reviewing', 'completed', 'blocked', 'stopped']),
+      currentRole: z.enum(['planner', 'implementer', 'validator', 'reviewer']).optional(),
+      nextAction: z.string().min(1).max(240),
+      taskCount: z.number().int().min(0).max(20),
+      currentTaskSequence: z.number().int().min(1).max(20).optional(),
+      updatedAt: z.string().datetime(),
+    }).strict().nullable(),
+  }).strict(),
+  z.object({ availability: z.literal('unavailable') }).strict(),
+]);
+export type DesktopOverviewTeamStatusDto = z.infer<typeof DesktopOverviewTeamStatusDtoSchema>;
+
+export const DesktopOverviewApprovalStatusDtoSchema = z.discriminatedUnion('availability', [
+  z.object({
+    availability: z.literal('available'),
+    pendingCount: z.number().int().min(0).max(50),
+    pendingTeamStart: z.boolean(),
+    latestCreatedAt: z.string().datetime().optional(),
+  }).strict(),
+  z.object({ availability: z.literal('unavailable') }).strict(),
+]);
+export type DesktopOverviewApprovalStatusDto = z.infer<typeof DesktopOverviewApprovalStatusDtoSchema>;
+
+export const DesktopOverviewObservedActivityDtoSchema = z.discriminatedUnion('availability', [
+  z.object({
+    availability: z.literal('available'),
+    operationSummary: z.string().min(1).max(120),
+    resultSummary: z.string().min(1).max(96),
+    observedAt: z.string().datetime(),
+  }).strict(),
+  z.object({ availability: z.literal('none') }).strict(),
+  z.object({ availability: z.literal('unavailable') }).strict(),
+]);
+export type DesktopOverviewObservedActivityDto = z.infer<typeof DesktopOverviewObservedActivityDtoSchema>;
+
 export const DesktopOverviewWorkStatusDtoSchema = z.object({
   workspaceId: WorkspaceIdSchema.optional(),
   git: DesktopOverviewGitStatusDtoSchema,
   checkpoint: DesktopOverviewCheckpointDtoSchema,
+  team: DesktopOverviewTeamStatusDtoSchema,
+  approval: DesktopOverviewApprovalStatusDtoSchema,
+  latestActivity: DesktopOverviewObservedActivityDtoSchema,
 }).strict();
 export type DesktopOverviewWorkStatusDto = z.infer<typeof DesktopOverviewWorkStatusDtoSchema>;
 
