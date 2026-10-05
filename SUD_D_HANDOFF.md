@@ -1,10 +1,12 @@
 # SUD_D Handoff
 
-## v1.0.5 Current activity — owner-authorized release preparation (2026-10-05)
+## v1.0.5 Current activity — PUBLISHED (2026-10-05)
 
 - Owner explicitly authorized commit/push and installed-app publication after advisor re-review. Release scope is the reviewed Normal/Team Current activity candidate and its three repairs; no new live operation observer or historical mode attribution. Version bumped from 1.0.4 to 1.0.5 using repository tooling; canonical release notes cover only this scope.
 - Fresh local required release verification: seven workflow files / 63 tests PASS with isolated LOCALAPPDATA. Review's focused 14/14 PASS and implementer's affected 63-test/build/lint/built-renderer smoke evidence remain valid; independent Standards and Spec reviews have no remaining findings. Diff check PASS. Known unchanged baseline typecheck issues remain documented; no unrelated repair/dependency change.
-- Next: publish through the existing protected Windows build/provenance/signing workflow and verify public downloads, manifest signature and feed consistency. STOP after successful publication/public checks or a real blocker. Installed-app owner acceptance remains pending; no next milestone authorized.
+- Release commit/tag `v1.0.5`: `9162972299a4c7521069d38604216e7bc647fe6f`, pushed to origin/master. Windows run https://github.com/JekdoTH/SUD_D/actions/runs/37302503463 SUCCESS: required tests, packaging, version/revision/master ancestry/provenance, signing identity, manifest/hash verification, publication and temporary-key cleanup PASS. Existing release-environment approval was fulfilled under owner publication authorization; protections retained.
+- Latest stable https://github.com/JekdoTH/SUD_D/releases/tag/v1.0.5 is public, non-draft, non-prerelease. Anonymous HEAD HTTP 200 for all five assets; independent public manifest signature, exact version/revision, canonical notes and feed SHA-512 consistency PASS. Installer SHA-256 from GitHub asset digest: `3c28e56baa939e0f3d0128d2ab5535177f1e6391e189b9de40a31fb9a7d8b866`. Local evidence: `.serena/reports/v1.0.5-public-verification.json`. Publication STOP reached; installed-app owner acceptance remains pending; no next milestone started.
+- Owner next: installed Update → Check for Updates → Download Update → Restart & Update; confirm v1.0.5 / revision `9162972`. Check Current activity in Normal, generic pending Approval, explicit Team-start pending, created Team and Workspace switching. Existing missions remain preserved; recorded work is not live execution evidence.
 
 ## Current activity candidate — advisor re-review PASS (2026-10-05)
 
@@ -2213,7 +2215,7 @@ Exit code 0
 
 ## Immediate Next Action
 
-Current checkpoint: v1.0.4 publication and public verification complete. Owner next action: installed-app Check for Updates → Download Update → Restart & Update and verify v1.0.4 / revision `0b580b4`. Test Normal Mode with no active mission, then explicit Team request → matching manual Approval → exact retry. Existing missions are preserved; use Stop Team when intentionally returning to Normal. Installed-app owner acceptance remains pending; earlier candidate entries are historical evidence.
+Current checkpoint: v1.0.5 publication and public verification complete. Owner next action: installed-app Check for Updates → Download Update → Restart & Update and verify v1.0.5 / revision `9162972`. Test Current activity in Normal, pending Approval, explicit Team startup and Workspace switching. Existing missions are preserved; use Stop Team when intentionally returning to Normal. Installed-app owner acceptance remains pending; earlier candidate entries are historical evidence.
 
 The owner authorized committing/pushing the roadmap documentation. Later work follows [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md), with a separate implementation instruction for each phase.
 
@@ -2223,7 +2225,7 @@ Team opt-in candidate was committed/pushed as `313e5b9`; diagnosis notes as `7be
 
 ## Last Commit SHA
 
-Published v1.0.4 release commit/tag: `0b580b4573c051c49cb2addcf94903dbd7f28fbf` — `fix: require user approval to start Team Mode`. Publication record is a subsequent documentation-only commit. The entries below are historical milestone references.
+Published v1.0.5 release commit/tag: `9162972299a4c7521069d38604216e7bc647fe6f` — `feat: release v1.0.5 Normal and Team activity overview`. Publication record is a subsequent documentation-only commit. The entries below are historical milestone references.
 
 Branding Logo + App Icon v2 implementation:
 
