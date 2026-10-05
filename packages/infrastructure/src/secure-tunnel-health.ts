@@ -4,11 +4,13 @@ export interface TunnelHealthWatch {
   stop(): void;
 }
 
+export type TunnelHealthFailureReason = 'timeout' | 'invalid_health_url';
+
 export interface TunnelHealthProbeInput {
   readonly healthUrlFile: string;
   readonly pid: number;
   readonly onReady: () => void;
-  readonly onFailure: () => void;
+  readonly onFailure: (reason: TunnelHealthFailureReason) => void;
 }
 
 export interface TunnelHealthProbe {
@@ -59,7 +61,7 @@ export function createLoopbackTunnelHealthProbe(
       const probe = async (): Promise<void> => {
         if (stopped) return;
         if (Date.now() >= deadline) {
-          finish(input.onFailure);
+          finish(() => input.onFailure('timeout'));
           return;
         }
 
@@ -71,7 +73,7 @@ export function createLoopbackTunnelHealthProbe(
           const raw = fs.readFileSync(input.healthUrlFile, 'utf8');
           const baseUrl = safeLoopbackBaseUrl(raw);
           if (!baseUrl) {
-            finish(input.onFailure);
+            finish(() => input.onFailure('invalid_health_url'));
             return;
           }
           const readyUrl = new URL('/readyz', baseUrl);

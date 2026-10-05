@@ -3,7 +3,7 @@ import type {
   ConnectionRuntimePort,
   RuntimeReadiness,
 } from '@sud-d/application';
-import type { ConnectionSessionContext } from '@sud-d/domain';
+import type { ConnectionRuntimeFailureCode, ConnectionSessionContext } from '@sud-d/domain';
 
 export class FakeConnectionRuntime implements ConnectionRuntimePort {
   startCalls = 0;
@@ -33,7 +33,23 @@ export class FakeConnectionRuntime implements ConnectionRuntimePort {
     return () => this.listeners.delete(listener);
   }
 
-  emit(event: ConnectionRuntimeEvent): void {
-    for (const listener of [...this.listeners]) listener(event);
+  emit(
+    event:
+      | ConnectionRuntimeEvent
+      | { readonly type: 'tunnel_ready' }
+      | { readonly type: 'client_connected' }
+      | { readonly type: 'client_disconnected' }
+      | {
+          readonly type: 'runtime_failed';
+          readonly code: ConnectionRuntimeFailureCode;
+        },
+  ): void {
+    const connectionSessionId =
+      'connectionSessionId' in event
+        ? event.connectionSessionId
+        : this.startContexts.at(-1)?.connectionSessionId;
+    if (!connectionSessionId) return;
+    const scoped = { ...event, connectionSessionId } as ConnectionRuntimeEvent;
+    for (const listener of [...this.listeners]) listener(scoped);
   }
 }

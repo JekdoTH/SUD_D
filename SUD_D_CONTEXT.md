@@ -73,6 +73,8 @@ ChatGPT
 
 The gateway is the entry boundary for the enforced privileged path; connection transport alone grants no additional permission.
 
+Product rule approved 2026-10-05 and implemented in the Phase 1 candidate: every fresh Desktop app session requires explicit user Connect; Auto Start is rejected, including when legacy preferences were saved. Connection intent is session-local and ends on Disconnect, app shutdown or Restart & Update. Auto Recovery is bounded recovery of an unexpectedly failed managed runtime within that manually started intent; client absence alone grants no restart intent. Existing profile values are preserved. Newly created profiles default Auto Recovery ON while `autoStart=false`, but this creation default never grants startup connection intent. Current candidate/owner-smoke evidence belongs in the roadmap and handoff.
+
 The current domain contract supports `openai_secure_mcp_tunnel` through `stdio`. Preserve the `ConnectionProvider` direction so future providers can be added behind the same secure lifecycle and status boundaries without leaking provider internals or weakening policy. A provider abstraction is an architectural seam, not permission to implement another provider early.
 
 primary validation device and secondary validation device use separate Secure Tunnel instances and local device state. Each machine is configured, operated, and diagnosed independently; one machine's tunnel, credentials, or runtime ownership must not be assumed on the other.

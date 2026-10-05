@@ -335,7 +335,7 @@ describe('Basic Approval - fixed-purpose Desktop IPC and UI surface', () => {
     expect(connection).toContain('shared by all approved workspaces on this device');
     expect(connection).not.toMatch(/executable|argv|cwd|env\s*=|allow-all|policy editor|custom policy|arbitrary/i);
     expect(connection.indexOf('Default Approval Mode')).toBeGreaterThan(connection.indexOf('Secure Tunnel'));
-    expect(connection.indexOf('Advanced details')).toBeGreaterThan(connection.indexOf('Default Approval Mode'));
+    expect(connection.indexOf('Advanced details')).toBeLessThan(connection.indexOf('Default Approval Mode'));
 
     expect(overview).not.toContain('Default Approval Mode');
     expect(overview).not.toContain('window.sudD.approval.setMode');

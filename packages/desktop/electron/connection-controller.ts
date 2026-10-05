@@ -72,6 +72,7 @@ function toDesktopRuntimeStatus(status: ConnectionServiceStatus): DesktopConnect
             : { code: 'INTERNAL_ERROR' as const, message: 'Connection runtime failed' };
         })()
       : null,
+    recovery: status.recovery,
   };
 }
 
@@ -115,7 +116,7 @@ export function createDesktopConnectionController(
         transport: 'stdio',
         deviceName: options.deviceName,
         autoStart: false,
-        autoRestart: false,
+        autoRestart: true,
         ...(environmentTunnelReference ? { tunnelReference: environmentTunnelReference } : {}),
       });
       if (!created.ok) return created;
@@ -272,11 +273,12 @@ export function createDesktopConnectionController(
       }
 
       const updated = options.configService.updateProfile(input.profileId, {
-        autoStart: input.autoStart,
+        autoStart: false,
         autoRestart: input.autoRestart,
       });
       if (!updated.ok) return err(updated.error);
       cachedProfile = updated.value;
+      options.connectionService.setAutoRecoveryEnabled(input.autoRestart);
       return getSnapshot();
     },
   };

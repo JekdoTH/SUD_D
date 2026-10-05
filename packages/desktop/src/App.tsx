@@ -11,7 +11,7 @@ import { TeamPage } from './pages/TeamPage';
 import { UpdatePage } from './pages/UpdatePage';
 import sudDLogo from './assets/sud-d-logo.png';
 import { UiIcon, type UiIconName } from './ui-icons';
-import { presentConnectionState, type ConnectionStatePresentation } from './connection-ui-model';
+import { presentConnectionRuntime, type ConnectionStatePresentation } from './connection-ui-model';
 import { DesktopUpdateContext, useDesktopUpdateState } from './desktop-update-state';
 
 export type AppPage =
@@ -72,7 +72,7 @@ export function App(): React.ReactElement {
     try {
       const result = await window.sudD.connection.status();
       if (result.ok) {
-        setShellConnectionPresentation(presentConnectionState(result.value.runtime.state));
+        setShellConnectionPresentation(presentConnectionRuntime(result.value.runtime));
         return;
       }
     } catch {

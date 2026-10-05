@@ -24,6 +24,7 @@ type UpdateControllerDeps = {
   provider: UpdateProvider;
   loadSignedManifest: SignedManifestLoader;
   orderlyShutdown: () => Promise<void>;
+  terminateAfterFailedInstall: () => void;
   isPackaged: boolean;
   stateFilePath?: string;
 };
@@ -274,6 +275,7 @@ export function createDesktopUpdateController(deps: UpdateControllerDeps): Deskt
     }
 
     busy = true;
+    let shutdownCompleted = false;
     try {
       writePersistedUpdateState(stateFilePath, {
         lastSeenVersion: deps.currentVersion,
@@ -283,9 +285,17 @@ export function createDesktopUpdateController(deps: UpdateControllerDeps): Deskt
         },
       });
       await deps.orderlyShutdown();
+      shutdownCompleted = true;
       deps.provider.restartAndInstall();
       return { ok: true, value: null };
     } catch {
+      if (shutdownCompleted) {
+        try {
+          deps.terminateAfterFailedInstall();
+        } catch {
+          // The app is already shut down; never reopen runtime/DB authority from this failure path.
+        }
+      }
       clearTarget('error', 'INSTALL_FAILED');
       return errorResult('INSTALL_FAILED', SAFE_MESSAGES.install);
     } finally {

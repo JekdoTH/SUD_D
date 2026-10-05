@@ -119,7 +119,7 @@ describe('Current activity repair regressions', () => {
       hasCredential: () => false,
       mcpGatewayAvailable: () => true,
       tunnelClientAvailable: () => true,
-      connectionStatus: () => ({ state: 'stopped', session: null, error: null }),
+      connectionStatus: () => ({ state: 'stopped', session: null, error: null, recovery: { phase: 'idle', attempt: 0 } }),
       tunnelRuntimeStatus: () => ({ state: 'stopped' }),
       listAuditEvents: () => events,
     });

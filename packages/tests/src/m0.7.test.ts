@@ -86,6 +86,7 @@ function connectedStatus(): ConnectionServiceStatus {
       tunnelReference: 'tunnel_home',
     },
     error: null,
+    recovery: { phase: 'idle', attempt: 0 },
   };
 }
 
@@ -158,6 +159,7 @@ describe('M0.7 — Doctor integration', () => {
           code: 'TUNNEL_CLIENT_NOT_FOUND',
           message: 'spawn C:\\secret\\path failed sk-never-render stack trace',
         },
+        recovery: { phase: 'blocked', attempt: 0 },
       }),
       tunnelRuntimeStatus: () => ({ state: 'error', lastErrorCode: 'TUNNEL_CLIENT_NOT_FOUND' }),
     }));
@@ -178,7 +180,7 @@ describe('M0.7 — Doctor integration', () => {
       listProfiles: () => [],
       hasCredential: () => false,
       tunnelClientAvailable: () => false,
-      connectionStatus: () => ({ state: 'stopped', session: null, error: null }),
+      connectionStatus: () => ({ state: 'stopped', session: null, error: null, recovery: { phase: 'idle', attempt: 0 } }),
       tunnelRuntimeStatus: () => ({ state: 'stopped' }),
     }));
     const result = controller.checkDoctor();

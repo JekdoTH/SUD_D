@@ -87,6 +87,8 @@ export function createOpenAiSecureTunnelRuntimeWithDependencies(
   let processHandle: TunnelProcessHandle | undefined;
   let stopExitListener: (() => void) | undefined;
   let healthWatch: TunnelHealthWatch | undefined;
+  let activeConnectionSessionId: string | undefined;
+  let launchTerminal = false;
   let stopping = false;
   let tunnelReady = false;
   let clientConnected = false;
@@ -98,6 +100,7 @@ export function createOpenAiSecureTunnelRuntimeWithDependencies(
 
   const setFailure = (
     code:
+      | 'TUNNEL_PROFILE_INVALID'
       | 'TUNNEL_HEALTH_FAILED'
       | 'TUNNEL_EXITED_UNEXPECTEDLY'
       | 'TUNNEL_STOP_FAILED',
@@ -111,10 +114,13 @@ export function createOpenAiSecureTunnelRuntimeWithDependencies(
   };
 
   dependencies.clientSignal?.subscribe((connected) => {
-    if (!processHandle) return;
+    if (!processHandle || !activeConnectionSessionId || launchTerminal) return;
     if (connected === clientConnected) return;
     clientConnected = connected;
-    emit({ type: connected ? 'client_connected' : 'client_disconnected' });
+    emit({
+      type: connected ? 'client_connected' : 'client_disconnected',
+      connectionSessionId: activeConnectionSessionId,
+    });
   });
 
   return {
@@ -158,48 +164,67 @@ export function createOpenAiSecureTunnelRuntimeWithDependencies(
         throw new ConnectionRuntimeFailure('TUNNEL_START_FAILED');
       }
 
+      const connectionSessionId = context.connectionSessionId;
       stopping = false;
+      launchTerminal = false;
       tunnelReady = false;
       clientConnected = false;
       processHandle = handle;
+      activeConnectionSessionId = connectionSessionId;
       status = { state: 'starting' };
 
       stopExitListener = handle.onExit((exitDiagnostics) => {
-        if (stopping || processHandle !== handle) return;
+        if (stopping || processHandle !== handle || launchTerminal) return;
+        launchTerminal = true;
         healthWatch?.stop();
         healthWatch = undefined;
         processHandle = undefined;
+        activeConnectionSessionId = undefined;
         stopExitListener = undefined;
         setFailure('TUNNEL_EXITED_UNEXPECTEDLY', exitDiagnostics);
-        emit({ type: 'runtime_failed', code: 'TUNNEL_EXITED_UNEXPECTEDLY' });
+        emit({
+          type: 'runtime_failed',
+          connectionSessionId,
+          code: 'TUNNEL_EXITED_UNEXPECTEDLY',
+        });
       });
 
       healthWatch = dependencies.healthProbe.watch({
         healthUrlFile: profile.healthUrlFile,
         pid: handle.pid,
         onReady: () => {
-          if (stopping || processHandle !== handle) return;
+          if (stopping || processHandle !== handle || launchTerminal) return;
           tunnelReady = true;
           status = { state: 'healthy' };
-          emit({ type: 'tunnel_ready' });
+          emit({ type: 'tunnel_ready', connectionSessionId });
         },
-        onFailure: () => {
-          if (stopping || processHandle !== handle) return;
+        onFailure: (reason) => {
+          if (stopping || processHandle !== handle || launchTerminal) return;
+          launchTerminal = true;
           healthWatch?.stop();
           healthWatch = undefined;
-          setFailure('TUNNEL_HEALTH_FAILED');
+          const failureCode =
+            reason === 'invalid_health_url'
+              ? 'TUNNEL_PROFILE_INVALID'
+              : 'TUNNEL_HEALTH_FAILED';
+          setFailure(failureCode);
           try {
             stopping = true;
             handle.stop();
             stopExitListener?.();
             stopExitListener = undefined;
             processHandle = undefined;
+            activeConnectionSessionId = undefined;
           } catch {
             // Keep the internal handle for an explicit retrying stop; never expose raw process text.
           } finally {
             stopping = false;
           }
-          emit({ type: 'runtime_failed', code: 'TUNNEL_HEALTH_FAILED' });
+          emit({
+            type: 'runtime_failed',
+            connectionSessionId,
+            code: failureCode,
+          });
         },
       });
 
@@ -211,12 +236,15 @@ export function createOpenAiSecureTunnelRuntimeWithDependencies(
         healthWatch?.stop();
         healthWatch = undefined;
         status = { state: 'stopped' };
+        launchTerminal = false;
+        activeConnectionSessionId = undefined;
         tunnelReady = false;
         clientConnected = false;
         return;
       }
 
       stopping = true;
+      launchTerminal = true;
       healthWatch?.stop();
       healthWatch = undefined;
       const handle = processHandle;
@@ -232,7 +260,9 @@ export function createOpenAiSecureTunnelRuntimeWithDependencies(
       stopExitListener?.();
       stopExitListener = undefined;
       processHandle = undefined;
+      activeConnectionSessionId = undefined;
       stopping = false;
+      launchTerminal = false;
       tunnelReady = false;
       clientConnected = false;
       status = { state: 'stopped' };

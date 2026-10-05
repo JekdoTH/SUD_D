@@ -29,6 +29,7 @@ import {
   canRestartConnection,
   deriveConnectionComponentStatuses,
   getConnectionPrimaryAction,
+  presentConnectionRuntime,
   presentConnectionState,
 } from '../../desktop/src/connection-ui-model.js';
 
@@ -175,6 +176,7 @@ describe('M0.6 — renderer-facing connection contracts', () => {
         state: 'stopped',
         session: null,
         error: null,
+        recovery: { phase: 'idle', attempt: 0 },
       },
     } as const;
 
@@ -195,9 +197,36 @@ describe('M0.6 — renderer-facing connection contracts', () => {
 });
 
 describe('M0.6 — Desktop connection controller', () => {
-  it('bootstraps one local profile from safe machine metadata and never returns the environment secret', () => {
+  it('does not auto-connect on Desktop bootstrap even when legacy autoStart is true', () => {
+    const { controller, profileRepo, runtime } = makeHarness();
+    profileRepo.save({
+      displayName: 'Legacy profile',
+      provider: 'openai_secure_mcp_tunnel',
+      transport: 'stdio',
+      deviceName: 'Home-PC',
+      autoStart: true,
+      autoRestart: true,
+      tunnelReference: 'tunnel_legacy',
+    });
+
+    const snapshot = controller.getSnapshot();
+
+    expect(snapshot.ok).toBe(true);
+    expect(runtime.startCalls).toBe(0);
+    if (snapshot.ok) {
+      expect(snapshot.value).toMatchObject({
+        profile: { autoStart: true, autoRestart: true },
+        runtime: {
+          state: 'stopped',
+          recovery: { phase: 'idle', attempt: 0 },
+        },
+      });
+    }
+  });
+
+  it('bootstraps one new local profile with Auto Recovery ON without auto-connecting or returning the environment secret', () => {
     const secret = 'sk-m06-never-render';
-    const { controller, profileRepo } = makeHarness({
+    const { controller, profileRepo, runtime } = makeHarness({
       CONTROL_PLANE_API_KEY: secret,
       CONTROL_PLANE_TUNNEL_ID: 'tunnel_home',
     });
@@ -212,12 +241,46 @@ describe('M0.6 — Desktop connection controller', () => {
       deviceName: 'Home-PC',
       provider: 'openai_secure_mcp_tunnel',
       transport: 'stdio',
+      autoStart: false,
+      autoRestart: true,
       tunnelConfigured: true,
     });
+    expect(result.value.runtime).toMatchObject({
+      state: 'stopped',
+      recovery: { phase: 'idle', attempt: 0 },
+    });
+    expect(runtime.startCalls).toBe(0);
     expect(result.value.credentialStatus).toBe('configured');
     expect(profileRepo.list()).toHaveLength(1);
     expect(JSON.stringify(result.value)).not.toContain(secret);
     expect(JSON.stringify(result.value)).not.toContain('tunnel_home');
+  });
+
+  it('preserves an existing Auto Recovery OFF profile and does not auto-connect on Desktop bootstrap', () => {
+    const { controller, profileRepo, runtime } = makeHarness();
+    profileRepo.save({
+      displayName: 'Existing OFF profile',
+      provider: 'openai_secure_mcp_tunnel',
+      transport: 'stdio',
+      deviceName: 'Home-PC',
+      autoStart: false,
+      autoRestart: false,
+      tunnelReference: 'tunnel_existing_off',
+    });
+
+    const snapshot = controller.getSnapshot();
+
+    expect(snapshot.ok).toBe(true);
+    expect(runtime.startCalls).toBe(0);
+    if (snapshot.ok) {
+      expect(snapshot.value).toMatchObject({
+        profile: { autoStart: false, autoRestart: false },
+        runtime: {
+          state: 'stopped',
+          recovery: { phase: 'idle', attempt: 0 },
+        },
+      });
+    }
   });
 
   it('exposes fixed Desktop lifecycle actions and drives the real ConnectionService boundary', () => {
@@ -368,7 +431,7 @@ describe('M0.6 — Desktop connection controller', () => {
     expect(auditRepo.list(100)).toHaveLength(countAfterBootstrap);
   });
 
-  it('updates only safe auto-start preferences through the controller', () => {
+  it('keeps legacy Auto Start inert while persisting Auto Recovery through the controller', () => {
     const { controller } = makeHarness({
       CONTROL_PLANE_API_KEY: 'sk-session-only',
       CONTROL_PLANE_TUNNEL_ID: 'tunnel_home',
@@ -385,7 +448,7 @@ describe('M0.6 — Desktop connection controller', () => {
 
     expect(updated.ok).toBe(true);
     if (!updated.ok) return;
-    expect(updated.value.profile).toMatchObject({ autoStart: true, autoRestart: true });
+    expect(updated.value.profile).toMatchObject({ autoStart: false, autoRestart: true });
   });
 });
 
@@ -404,7 +467,7 @@ describe('M0.6 — Desktop connection IPC wiring', () => {
       updatedAt: '2026-08-30T12:00:00.000Z',
     },
     credentialStatus: 'configured' as const,
-    runtime: { state: 'stopped' as const, session: null, error: null },
+    runtime: { state: 'stopped' as const, session: null, error: null, recovery: { phase: 'idle' as const, attempt: 0 as const } },
   };
 
   function makeIpcHarness(senderValid = true) {
@@ -555,6 +618,43 @@ describe('M0.6 — connection presentation model', () => {
     expect(presentConnectionState('error')).toMatchObject({ label: 'Connection error', tone: 'danger' });
   });
 
+  it('overlays bounded Auto Recovery status without claiming ChatGPT reattached', () => {
+    const baseRuntime = {
+      state: 'error' as const,
+      session: null,
+      error: { code: 'TUNNEL_EXITED_UNEXPECTEDLY' as const, message: 'Secure Tunnel runtime exited unexpectedly' },
+      recovery: { phase: 'scheduled' as const, attempt: 0 as const },
+    };
+
+    expect(presentConnectionRuntime(baseRuntime)).toEqual({
+      label: 'Reconnecting',
+      description: 'Attempt 1 of 3',
+      tone: 'info',
+    });
+    expect(presentConnectionRuntime({
+      ...baseRuntime,
+      recovery: { phase: 'restarting' as const, attempt: 2 as const },
+    })).toEqual({
+      label: 'Reconnecting',
+      description: 'Attempt 2 of 3',
+      tone: 'info',
+    });
+    expect(presentConnectionRuntime({
+      ...baseRuntime,
+      state: 'connected' as const,
+      error: null,
+      recovery: { phase: 'stabilizing' as const, attempt: 1 as const },
+    })).toMatchObject({ label: 'Connected', tone: 'success' });
+    expect(presentConnectionRuntime({
+      ...baseRuntime,
+      recovery: { phase: 'exhausted' as const, attempt: 3 as const },
+    })).toEqual({
+      label: "Couldn't reconnect",
+      description: 'Check the connection setup, then retry.',
+      tone: 'danger',
+    });
+  });
+
   it('derives gateway, tunnel, and client presentation from the approved aggregate state', () => {
     expect(deriveConnectionComponentStatuses('stopped')).toEqual({
       gateway: 'stopped', tunnel: 'stopped', client: 'disconnected',
@@ -599,7 +699,7 @@ describe('M0.6 — connection presentation model', () => {
         updatedAt: '2026-08-30T12:00:00.000Z',
       },
       credentialStatus: 'configured' as const,
-      runtime: { state: 'stopped' as const, session: null, error: null },
+      runtime: { state: 'stopped' as const, session: null, error: null, recovery: { phase: 'idle' as const, attempt: 0 as const } },
     };
 
     expect(getConnectionPrimaryAction(base, false)).toEqual({ action: 'choose_workspace', enabled: true });
@@ -613,12 +713,30 @@ describe('M0.6 — connection presentation model', () => {
     expect(getConnectionPrimaryAction(base, true)).toEqual({ action: 'connect', enabled: true });
     expect(getConnectionPrimaryAction({
       ...base,
-      runtime: { state: 'waiting_for_client' as const, session: null, error: null },
+      runtime: { state: 'waiting_for_client' as const, session: null, error: null, recovery: { phase: 'idle' as const, attempt: 0 as const } },
     }, true)).toEqual({ action: 'disconnect', enabled: true });
     expect(getConnectionPrimaryAction({
       ...base,
-      runtime: { state: 'error' as const, session: null, error: null },
+      runtime: { state: 'error' as const, session: null, error: null, recovery: { phase: 'blocked' as const, attempt: 0 as const } },
     }, true)).toEqual({ action: 'restart', enabled: true });
+    expect(getConnectionPrimaryAction({
+      ...base,
+      runtime: {
+        state: 'error' as const,
+        session: null,
+        error: { code: 'TUNNEL_EXITED_UNEXPECTEDLY' as const, message: 'Secure Tunnel runtime exited unexpectedly' },
+        recovery: { phase: 'scheduled' as const, attempt: 1 as const },
+      },
+    }, true)).toEqual({ action: 'disconnect', enabled: true });
+    expect(getConnectionPrimaryAction({
+      ...base,
+      runtime: {
+        state: 'connected' as const,
+        session: null,
+        error: null,
+        recovery: { phase: 'stabilizing' as const, attempt: 1 as const },
+      },
+    }, true)).toEqual({ action: 'disconnect', enabled: true });
   });
 });
 
@@ -649,6 +767,14 @@ describe('M0.6 — renderer page safety surfaces', () => {
     expect(source).toContain('OpenAI Secure MCP Tunnel');
     expect(source).toContain('stdio');
     expect(source).toContain('Advanced details');
+    expect(source).toContain('Reconnect automatically if the connection fails');
+    expect(source).toContain('Only after you connect. Stops when you disconnect or close SUD-D.');
+    expect(source.indexOf('Reconnect automatically if the connection fails')).toBeLessThan(
+      source.indexOf('Default Approval Mode'),
+    );
+    expect(source).not.toContain('Auto-start preference');
+    expect(source).toContain('id="connection-terminal-disconnect-action"');
+    expect(source).toContain("snapshot?.runtime.recovery.phase === 'exhausted'");
     expect(source).not.toMatch(/raw command|executable path|argv|cwd|environment variable values/i);
   });
 
@@ -673,6 +799,7 @@ describe('M0.6 — renderer page safety surfaces', () => {
     );
     expect(source).toContain('Set up Secure Tunnel');
     expect(source).toContain("onNavigate('connection')");
+    expect(source).toContain('id="overview-terminal-disconnect-action"');
     expect(source).not.toMatch(/tunnelReference|CONTROL_PLANE_TUNNEL_ID/);
   });
 

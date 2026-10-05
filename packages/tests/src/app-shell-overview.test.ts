@@ -112,7 +112,7 @@ describe('App Shell + Overview', () => {
     expect(presentConnectionState('error')).toMatchObject({ label: 'Connection error', tone: 'danger' });
 
     expect(app).toContain('window.sudD.connection.status()');
-    expect(app).toContain('presentConnectionState');
+    expect(app).toContain('presentConnectionRuntime');
     expect(app).not.toContain('window.sudD.health.check()');
     expect(app).not.toContain('System healthy');
     expect(app).toContain("label: 'Connection unavailable'");

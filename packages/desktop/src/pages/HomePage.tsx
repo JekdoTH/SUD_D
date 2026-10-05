@@ -8,7 +8,7 @@ import type {
 import type { AppPage } from '../App';
 import {
   getConnectionPrimaryAction,
-  presentConnectionState,
+  presentConnectionRuntime,
 } from '../connection-ui-model';
 import { UiIcon } from '../ui-icons';
 import { presentCurrentActivityStatus } from '../current-activity-ui-model';
@@ -165,7 +165,7 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
       ? 'No checkpoint'
       : 'Unavailable';
   const statePresentation = connection
-    ? presentConnectionState(connection.runtime.state)
+    ? presentConnectionRuntime(connection.runtime)
     : { label: 'Checking…', description: 'Reading local connection status.', tone: 'neutral' as const };
   const primaryAction = useMemo(
     () => connection ? getConnectionPrimaryAction(connection, Boolean(activeWorkspace)) : null,
@@ -216,8 +216,24 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
           : primaryAction?.action === 'disconnect'
             ? 'Disconnect'
             : primaryAction?.action === 'restart'
-              ? 'Restart connection'
+              ? connection?.runtime.recovery.phase === 'exhausted'
+                ? 'Retry connection'
+                : 'Restart connection'
               : 'Connect ChatGPT';
+
+  const runTerminalDisconnect = async (): Promise<void> => {
+    if (!connection?.profile || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await window.sudD.connection.stop({});
+      if (result.ok) setConnection(result.value);
+      else setError(result.error.message);
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const runPrimaryAction = async (): Promise<void> => {
     if (!connection?.profile || !primaryAction?.enabled) {
@@ -279,6 +295,16 @@ export function HomePage({ onNavigate }: HomePageProps): React.ReactElement {
                 <UiIcon name="connection" size={16} />
                 {primaryActionLabel}
               </button>
+              {connection?.runtime.recovery.phase === 'exhausted' && connection.profile && (
+                <button
+                  id="overview-terminal-disconnect-action"
+                  className="btn btn-ghost"
+                  disabled={busy}
+                  onClick={() => void runTerminalDisconnect()}
+                >
+                  Disconnect
+                </button>
+              )}
               <button className="btn btn-ghost overview-details-link" onClick={() => onNavigate('connection')}>
                 Connection Setting
               </button>

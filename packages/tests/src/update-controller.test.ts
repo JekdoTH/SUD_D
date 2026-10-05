@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createDesktopUpdateController } from '../../desktop/electron/update-controller.js';
 import type { DownloadedUpdate, ProviderUpdateInfo, UpdateProvider } from '../../desktop/electron/update-provider.js';
@@ -78,6 +78,7 @@ function makeController(options: {
   provider?: FakeProvider;
   loadSignedManifest?: () => Promise<unknown>;
   orderlyShutdown?: () => Promise<void>;
+  terminateAfterFailedInstall?: () => void;
   isPackaged?: boolean;
   currentVersion?: string;
   stateFilePath?: string;
@@ -91,6 +92,7 @@ function makeController(options: {
     provider,
     loadSignedManifest: options.loadSignedManifest ?? (async () => signedManifest()),
     orderlyShutdown: options.orderlyShutdown ?? (async () => { calls.push('shutdown'); }),
+    terminateAfterFailedInstall: options.terminateAfterFailedInstall ?? (() => undefined),
     isPackaged: options.isPackaged ?? true,
     ...(options.stateFilePath ? { stateFilePath: options.stateFilePath } : {}),
   });
@@ -243,6 +245,47 @@ describe('desktop update controller', () => {
 
     expect(result).toEqual({ ok: true, value: null });
     expect(order).toEqual(['shutdown', 'install']);
+  });
+
+  it('never invokes the provider install when orderly shutdown fails', async () => {
+    const provider = new FakeProvider();
+    provider.checkImpl = async () => ({ available: true, info: { version: '0.2.0' } });
+    provider.downloadImpl = async () => ({ filePath: await createArtifact() });
+    const terminateAfterFailedInstall = vi.fn();
+    const { controller } = makeController({
+      provider,
+      orderlyShutdown: async () => { throw new Error('synthetic shutdown failure'); },
+      terminateAfterFailedInstall,
+    });
+    await controller.check();
+    await controller.download();
+
+    const result = await controller.restartAndInstall();
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'INSTALL_FAILED' } });
+    expect(provider.installCalls).toBe(0);
+    expect(terminateAfterFailedInstall).not.toHaveBeenCalled();
+  });
+
+  it('terminates the app if provider installation fails after orderly shutdown completed', async () => {
+    const provider = new FakeProvider();
+    provider.checkImpl = async () => ({ available: true, info: { version: '0.2.0' } });
+    provider.downloadImpl = async () => ({ filePath: await createArtifact() });
+    provider.installImpl = () => { throw new Error('synthetic provider install failure'); };
+    const terminateAfterFailedInstall = vi.fn();
+    const { controller } = makeController({
+      provider,
+      orderlyShutdown: async () => undefined,
+      terminateAfterFailedInstall,
+    });
+    await controller.check();
+    await controller.download();
+
+    const result = await controller.restartAndInstall();
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'INSTALL_FAILED' } });
+    expect(provider.installCalls).toBe(1);
+    expect(terminateAfterFailedInstall).toHaveBeenCalledTimes(1);
   });
 
   it('fails duplicate check and download safely while an operation is already running', async () => {

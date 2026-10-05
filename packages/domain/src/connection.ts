@@ -54,17 +54,35 @@ export interface RuntimeReadiness {
   readonly clientConnected: boolean;
 }
 
+export type ConnectionRecoveryPhase =
+  | 'idle'
+  | 'scheduled'
+  | 'restarting'
+  | 'stabilizing'
+  | 'exhausted'
+  | 'blocked';
+
+export interface ConnectionRecoveryStatus {
+  readonly phase: ConnectionRecoveryPhase;
+  readonly attempt: 0 | 1 | 2 | 3;
+}
+
+interface ConnectionRuntimeEventBase {
+  readonly connectionSessionId: string;
+}
+
 export type ConnectionRuntimeEvent =
-  | { readonly type: 'tunnel_ready' }
-  | { readonly type: 'client_connected' }
-  | { readonly type: 'client_disconnected' }
-  | {
+  | (ConnectionRuntimeEventBase & { readonly type: 'tunnel_ready' })
+  | (ConnectionRuntimeEventBase & { readonly type: 'client_connected' })
+  | (ConnectionRuntimeEventBase & { readonly type: 'client_disconnected' })
+  | (ConnectionRuntimeEventBase & {
       readonly type: 'runtime_failed';
       readonly code: ConnectionRuntimeFailureCode;
-    };
+    });
 
 export interface ConnectionServiceStatus {
   readonly state: ConnectionState;
   readonly session: ConnectionSessionContext | null;
   readonly error: AppError | null;
+  readonly recovery: ConnectionRecoveryStatus;
 }

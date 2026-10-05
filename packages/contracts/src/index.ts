@@ -711,6 +711,12 @@ export const ConnectionServiceErrorCodeSchema = z.enum([
 ]);
 export type ConnectionServiceErrorCode = z.infer<typeof ConnectionServiceErrorCodeSchema>;
 
+export const ConnectionRecoveryStatusDtoSchema = z.object({
+  phase: z.enum(['idle', 'scheduled', 'restarting', 'stabilizing', 'exhausted', 'blocked']),
+  attempt: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]),
+}).strict();
+export type ConnectionRecoveryStatusDto = z.infer<typeof ConnectionRecoveryStatusDtoSchema>;
+
 export const ConnectionServiceStatusDtoSchema = z.object({
   state: ConnectionStateSchema,
   session: ConnectionSessionContextDtoSchema.nullable(),
@@ -718,6 +724,7 @@ export const ConnectionServiceStatusDtoSchema = z.object({
     code: ConnectionServiceErrorCodeSchema,
     message: z.string().min(1),
   }).strict().nullable(),
+  recovery: ConnectionRecoveryStatusDtoSchema,
 }).strict();
 
 
@@ -754,6 +761,7 @@ export const DesktopConnectionRuntimeStatusDtoSchema = z.object({
     code: ConnectionServiceErrorCodeSchema,
     message: z.string().min(1),
   }).strict().nullable(),
+  recovery: ConnectionRecoveryStatusDtoSchema,
 }).strict();
 export type DesktopConnectionRuntimeStatusDto = z.infer<typeof DesktopConnectionRuntimeStatusDtoSchema>;
 

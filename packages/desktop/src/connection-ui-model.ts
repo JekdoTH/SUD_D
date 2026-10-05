@@ -1,5 +1,6 @@
 import type {
   ConnectionStateDto,
+  DesktopConnectionRuntimeStatusDto,
   DesktopConnectionSnapshotDto,
 } from '@sud-d/contracts';
 
@@ -50,6 +51,39 @@ export function presentConnectionState(state: ConnectionStateDto): ConnectionSta
   }
 }
 
+export function presentConnectionRuntime(
+  runtime: DesktopConnectionRuntimeStatusDto,
+): ConnectionStatePresentation {
+  const recovery = runtime.recovery;
+
+  if (recovery.phase === 'scheduled') {
+    const nextAttempt = Math.min(recovery.attempt + 1, 3);
+    return {
+      label: 'Reconnecting',
+      description: `Attempt ${nextAttempt} of 3`,
+      tone: 'info',
+    };
+  }
+
+  if (recovery.phase === 'restarting') {
+    return {
+      label: 'Reconnecting',
+      description: `Attempt ${recovery.attempt} of 3`,
+      tone: 'info',
+    };
+  }
+
+  if (recovery.phase === 'exhausted') {
+    return {
+      label: "Couldn't reconnect",
+      description: 'Check the connection setup, then retry.',
+      tone: 'danger',
+    };
+  }
+
+  return presentConnectionState(runtime.state);
+}
+
 export function canRestartConnection(state: ConnectionStateDto): boolean {
   return state === 'connected' || state === 'degraded' || state === 'error';
 }
@@ -79,6 +113,15 @@ export function getConnectionPrimaryAction(
   hasActiveWorkspace: boolean,
 ): ConnectionPrimaryAction {
   const state = snapshot.runtime.state;
+  const recoveryPhase = snapshot.runtime.recovery.phase;
+
+  if (
+    recoveryPhase === 'scheduled' ||
+    recoveryPhase === 'restarting' ||
+    recoveryPhase === 'stabilizing'
+  ) {
+    return { action: 'disconnect', enabled: true };
+  }
 
   if (state === 'connected' || state === 'degraded') {
     return { action: 'disconnect', enabled: true };

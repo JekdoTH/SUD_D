@@ -1,9 +1,13 @@
 {
-  "new": [],
+  "new": [
+    "Automatically recover a manually started connection after an unexpected tunnel failure, with three bounded retry attempts."
+  ],
   "improved": [
-    "Show Normal and Team Mode, recorded work, pending approvals and meaningful recent activity in Overview."
+    "Enable Auto Recovery by default for new connection profiles while preserving existing preferences. Every new app session still requires manual Connect.",
+    "Keep Auto Recovery visible on Connection and provide Disconnect after recovery attempts are exhausted."
   ],
   "fixed": [
-    "Keep current activity scoped to the selected Workspace and distinguish recorded work from live execution."
+    "Cancel recovery on Disconnect, app close and update shutdown; prevent preference toggles from resetting the retry budget early.",
+    "Require manual reconnection after trusted credential changes and terminate safely if update installation fails after shutdown."
   ]
 }

@@ -2,6 +2,7 @@ import { createWin32CredentialNativePort } from './windows-credential-manager.js
 
 export interface CredentialStore {
   hasCredential(profileId: string): boolean;
+  getRevision(profileId: string): number;
   setCredential(profileId: string, credential: string): void;
   deleteCredential(profileId: string): void;
 }
@@ -32,18 +33,28 @@ export interface WindowsCredentialNativePort {
 
 export function createInMemoryCredentialStore(): CredentialStore {
   const credentials = new Map<string, string>();
+  const revisions = new Map<string, number>();
+  const bumpRevision = (profileId: string): void => {
+    revisions.set(profileId, (revisions.get(profileId) ?? 0) + 1);
+  };
 
   return {
     hasCredential(profileId: string): boolean {
       return credentials.has(profileId);
     },
 
+    getRevision(profileId: string): number {
+      return revisions.get(profileId) ?? 0;
+    },
+
     setCredential(profileId: string, credential: string): void {
       credentials.set(profileId, credential);
+      bumpRevision(profileId);
     },
 
     deleteCredential(profileId: string): void {
       credentials.delete(profileId);
+      bumpRevision(profileId);
     },
   };
 }
@@ -61,18 +72,29 @@ export function windowsCredentialTargetNameForProfile(profileId: string): string
 export function createTunnelEnvironmentCredentialStore(
   environment: NodeJS.ProcessEnv = process.env,
 ): CredentialStore {
+  const revisions = new Map<string, number>();
+  const bumpRevision = (profileId: string): void => {
+    revisions.set(profileId, (revisions.get(profileId) ?? 0) + 1);
+  };
+
   return {
     hasCredential(profileId: string): boolean {
       const value = environment[credentialEnvVarNameForProfile(profileId)];
       return typeof value === 'string' && value.length > 0;
     },
 
+    getRevision(profileId: string): number {
+      return revisions.get(profileId) ?? 0;
+    },
+
     setCredential(profileId: string, credential: string): void {
       environment[credentialEnvVarNameForProfile(profileId)] = credential;
+      bumpRevision(profileId);
     },
 
     deleteCredential(profileId: string): void {
       delete environment[credentialEnvVarNameForProfile(profileId)];
+      bumpRevision(profileId);
     },
   };
 }
@@ -90,6 +112,10 @@ export function createWindowsCredentialStoreWithDependencies(
   environment: NodeJS.ProcessEnv,
   nativePort: WindowsCredentialNativePort,
 ): ManagedCredentialStore {
+  const revisions = new Map<string, number>();
+  const bumpRevision = (profileId: string): void => {
+    revisions.set(profileId, (revisions.get(profileId) ?? 0) + 1);
+  };
   const hasValue = (name: string): boolean => {
     const value = environment[name];
     return typeof value === 'string' && value.length > 0;
@@ -103,17 +129,25 @@ export function createWindowsCredentialStoreWithDependencies(
       return hasValue('CONTROL_PLANE_API_KEY');
     },
 
+    getRevision(profileId: string): number {
+      return revisions.get(profileId) ?? 0;
+    },
+
     setCredential(profileId: string, credential: string): void {
       environment[credentialEnvVarNameForProfile(profileId)] = credential;
+      bumpRevision(profileId);
     },
 
     deleteCredential(profileId: string): void {
       nativePort.deleteStoredCredential(windowsCredentialTargetNameForProfile(profileId));
       delete environment[credentialEnvVarNameForProfile(profileId)];
+      bumpRevision(profileId);
     },
 
     setupCredential(profileId: string): CredentialSetupOutcome {
-      return nativePort.promptAndStoreCredential(windowsCredentialTargetNameForProfile(profileId));
+      const outcome = nativePort.promptAndStoreCredential(windowsCredentialTargetNameForProfile(profileId));
+      if (outcome === 'configured') bumpRevision(profileId);
+      return outcome;
     },
 
     storeCredentialBuffer(profileId: string, credentialUtf16: Buffer): void {
@@ -126,6 +160,7 @@ export function createWindowsCredentialStoreWithDependencies(
         if (unit === 0 || unit === 10 || unit === 13) throw new Error('Invalid Runtime API Key');
       }
       nativePort.storeCredentialBuffer(windowsCredentialTargetNameForProfile(profileId), credentialUtf16);
+      bumpRevision(profileId);
     },
 
     prepareCredential(profileId: string): boolean {

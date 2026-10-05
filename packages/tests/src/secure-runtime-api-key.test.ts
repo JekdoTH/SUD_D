@@ -148,6 +148,42 @@ describe('Post-M0.8 โ€” secure Runtime API Key store orchestration', () =>
     expect(environment[derivedName]).toBeUndefined();
   });
 
+  it('tracks only non-secret process-local credential revisions for trusted mutations', async () => {
+    const infrastructure = await import('../../infrastructure/src/index.js');
+    const write = vi.fn();
+    const remove = vi.fn();
+    const materialize = vi.fn(() => true);
+    const store = infrastructure.createWindowsCredentialStoreWithDependencies({}, {
+      hasStoredCredential: () => true,
+      promptAndStoreCredential: () => 'configured',
+      storeCredentialBuffer: write,
+      deleteStoredCredential: remove,
+      materializeStoredCredential: materialize,
+    });
+
+    expect(store.getRevision(PROFILE_ID)).toBe(0);
+    expect(store.hasCredential(PROFILE_ID)).toBe(true);
+    expect(store.prepareCredential(PROFILE_ID)).toBe(true);
+    expect(store.getRevision(PROFILE_ID)).toBe(0);
+
+    expect(store.setupCredential(PROFILE_ID)).toBe('configured');
+    expect(store.getRevision(PROFILE_ID)).toBe(1);
+
+    const input = Buffer.from('revision-test-only-key', 'utf16le');
+    try {
+      store.storeCredentialBuffer(PROFILE_ID, input);
+      expect(store.getRevision(PROFILE_ID)).toBe(2);
+    } finally {
+      input.fill(0);
+    }
+
+    store.deleteCredential(PROFILE_ID);
+    expect(store.getRevision(PROFILE_ID)).toBe(3);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(materialize).toHaveBeenCalledTimes(1);
+  });
+
   it('stores a trusted native input buffer without a renderer credential payload', async () => {
     const infrastructure = await import('../../infrastructure/src/index.js');
     const write = vi.fn();
@@ -387,7 +423,7 @@ describe('Post-M0.8 — fixed Desktop credential IPC and renderer surface', () =
     const snapshot = {
       profile: { profileId: PROFILE_ID },
       credentialStatus: 'configured',
-      runtime: { state: 'stopped', session: null, error: null },
+      runtime: { state: 'stopped', session: null, error: null, recovery: { phase: 'idle', attempt: 0 } },
     };
     const stored: Buffer[] = [];
     const setupCredentialBuffer = vi.fn((_request: { profileId: string }, buffer: Buffer) => {
@@ -573,7 +609,7 @@ describe('Post-M0.8 — credential failure and persistence safety', () => {
         setCredential: vi.fn(), setupCredential, deleteCredential: vi.fn(),
       } as never,
       connectionService: {
-        getStatus: () => ({ state: 'stopped', session: null, error: null }),
+        getStatus: () => ({ state: 'stopped', session: null, error: null, recovery: { phase: 'idle', attempt: 0 } }),
         start: vi.fn(), stop: vi.fn(), restart: vi.fn(),
       } as never,
       deviceName: 'Home-PC',
@@ -610,7 +646,7 @@ describe('Post-M0.8 — credential failure and persistence safety', () => {
         deleteCredential: () => ({ ok: true as const, value: undefined }),
       } as never,
       connectionService: {
-        getStatus: () => ({ state: 'stopped', session: null, error: null }),
+        getStatus: () => ({ state: 'stopped', session: null, error: null, recovery: { phase: 'idle', attempt: 0 } }),
         start: vi.fn(), stop: vi.fn(), restart: vi.fn(),
       } as never,
       deviceName: 'Home-PC',

@@ -63,6 +63,7 @@ function statusToDto(status: ConnectionServiceStatus) {
           message: status.error.message,
         }
       : null,
+    recovery: status.recovery,
   };
 }
 
@@ -154,7 +155,7 @@ describe('M0.3 — ConnectionService lifecycle orchestration', () => {
     runtime.readiness = { tunnelReady: false, clientConnected: false };
     const { profile, service } = makeHarness({ runtime });
 
-    expect(service.getStatus()).toMatchObject({ state: 'stopped', session: null, error: null });
+    expect(service.getStatus()).toMatchObject({ state: 'stopped', session: null, error: null, recovery: { phase: 'idle', attempt: 0 } });
 
     const started = service.start(profile.profileId);
 
@@ -249,7 +250,7 @@ describe('M0.3 — ConnectionService lifecycle orchestration', () => {
 
     expect(stopped.ok).toBe(true);
     if (!stopped.ok) return;
-    expect(stopped.value).toMatchObject({ state: 'stopped', session: null, error: null });
+    expect(stopped.value).toMatchObject({ state: 'stopped', session: null, error: null, recovery: { phase: 'idle', attempt: 0 } });
     expect(runtime.stopCalls).toBe(1);
   });
 

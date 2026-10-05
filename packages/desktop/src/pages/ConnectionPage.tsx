@@ -5,7 +5,7 @@ import {
   canRestartConnection,
   deriveConnectionComponentStatuses,
   getConnectionPrimaryAction,
-  presentConnectionState,
+  presentConnectionRuntime,
 } from '../connection-ui-model';
 import { UiIcon } from '../ui-icons';
 
@@ -105,7 +105,7 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
 
   const activeWorkspace = workspaces.find((workspace) => workspace.isActive);
   const presentation = snapshot
-    ? presentConnectionState(snapshot.runtime.state)
+    ? presentConnectionRuntime(snapshot.runtime)
     : { label: 'Checking…', description: 'Reading local connection status.', tone: 'neutral' as const };
   const components = snapshot
     ? deriveConnectionComponentStatuses(snapshot.runtime.state)
@@ -185,13 +185,13 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
     }
   };
 
-  const updatePreferences = async (autoStart: boolean, autoRestart: boolean): Promise<void> => {
+  const updatePreferences = async (autoRestart: boolean): Promise<void> => {
     if (!snapshot?.profile) return;
     setBusy(true);
     setError('');
     const result = await window.sudD.connection.updatePreferences({
       profileId: snapshot.profile.profileId,
-      autoStart,
+      autoStart: false,
       autoRestart,
     });
     setBusy(false);
@@ -251,7 +251,10 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
     setApprovalMode(result.value.mode);
   }, [approvalMode, modeSaving]);
 
-  const runtimeError = snapshot?.runtime.error;
+  const recoveryActive = snapshot?.runtime.recovery.phase === 'scheduled'
+    || snapshot?.runtime.recovery.phase === 'restarting'
+    || snapshot?.runtime.recovery.phase === 'stabilizing';
+  const runtimeError = recoveryActive ? null : snapshot?.runtime.error;
   const primaryLabel = primaryAction?.action === 'choose_workspace'
     ? 'Choose Workspace'
     : primaryAction?.action === 'setup_credential'
@@ -261,7 +264,9 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
         : primaryAction?.action === 'disconnect'
           ? 'Disconnect'
           : primaryAction?.action === 'restart'
-            ? 'Restart connection'
+            ? snapshot?.runtime.recovery.phase === 'exhausted'
+              ? 'Retry connection'
+              : 'Restart connection'
             : 'Connect ChatGPT';
 
   return (
@@ -280,7 +285,7 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
             <div className="card-heading">OpenAI Secure MCP Tunnel</div>
             <div className="muted">Transport: stdio</div>
           </div>
-          <div className={`status-chip tone-${presentation.tone}`}>{presentation.label}</div>
+          <div className={`status-chip tone-${presentation.tone}`} role="status" aria-live="polite">{presentation.label}</div>
         </div>
         <p className="card-description">{presentation.description}</p>
 
@@ -295,7 +300,7 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
           </div>
           <div className="component-card">
             <span className="component-label">ChatGPT</span>
-            <span className={`badge ${componentTone(components.client)}`}>{presentation.label}</span>
+            <span className={`badge ${componentTone(components.client)}`}>{components.client === 'connected' ? 'Connected' : 'Disconnected'}</span>
           </div>
         </div>
 
@@ -325,6 +330,16 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
           >
             {busy ? 'Working…' : primaryLabel}
           </button>
+          {snapshot?.runtime.recovery.phase === 'exhausted' && (
+            <button
+              id="connection-terminal-disconnect-action"
+              className="btn btn-ghost"
+              disabled={busy || !snapshot.profile}
+              onClick={() => void performLifecycle('disconnect')}
+            >
+              Disconnect
+            </button>
+          )}
           {snapshot && canRestartConnection(snapshot.runtime.state) && primaryAction?.action !== 'restart' && (
             <button
               className="btn btn-ghost"
@@ -339,6 +354,40 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
           <div className="inline-hint">{primaryAction.reason}</div>
         )}
       </section>
+
+      {snapshot?.profile && (
+        <section className="card connection-preferences-card" aria-label="Connection preferences">
+          <label className="preference-row">
+            <span>
+              <strong>Reconnect automatically if the connection fails</strong>
+              <small>Only after you connect. Stops when you disconnect or close SUD-D.</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={snapshot.profile.autoRestart}
+              disabled={busy}
+              onChange={(event) => void updatePreferences(event.target.checked)}
+            />
+          </label>
+        </section>
+      )}
+
+      <details className="card advanced-card">
+        <summary>Advanced details</summary>
+        <div className="advanced-content">
+          <p className="muted">
+            Normal use does not require command-line configuration. These details expose only safe connection metadata.
+          </p>
+          <dl className="detail-list">
+            <div><dt>Device</dt><dd>{snapshot?.profile?.deviceName ?? 'This Device'}</dd></div>
+            <div><dt>Provider</dt><dd>OpenAI Secure MCP Tunnel</dd></div>
+            <div><dt>Transport</dt><dd>stdio</dd></div>
+            <div><dt>Runtime state</dt><dd>{snapshot?.runtime.state ?? 'checking'}</dd></div>
+            <div><dt>Gateway</dt><dd>{components.gateway}</dd></div>
+            {runtimeError && <div><dt>Error code</dt><dd>{runtimeError.code}</dd></div>}
+          </dl>
+        </div>
+      </details>
 
       <div className="setup-grid">
         <section className="card setup-card">
@@ -506,58 +555,6 @@ export function ConnectionPage({ onNavigate }: ConnectionPageProps): React.React
           ))}
         </div>
       </section>
-
-      <details className="card advanced-card">
-        <summary>Advanced details</summary>
-        <div className="advanced-content">
-          <p className="muted">
-            Normal use does not require command-line configuration. These details expose only safe connection metadata.
-          </p>
-          <dl className="detail-list">
-            <div><dt>Device</dt><dd>{snapshot?.profile?.deviceName ?? 'This Device'}</dd></div>
-            <div><dt>Provider</dt><dd>OpenAI Secure MCP Tunnel</dd></div>
-            <div><dt>Transport</dt><dd>stdio</dd></div>
-            <div><dt>Runtime state</dt><dd>{snapshot?.runtime.state ?? 'checking'}</dd></div>
-            <div><dt>Gateway</dt><dd>{components.gateway}</dd></div>
-            {runtimeError && <div><dt>Error code</dt><dd>{runtimeError.code}</dd></div>}
-          </dl>
-
-          {snapshot?.profile && (
-            <div className="preference-list" aria-label="Connection preferences">
-              <label className="preference-row">
-                <span>
-                  <strong>Auto-start preference</strong>
-                  <small>Saved preference only. Automatic startup is not activated yet.</small>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={snapshot.profile.autoStart}
-                  disabled={busy}
-                  onChange={(event) => void updatePreferences(
-                    event.target.checked,
-                    snapshot.profile?.autoRestart ?? false,
-                  )}
-                />
-              </label>
-              <label className="preference-row">
-                <span>
-                  <strong>Auto-restart preference</strong>
-                  <small>Saved preference only. Automatic restart is not activated yet.</small>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={snapshot.profile.autoRestart}
-                  disabled={busy}
-                  onChange={(event) => void updatePreferences(
-                    snapshot.profile?.autoStart ?? false,
-                    event.target.checked,
-                  )}
-                />
-              </label>
-            </div>
-          )}
-        </div>
-      </details>
     </>
   );
 }

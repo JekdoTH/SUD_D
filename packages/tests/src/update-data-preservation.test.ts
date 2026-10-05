@@ -53,6 +53,7 @@ describe('update data-preservation boundary', () => {
       provider: NO_UPDATE_PROVIDER,
       loadSignedManifest: async () => { throw new Error('not used'); },
       orderlyShutdown: async () => undefined,
+      terminateAfterFailedInstall: () => undefined,
       isPackaged: true,
       stateFilePath,
     });
@@ -62,14 +63,17 @@ describe('update data-preservation boundary', () => {
     expect(readFileSync(auditPath, 'utf8')).toBe('{"audit":"keep"}');
   });
 
-  it('keeps shutdown ordered before provider installation and closes the DB', () => {
+  it('keeps shared Connection/Git/DB shutdown ordered before provider installation', () => {
     const mainSource = readFileSync(new URL('../../desktop/electron/main.ts', import.meta.url), 'utf8');
+    const shutdownSource = readFileSync(new URL('../../desktop/electron/connection-shutdown.ts', import.meta.url), 'utf8');
     const controllerSource = readFileSync(new URL('../../desktop/electron/update-controller.ts', import.meta.url), 'utf8');
-    const stopIndex = mainSource.indexOf('connectionService.stop()');
-    const gitIndex = mainSource.indexOf('await gitController.dispose()');
-    const dbIndex = mainSource.indexOf('db.close()');
-    expect(stopIndex).toBeGreaterThan(-1);
-    expect(gitIndex).toBeGreaterThan(stopIndex);
+    const connectionIndex = shutdownSource.indexOf('dependencies.connectionService.shutdown()');
+    const gitIndex = shutdownSource.indexOf('await dependencies.disposeGit()');
+    const dbIndex = shutdownSource.indexOf('dependencies.closeDatabase()');
+    expect(mainSource).toContain('const connectionShutdown = createConnectionShutdown({');
+    expect(mainSource).toContain('terminateAfterFailedInstall: () => app.exit(1),');
+    expect(connectionIndex).toBeGreaterThan(-1);
+    expect(gitIndex).toBeGreaterThan(connectionIndex);
     expect(dbIndex).toBeGreaterThan(gitIndex);
     expect(controllerSource.indexOf('await deps.orderlyShutdown()')).toBeLessThan(
       controllerSource.indexOf('deps.provider.restartAndInstall()'),

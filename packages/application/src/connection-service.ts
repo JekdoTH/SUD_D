@@ -34,6 +34,8 @@ const DESKTOP_SESSION = { id: 'desktop', type: 'desktop' as const };
 export interface ConnectionServiceOptions {
   readonly now?: () => Date;
   readonly createSessionId?: () => string;
+  readonly scheduleTimeout?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
+  readonly cancelTimeout?: (handle: ReturnType<typeof setTimeout>) => void;
 }
 
 export interface ConnectionService {
@@ -41,6 +43,8 @@ export interface ConnectionService {
   start(profileId: string): Result<ConnectionServiceStatus, AppError>;
   stop(): Result<ConnectionServiceStatus, AppError>;
   restart(profileId: string): Result<ConnectionServiceStatus, AppError>;
+  shutdown(): Result<ConnectionServiceStatus, AppError>;
+  setAutoRecoveryEnabled(enabled: boolean): void;
 }
 
 export function createConnectionService(
@@ -51,19 +55,46 @@ export function createConnectionService(
   runtime: ConnectionRuntimePort,
   options: ConnectionServiceOptions = {},
 ): ConnectionService {
+  const RETRY_DELAYS_MS = [1_000, 3_000, 10_000] as const;
+  const STABILITY_WINDOW_MS = 60_000;
   const now = options.now ?? (() => new Date());
   const createSessionId = options.createSessionId ?? randomUUID;
+  const scheduleTimeout = options.scheduleTimeout ?? ((callback, delayMs) => setTimeout(callback, delayMs));
+  const cancelTimeout = options.cancelTimeout ?? ((handle) => clearTimeout(handle));
 
   let state: ConnectionState = 'stopped';
   let session: ConnectionSessionContext | null = null;
   let lastError: AppError | null = null;
   let lifecycleBusy = false;
+  let shutdownLatched = false;
+  let connectionIntent = false;
+  let autoRecoveryEnabled = false;
+  let consumedRecoveryAttempts: 0 | 1 | 2 | 3 = 0;
+  let recovery: ConnectionServiceStatus['recovery'] = { phase: 'idle', attempt: 0 };
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let stabilityTimer: ReturnType<typeof setTimeout> | undefined;
+  let lifecycleEpoch = 0;
+  let currentLaunchId: string | null = null;
+  let candidateLaunchId: string | null = null;
+  let queuedRuntimeEvents: ConnectionRuntimeEvent[] = [];
+  let unsubscribeRuntime: (() => void) | null = null;
+  let boundContext: {
+    readonly profileId: string;
+    readonly workspaceId: string;
+    readonly workspaceCanonicalRoot: string;
+    readonly provider: ConnectionProfile['provider'];
+    readonly transport: ConnectionProfile['transport'];
+    readonly deviceName: string;
+    readonly credentialRevision: number;
+    readonly tunnelReference?: string;
+  } | null = null;
 
   const status = (): ConnectionServiceStatus =>
     Object.freeze({
       state,
       session,
       error: lastError,
+      recovery: Object.freeze({ ...recovery }),
     });
 
   const audit = (
@@ -107,6 +138,40 @@ export function createConnectionService(
     return ok(undefined);
   };
 
+  const clearRetryTimer = (): void => {
+    if (retryTimer !== undefined) {
+      cancelTimeout(retryTimer);
+      retryTimer = undefined;
+    }
+  };
+
+  const clearStabilityTimer = (): void => {
+    if (stabilityTimer !== undefined) {
+      cancelTimeout(stabilityTimer);
+      stabilityTimer = undefined;
+    }
+  };
+
+  const invalidateLaunch = (): void => {
+    currentLaunchId = null;
+    candidateLaunchId = null;
+    queuedRuntimeEvents = [];
+    lifecycleEpoch += 1;
+  };
+
+  const revokeIntent = (resetRecovery = true): void => {
+    connectionIntent = false;
+    autoRecoveryEnabled = false;
+    boundContext = null;
+    clearRetryTimer();
+    clearStabilityTimer();
+    invalidateLaunch();
+    if (resetRecovery) {
+      consumedRecoveryAttempts = 0;
+      recovery = { phase: 'idle', attempt: 0 };
+    }
+  };
+
   const getActiveWorkspace = (): Workspace | undefined =>
     workspaceRepo.list().find((workspace) => workspace.isActive);
 
@@ -124,6 +189,24 @@ export function createConnectionService(
       return err(appError('VALIDATION_FAILED', 'Connection profile provider or transport is invalid'));
     }
     return ok(profile);
+  };
+
+  const validateCredential = (profileId: string): Result<void, AppError> => {
+    let credentialReady: boolean;
+    try {
+      credentialReady = isManagedCredentialStore(credentialStore)
+        ? credentialStore.prepareCredential(profileId)
+        : credentialStore.hasCredential(profileId);
+    } catch {
+      return err(appError('INTERNAL_ERROR', 'Runtime API Key is unavailable'));
+    }
+
+    if (!credentialReady) {
+      return err(
+        appError('CONNECTION_CREDENTIAL_MISSING', 'Connection credential is not configured'),
+      );
+    }
+    return ok(undefined);
   };
 
   const validateActiveWorkspace = (): Result<Workspace, AppError> => {
@@ -151,6 +234,35 @@ export function createConnectionService(
     return ok(workspace);
   };
 
+  const captureBoundContext = (profile: ConnectionProfile, workspace: Workspace) =>
+    Object.freeze({
+      profileId: profile.profileId,
+      workspaceId: workspace.id,
+      workspaceCanonicalRoot: workspace.canonicalRoot,
+      provider: profile.provider,
+      transport: profile.transport,
+      deviceName: profile.deviceName,
+      credentialRevision: credentialStore.getRevision(profile.profileId),
+      ...(profile.tunnelReference ? { tunnelReference: profile.tunnelReference } : {}),
+    });
+
+  const matchesBoundContext = (
+    profile: ConnectionProfile,
+    workspace: Workspace,
+  ): boolean => {
+    if (!boundContext) return false;
+    return (
+      profile.profileId === boundContext.profileId &&
+      workspace.id === boundContext.workspaceId &&
+      workspace.canonicalRoot === boundContext.workspaceCanonicalRoot &&
+      profile.provider === boundContext.provider &&
+      profile.transport === boundContext.transport &&
+      profile.deviceName === boundContext.deviceName &&
+      credentialStore.getRevision(profile.profileId) === boundContext.credentialRevision &&
+      profile.tunnelReference === boundContext.tunnelReference
+    );
+  };
+
   const buildSession = (
     profile: ConnectionProfile,
     workspace: Workspace,
@@ -167,24 +279,43 @@ export function createConnectionService(
       ...(profile.tunnelReference ? { tunnelReference: profile.tunnelReference } : {}),
     });
 
+  const moveToError = (error: AppError): void => {
+    if (state === 'error') {
+      lastError = error;
+      return;
+    }
+    if (state === 'stopped') {
+      const starting = transitionTo('starting');
+      if (!starting.ok) {
+        lastError = starting.error;
+        return;
+      }
+    }
+    const errored = transitionTo('error');
+    lastError = errored.ok ? error : errored.error;
+  };
+
+  const terminalFailure = (
+    error: AppError,
+    phase: 'blocked' | 'exhausted',
+  ): void => {
+    const attempt = consumedRecoveryAttempts;
+    clearRetryTimer();
+    clearStabilityTimer();
+    connectionIntent = false;
+    autoRecoveryEnabled = false;
+    boundContext = null;
+    invalidateLaunch();
+    recovery = { phase, attempt };
+    moveToError(error);
+  };
+
   const failStart = (
     error: AppError,
     profileId: string,
     workspaceId?: string,
   ): Result<ConnectionServiceStatus, AppError> => {
-    if (state !== 'error') {
-      const moved = transitionTo('error');
-      if (!moved.ok) {
-        lastError = moved.error;
-        audit('connection.failed', moved.error.code, {
-          operation: 'start',
-          profileId,
-          ...(workspaceId ? { workspaceId } : {}),
-        });
-        return err(moved.error);
-      }
-    }
-    lastError = error;
+    moveToError(error);
     audit('connection.failed', error.code, {
       operation: 'start',
       profileId,
@@ -193,7 +324,159 @@ export function createConnectionService(
     return err(error);
   };
 
-  const startInternal = (profileId: string): Result<ConnectionServiceStatus, AppError> => {
+  const beginStabilization = (connectionSessionId: string): void => {
+    clearStabilityTimer();
+    if (
+      consumedRecoveryAttempts === 0 ||
+      !connectionIntent ||
+      !autoRecoveryEnabled ||
+      currentLaunchId !== connectionSessionId
+    ) {
+      if (consumedRecoveryAttempts === 0) recovery = { phase: 'idle', attempt: 0 };
+      return;
+    }
+
+    recovery = { phase: 'stabilizing', attempt: consumedRecoveryAttempts };
+    const epoch = lifecycleEpoch;
+    stabilityTimer = scheduleTimeout(() => {
+      stabilityTimer = undefined;
+      if (
+        epoch !== lifecycleEpoch ||
+        !connectionIntent ||
+        !autoRecoveryEnabled ||
+        currentLaunchId !== connectionSessionId ||
+        recovery.phase !== 'stabilizing'
+      ) {
+        return;
+      }
+      consumedRecoveryAttempts = 0;
+      recovery = { phase: 'idle', attempt: 0 };
+    }, STABILITY_WINDOW_MS);
+  };
+
+  function handleRuntimeEvent(event: ConnectionRuntimeEvent): void {
+    if (
+      candidateLaunchId !== null &&
+      event.connectionSessionId === candidateLaunchId
+    ) {
+      queuedRuntimeEvents.push(event);
+      return;
+    }
+    if (event.connectionSessionId !== currentLaunchId) return;
+
+    if (event.type === 'tunnel_ready') {
+      if (state !== 'waiting_for_tunnel') return;
+      const moved = transitionTo('waiting_for_client');
+      if (!moved.ok) {
+        lastError = moved.error;
+        return;
+      }
+      lastError = null;
+      audit('tunnel.ready', 'OK', {
+        ...(session ? {
+          profileId: session.profileId,
+          workspaceId: session.workspaceId,
+          connectionSessionId: session.connectionSessionId,
+        } : {}),
+      });
+      beginStabilization(event.connectionSessionId);
+      return;
+    }
+
+    if (event.type === 'client_connected') {
+      if (state !== 'waiting_for_client' && state !== 'degraded') return;
+      const moved = transitionTo('connected');
+      if (!moved.ok) {
+        lastError = moved.error;
+        return;
+      }
+      lastError = null;
+      return;
+    }
+
+    if (event.type === 'client_disconnected') {
+      if (state !== 'connected') return;
+      const moved = transitionTo('degraded');
+      if (!moved.ok) {
+        lastError = moved.error;
+      }
+      return;
+    }
+
+    if (event.type === 'runtime_failed') {
+      if (state === 'stopped' || state === 'stopping') return;
+      if (recovery.phase === 'scheduled') return;
+      if (recovery.phase === 'blocked' || recovery.phase === 'exhausted') return;
+
+      clearStabilityTimer();
+      lifecycleEpoch += 1;
+      const failure = connectionRuntimeFailureAppError(event.code);
+      moveToError(failure);
+      audit('tunnel.failed', failure.code, {
+        ...(session ? {
+          profileId: session.profileId,
+          workspaceId: session.workspaceId,
+          connectionSessionId: session.connectionSessionId,
+        } : {}),
+      });
+
+      const retryable =
+        event.code === 'TUNNEL_EXITED_UNEXPECTEDLY' ||
+        event.code === 'TUNNEL_HEALTH_FAILED';
+
+      if (
+        !retryable ||
+        !connectionIntent ||
+        !autoRecoveryEnabled ||
+        shutdownLatched
+      ) {
+        terminalFailure(failure, 'blocked');
+        return;
+      }
+
+      const consumedAttempts = consumedRecoveryAttempts;
+      if (consumedAttempts === 3) {
+        terminalFailure(failure, 'exhausted');
+        return;
+      }
+
+      recovery = { phase: 'scheduled', attempt: consumedAttempts };
+      const delayMs =
+        consumedAttempts === 0
+          ? RETRY_DELAYS_MS[0]
+          : consumedAttempts === 1
+            ? RETRY_DELAYS_MS[1]
+            : RETRY_DELAYS_MS[2];
+      const epoch = lifecycleEpoch;
+      retryTimer = scheduleTimeout(() => {
+        retryTimer = undefined;
+        if (
+          epoch !== lifecycleEpoch ||
+          recovery.phase !== 'scheduled' ||
+          !connectionIntent ||
+          !autoRecoveryEnabled ||
+          shutdownLatched
+        ) {
+          return;
+        }
+        void executeRecoveryAttempt();
+      }, delayMs);
+    }
+  }
+
+  const processQueuedRuntimeEvents = (): void => {
+    const queued = queuedRuntimeEvents;
+    queuedRuntimeEvents = [];
+    for (const event of queued) handleRuntimeEvent(event);
+  };
+
+  const startInternal = (
+    profileId: string,
+    mode: 'manual' | 'automatic',
+  ): Result<ConnectionServiceStatus, AppError> => {
+    if (shutdownLatched) {
+      return fail(appError('VALIDATION_FAILED', 'Connection is shutting down'));
+    }
     if (state !== 'stopped') {
       const activeWorkspace = getActiveWorkspace();
       if (
@@ -218,7 +501,10 @@ export function createConnectionService(
       return fail(invalid);
     }
 
-    audit('connection.start.requested', 'OK', { profileId });
+    audit('connection.start.requested', 'OK', {
+      profileId,
+      automaticRecovery: mode === 'automatic',
+    });
 
     const profileResult = validateProfile(profileId);
     if (!profileResult.ok) {
@@ -227,27 +513,10 @@ export function createConnectionService(
     }
     const profile = profileResult.value;
 
-    let credentialReady: boolean;
-    try {
-      credentialReady = isManagedCredentialStore(credentialStore)
-        ? credentialStore.prepareCredential(profileId)
-        : credentialStore.hasCredential(profileId);
-    } catch {
-      const unavailableCredential = appError(
-        'INTERNAL_ERROR',
-        'Runtime API Key is unavailable',
-      );
-      audit('connection.failed', unavailableCredential.code, { operation: 'start', profileId });
-      return fail(unavailableCredential);
-    }
-
-    if (!credentialReady) {
-      const missingCredential = appError(
-        'CONNECTION_CREDENTIAL_MISSING',
-        'Connection credential is not configured',
-      );
-      audit('connection.failed', missingCredential.code, { operation: 'start', profileId });
-      return fail(missingCredential);
+    const credentialResult = validateCredential(profileId);
+    if (!credentialResult.ok) {
+      audit('connection.failed', credentialResult.error.code, { operation: 'start', profileId });
+      return fail(credentialResult.error);
     }
 
     const workspaceResult = validateActiveWorkspace();
@@ -257,24 +526,55 @@ export function createConnectionService(
     }
     const workspace = workspaceResult.value;
 
+    if (mode === 'automatic') {
+      if (!matchesBoundContext(profile, workspace)) {
+        return fail(
+          appError(
+            'CONNECTION_WORKSPACE_REBIND_REQUIRES_RESTART',
+            'Connection setup changed; reconnect manually to bind the current configuration',
+          ),
+        );
+      }
+      if (!profile.autoRestart) {
+        autoRecoveryEnabled = false;
+        return fail(appError('VALIDATION_FAILED', 'Auto Recovery is disabled'));
+      }
+    }
+
     const starting = transitionTo('starting');
     if (!starting.ok) return fail(starting.error);
     const waitingForTunnel = transitionTo('waiting_for_tunnel');
     if (!waitingForTunnel.ok) return fail(waitingForTunnel.error);
 
     const candidateSession = buildSession(profile, workspace);
+    candidateLaunchId = candidateSession.connectionSessionId;
+    queuedRuntimeEvents = [];
 
     let readiness;
     try {
       readiness = runtime.start(candidateSession);
     } catch (error) {
+      candidateLaunchId = null;
+      queuedRuntimeEvents = [];
       const mapped = error instanceof ConnectionRuntimeFailure
         ? connectionRuntimeFailureAppError(error.code)
         : appError('CONNECTION_RUNTIME_START_FAILED', 'Connection runtime failed to start');
+      if (mode === 'manual') {
+        connectionIntent = false;
+        autoRecoveryEnabled = false;
+        boundContext = null;
+      }
       return failStart(mapped, profileId, workspace.id);
     }
 
     if (readiness.clientConnected && !readiness.tunnelReady) {
+      candidateLaunchId = null;
+      queuedRuntimeEvents = [];
+      if (mode === 'manual') {
+        connectionIntent = false;
+        autoRecoveryEnabled = false;
+        boundContext = null;
+      }
       return failStart(
         transitionError(state, 'connected'),
         profileId,
@@ -283,7 +583,18 @@ export function createConnectionService(
     }
 
     session = candidateSession;
+    currentLaunchId = candidateSession.connectionSessionId;
+    candidateLaunchId = null;
     lastError = null;
+    lifecycleEpoch += 1;
+
+    if (mode === 'manual') {
+      connectionIntent = true;
+      autoRecoveryEnabled = profile.autoRestart;
+      boundContext = captureBoundContext(profile, workspace);
+      consumedRecoveryAttempts = 0;
+      recovery = { phase: 'idle', attempt: 0 };
+    }
 
     if (readiness.tunnelReady) {
       const waitingForClient = transitionTo('waiting_for_client');
@@ -292,6 +603,7 @@ export function createConnectionService(
         const connected = transitionTo('connected');
         if (!connected.ok) return failStart(connected.error, profileId, workspace.id);
       }
+      beginStabilization(candidateSession.connectionSessionId);
     }
 
     audit('connection.started', 'OK', {
@@ -299,12 +611,23 @@ export function createConnectionService(
       workspaceId: workspace.id,
       connectionSessionId: candidateSession.connectionSessionId,
       state,
+      automaticRecovery: mode === 'automatic',
     });
+
+    processQueuedRuntimeEvents();
     return ok(status());
   };
 
-  const stopInternal = (): Result<ConnectionServiceStatus, AppError> => {
+  const stopInternal = (
+    revoke: boolean,
+  ): Result<ConnectionServiceStatus, AppError> => {
+    if (revoke) revokeIntent(true);
+
     if (state === 'stopped' || state === 'stopping') {
+      if (state === 'stopped') {
+        session = null;
+        lastError = null;
+      }
       return ok(status());
     }
 
@@ -315,6 +638,8 @@ export function createConnectionService(
         connectionSessionId: session.connectionSessionId,
       } : {}),
     });
+
+    invalidateLaunch();
 
     const stopping = transitionTo('stopping');
     if (!stopping.ok) return fail(stopping.error);
@@ -358,6 +683,46 @@ export function createConnectionService(
     return ok(status());
   };
 
+  function executeRecoveryAttempt(): Result<ConnectionServiceStatus, AppError> {
+    if (lifecycleBusy) {
+      const error = busyError();
+      terminalFailure(error, 'blocked');
+      return err(error);
+    }
+    if (!connectionIntent || !autoRecoveryEnabled || shutdownLatched || !boundContext) {
+      const error = lastError ?? appError('INTERNAL_ERROR', 'Connection recovery is unavailable');
+      terminalFailure(error, 'blocked');
+      return err(error);
+    }
+
+    const nextAttempt = (consumedRecoveryAttempts + 1) as 1 | 2 | 3;
+    consumedRecoveryAttempts = nextAttempt;
+    recovery = { phase: 'restarting', attempt: nextAttempt };
+    const profileId = boundContext.profileId;
+
+    lifecycleBusy = true;
+    try {
+      clearRetryTimer();
+      clearStabilityTimer();
+      invalidateLaunch();
+
+      const stopped = stopInternal(false);
+      if (!stopped.ok) {
+        terminalFailure(stopped.error, 'blocked');
+        return stopped;
+      }
+
+      const restarted = startInternal(profileId, 'automatic');
+      if (!restarted.ok) {
+        terminalFailure(restarted.error, 'blocked');
+        return restarted;
+      }
+      return restarted;
+    } finally {
+      lifecycleBusy = false;
+    }
+  }
+
   const withLifecycleGuard = (
     operation: () => Result<ConnectionServiceStatus, AppError>,
   ): Result<ConnectionServiceStatus, AppError> => {
@@ -371,66 +736,6 @@ export function createConnectionService(
       return fail(appError('INTERNAL_ERROR', 'Unexpected connection lifecycle failure'));
     } finally {
       lifecycleBusy = false;
-    }
-  };
-
-  const handleRuntimeEvent = (event: ConnectionRuntimeEvent): void => {
-    if (event.type === 'tunnel_ready') {
-      if (state !== 'waiting_for_tunnel') return;
-      const moved = transitionTo('waiting_for_client');
-      if (!moved.ok) {
-        lastError = moved.error;
-        return;
-      }
-      lastError = null;
-      audit('tunnel.ready', 'OK', {
-        ...(session ? {
-          profileId: session.profileId,
-          workspaceId: session.workspaceId,
-          connectionSessionId: session.connectionSessionId,
-        } : {}),
-      });
-      return;
-    }
-
-    if (event.type === 'client_connected') {
-      if (state !== 'waiting_for_client' && state !== 'degraded') return;
-      const moved = transitionTo('connected');
-      if (!moved.ok) {
-        lastError = moved.error;
-        return;
-      }
-      lastError = null;
-      return;
-    }
-
-    if (event.type === 'client_disconnected') {
-      if (state !== 'connected') return;
-      const moved = transitionTo('degraded');
-      if (!moved.ok) {
-        lastError = moved.error;
-      }
-      return;
-    }
-
-    if (event.type === 'runtime_failed') {
-      if (state === 'stopped' || state === 'stopping') return;
-      const failure = connectionRuntimeFailureAppError(event.code);
-      if (state !== 'error') {
-        const moved = transitionTo('error');
-        if (!moved.ok) {
-          lastError = moved.error;
-          return;
-        }
-      }
-      lastError = failure;
-      audit('tunnel.failed', failure.code, {
-        ...(session ? {
-          profileId: session.profileId,
-          workspaceId: session.workspaceId,
-          connectionSessionId: session.connectionSessionId,
-        } : {}),
-      });
     }
   };
 
@@ -451,7 +756,7 @@ export function createConnectionService(
     lastError = null;
   };
 
-  runtime.subscribe(handleRuntimeEvent);
+  unsubscribeRuntime = runtime.subscribe(handleRuntimeEvent);
 
   return {
     getStatus(): ConnectionServiceStatus {
@@ -460,15 +765,28 @@ export function createConnectionService(
     },
 
     start(profileId: string): Result<ConnectionServiceStatus, AppError> {
-      return withLifecycleGuard(() => startInternal(profileId));
+      return withLifecycleGuard(() => startInternal(profileId, 'manual'));
     },
 
     stop(): Result<ConnectionServiceStatus, AppError> {
-      return withLifecycleGuard(stopInternal);
+      return withLifecycleGuard(() => stopInternal(true));
     },
 
     restart(profileId: string): Result<ConnectionServiceStatus, AppError> {
       return withLifecycleGuard(() => {
+        if (shutdownLatched) {
+          return fail(appError('VALIDATION_FAILED', 'Connection is shutting down'));
+        }
+        if (state === 'stopped') {
+          return fail(transitionError(state, 'stopping'));
+        }
+        if (
+          recovery.phase === 'scheduled' ||
+          recovery.phase === 'restarting' ||
+          recovery.phase === 'stabilizing'
+        ) {
+          return fail(busyError());
+        }
         if (
           state === 'starting' ||
           state === 'waiting_for_tunnel' ||
@@ -478,12 +796,50 @@ export function createConnectionService(
           return fail(transitionError(state, 'stopping'));
         }
 
-        if (state !== 'stopped') {
-          const stopped = stopInternal();
-          if (!stopped.ok) return stopped;
-        }
-        return startInternal(profileId);
+        const stopped = stopInternal(true);
+        if (!stopped.ok) return stopped;
+        return startInternal(profileId, 'manual');
       });
+    },
+
+    shutdown(): Result<ConnectionServiceStatus, AppError> {
+      shutdownLatched = true;
+      revokeIntent(true);
+      if (unsubscribeRuntime) {
+        unsubscribeRuntime();
+        unsubscribeRuntime = null;
+      }
+      return withLifecycleGuard(() => stopInternal(false));
+    },
+
+    setAutoRecoveryEnabled(enabled: boolean): void {
+      autoRecoveryEnabled = enabled && connectionIntent && !shutdownLatched;
+
+      if (enabled) {
+        if (
+          autoRecoveryEnabled &&
+          consumedRecoveryAttempts > 0 &&
+          recovery.phase === 'idle' &&
+          currentLaunchId !== null &&
+          (state === 'waiting_for_client' || state === 'connected' || state === 'degraded')
+        ) {
+          beginStabilization(currentLaunchId);
+        }
+        return;
+      }
+
+      if (recovery.phase === 'scheduled') {
+        const failure = lastError ?? appError('INTERNAL_ERROR', 'Connection recovery was cancelled');
+        terminalFailure(failure, 'blocked');
+        return;
+      }
+
+      if (recovery.phase === 'restarting' || recovery.phase === 'stabilizing') {
+        clearRetryTimer();
+        clearStabilityTimer();
+        lifecycleEpoch += 1;
+        recovery = { phase: 'idle', attempt: 0 };
+      }
     },
   };
 }

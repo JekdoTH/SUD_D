@@ -67,6 +67,7 @@ import {
   type OverviewStatusIpcMain,
 } from './overview-status-ipc.js';
 import { createDesktopUpdateController } from './update-controller.js';
+import { createConnectionShutdown } from './connection-shutdown.js';
 import { createElectronUpdateProvider, loadSignedReleaseManifest } from './update-provider.js';
 import { registerDesktopUpdateIpcHandlers, type UpdateIpcMain } from './update-ipc.js';
 import {
@@ -185,6 +186,18 @@ const overviewStatusController = createDesktopOverviewStatusController({
     listForWorkspace: (workspaceId, limit) => diagnosticsController.listActivityForWorkspace(workspaceId, limit),
   },
 });
+const connectionShutdown = createConnectionShutdown({
+  connectionService,
+  disposeGit: async () => {
+    await gitController.dispose();
+  },
+  closeDatabase: () => db.close(),
+});
+let shutdownCompleted = false;
+const orderlyShutdown = async (): Promise<void> => {
+  await connectionShutdown.shutdown();
+  shutdownCompleted = true;
+};
 const updateController = createDesktopUpdateController({
   currentVersion: app.getVersion(),
   currentRevision: buildRevision,
@@ -192,12 +205,8 @@ const updateController = createDesktopUpdateController({
   provider: createElectronUpdateProvider(),
   loadSignedManifest: loadSignedReleaseManifest,
   isPackaged: app.isPackaged,
-  orderlyShutdown: async () => {
-    const stopped = connectionService.stop();
-    if (!stopped.ok) throw new Error('UPDATE_SHUTDOWN_CONNECTION_FAILED');
-    await gitController.dispose();
-    db.close();
-  },
+  orderlyShutdown,
+  terminateAfterFailedInstall: () => app.exit(1),
 });
 
 // ---------------------------------------------------------------------------
@@ -492,8 +501,23 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => {
-  void gitController.dispose();
+let quitCleanupInFlight = false;
+
+app.on('before-quit', (event) => {
+  if (shutdownCompleted) return;
+
+  event.preventDefault();
+  if (quitCleanupInFlight) return;
+  quitCleanupInFlight = true;
+
+  void orderlyShutdown()
+    .then(() => {
+      app.quit();
+    })
+    .catch(() => {
+      quitCleanupInFlight = false;
+      console.error('[SUD-D] Orderly shutdown failed; quit was cancelled.');
+    });
 });
 
 app.on('window-all-closed', () => {

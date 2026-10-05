@@ -73,7 +73,7 @@ interface TunnelHealthProbeLike {
     readonly healthUrlFile: string;
     readonly pid: number;
     readonly onReady: () => void;
-    readonly onFailure: () => void;
+    readonly onFailure: (reason: 'timeout' | 'invalid_health_url') => void;
   }): TunnelHealthWatchLike;
 }
 
@@ -161,22 +161,28 @@ class FakeTunnelHealthProbe implements TunnelHealthProbeLike {
   private current:
     | {
         onReady: () => void;
-        onFailure: () => void;
+        onFailure: (reason: 'timeout' | 'invalid_health_url') => void;
       }
     | undefined;
+  readonly callbacks: Array<{
+    onReady: () => void;
+    onFailure: (reason: 'timeout' | 'invalid_health_url') => void;
+  }> = [];
 
   watch(input: {
     readonly healthUrlFile: string;
     readonly pid: number;
     readonly onReady: () => void;
-    readonly onFailure: () => void;
+    readonly onFailure: (reason: 'timeout' | 'invalid_health_url') => void;
   }): TunnelHealthWatchLike {
     this.watchCalls += 1;
-    this.current = { onReady: input.onReady, onFailure: input.onFailure };
+    const callbacks = { onReady: input.onReady, onFailure: input.onFailure };
+    this.callbacks.push(callbacks);
+    this.current = callbacks;
     return {
       stop: () => {
         this.stopCalls += 1;
-        this.current = undefined;
+        if (this.current === callbacks) this.current = undefined;
       },
     };
   }
@@ -185,8 +191,8 @@ class FakeTunnelHealthProbe implements TunnelHealthProbeLike {
     this.current?.onReady();
   }
 
-  fail(): void {
-    this.current?.onFailure();
+  fail(reason: 'timeout' | 'invalid_health_url' = 'timeout'): void {
+    this.current?.onFailure(reason);
   }
 }
 
@@ -351,7 +357,7 @@ async function makeHarness(options: {
     transport: 'stdio',
     deviceName: 'Work-PC',
     autoStart: false,
-    autoRestart: true,
+    autoRestart: false,
     ...(options.tunnelReference === undefined
       ? { tunnelReference: 'tunnel_0123456789abcdef0123456789abcdef' }
       : options.tunnelReference
@@ -534,6 +540,37 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
       error: { code: 'TUNNEL_HEALTH_FAILED', message: 'Secure Tunnel runtime failed readiness checks' },
     });
     expect(processLauncher.handles[0].stopCalls).toBe(1);
+  });
+
+  it('classifies an invalid health URL as non-retryable tunnel profile failure', async () => {
+    const { profile, healthProbe, processLauncher, service } = await makeHarness();
+    expect(service.start(profile.profileId).ok).toBe(true);
+
+    healthProbe.fail('invalid_health_url');
+
+    expect(service.getStatus()).toMatchObject({
+      state: 'error',
+      error: { code: 'TUNNEL_PROFILE_INVALID' },
+      recovery: { phase: 'blocked', attempt: 0 },
+    });
+    expect(processLauncher.handles[0].stopCalls).toBe(1);
+  });
+
+  it('ignores stale health callbacks from a prior runtime launch', async () => {
+    const { profile, healthProbe, processLauncher, runtime, service } = await makeHarness();
+    expect(service.start(profile.profileId).ok).toBe(true);
+    const stale = healthProbe.callbacks[0];
+
+    expect(service.stop().ok).toBe(true);
+    expect(service.start(profile.profileId).ok).toBe(true);
+    expect(processLauncher.handles).toHaveLength(2);
+
+    stale?.onReady();
+    stale?.onFailure('timeout');
+
+    expect(service.getStatus().state).toBe('waiting_for_tunnel');
+    expect(runtime.getStatus()).toEqual({ state: 'starting' });
+    expect(processLauncher.handles[1].stopCalls).toBe(0);
   });
 
   it('maps an unexpected tunnel process exit to a safe typed error and retains bounded diagnostics internally', async () => {
@@ -756,6 +793,7 @@ describe('M0.5 — OpenAI Secure Tunnel adapter', () => {
           }
         : null,
       error: status.error ? { code: status.error.code, message: status.error.message } : null,
+      recovery: status.recovery,
     });
     expect(dto.error?.code).toBe('TUNNEL_EXITED_UNEXPECTEDLY');
     expect(JSON.stringify(dto)).not.toMatch(/api[_-]?key|credential|CONTROL_PLANE_API_KEY|sk-m05/i);
