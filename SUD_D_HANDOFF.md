@@ -1,11 +1,12 @@
 # SUD_D Handoff
 
-## v1.0.4 Team startup manual Approval — release preparation (2026-10-05)
+## v1.0.4 Team startup manual Approval — PUBLISHED (2026-10-05)
 
 - Owner explicitly authorized the reliable Team opt-in repair and installed-app publication. Baseline `c53a24c`. Normal work requires no mode command; every new `team.start` now requires manual Desktop Approval, including Approve for me / Full Access. Pending or denied requests create no mission. Approval binds the exact goal, Workspace and runtime; a Workspace change before execution fails closed. Existing active missions and role transitions remain intact; no live DB or mission was modified.
 - Desktop Activity shows a short request ID for matching the chat request and the Workspace ID. Gateway instructions require an explicit Team request, waiting for manual approval and retrying the exact request. The Kernel prevents automatic startup; it does not authenticate natural-language intent or prevent an AI from submitting an unsolicited pending request.
 - Focused evidence: Team startup 9, Team mode 10, Approval security 22, Basic Approval 5, Team security 7, Team Desktop 7, atomicity 4, Approval Desktop 12, Work Resume guard 3 and Approval production 11 tests PASS. Required release seven files / 63 tests PASS. Two existing parallel-run timeouts passed isolated reruns; no timeout or product bypass was introduced. Domain/Application/Gateway builds, renderer typecheck/build, focused ESLint and diff checks PASS. Built renderer smoke PASS for request matching, pending state, explicit Approve/Deny and 780px layout; fixtures used no live user state. Independent Standards and Spec reviews have no remaining findings after the Workspace race and request-correlation fixes.
-- Next: commit/push the scoped fix, publish v1.0.4 through the existing Windows verification/signing/provenance workflow, then verify public assets/signature/feed. STOP after publication gates and public checks, or a real blocker; no next roadmap phase. Installed-app owner acceptance remains pending.
+- Release commit/tag `v1.0.4`: `0b580b4573c051c49cb2addcf94903dbd7f28fbf`, pushed to origin/master. Windows run https://github.com/JekdoTH/SUD_D/actions/runs/37288343917 SUCCESS: required tests, packaging, version/revision/master ancestry/provenance, signing identity, manifest/hash verification, publication and temporary-key cleanup PASS. Existing protected-environment approval was fulfilled under the owner's publication authorization; protections were retained.
+- Latest stable release https://github.com/JekdoTH/SUD_D/releases/tag/v1.0.4 is public, non-draft and non-prerelease. Anonymous HEAD HTTP 200 for all five assets; independent public manifest signature, exact version/revision, canonical notes and feed SHA-512 consistency PASS. Installer SHA-256 from GitHub asset digest: `42b396391eeae4cea61ba2071a4555f3bfef8070423b89058a4d93cfeaa3a435`. Local evidence: `.serena/reports/v1.0.4-public-verification.json`. Publication STOP reached; installed-app owner acceptance remains pending. No next roadmap phase started.
 - Owner acceptance after publication: update the installed app, confirm v1.0.4, use a normal prompt in a fresh chat with no active mission, then separately request Team Mode and approve the matching request in Activity. An existing active mission is preserved across update; use Stop Team when intentionally returning that Workspace to Normal Mode.
 
 ## Team opt-in — owner acceptance failure (2026-10-05)
@@ -2175,7 +2176,7 @@ Exit code 0
 
 ## Immediate Next Action
 
-Current checkpoint: v1.0.3 publication and public verification complete. Owner next action: installed-app Check for Updates → Download Update → Restart & Update and verify v1.0.3 / revision `56d3a5e`. The candidate notes above retain their earlier verification scope; current Normal Mode/Handshake dev acceptance is confirmed, while installed v1.0.3 acceptance remains pending.
+Current checkpoint: v1.0.4 publication and public verification complete. Owner next action: installed-app Check for Updates → Download Update → Restart & Update and verify v1.0.4 / revision `0b580b4`. Test Normal Mode with no active mission, then explicit Team request → matching manual Approval → exact retry. Existing missions are preserved; use Stop Team when intentionally returning to Normal. Installed-app owner acceptance remains pending; earlier candidate entries are historical evidence.
 
 The owner authorized committing/pushing the roadmap documentation. Later work follows [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md), with a separate implementation instruction for each phase.
 
@@ -2185,7 +2186,7 @@ Team opt-in candidate was committed/pushed as `313e5b9`; diagnosis notes as `7be
 
 ## Last Commit SHA
 
-Published v1.0.3 release commit/tag: `56d3a5eda356cadb56a350f54fa4c7c4256e71e7` — `fix: release v1.0.3 Team opt-in and verify profile errors`. Publication record is a subsequent documentation-only commit. The entries below are historical milestone references.
+Published v1.0.4 release commit/tag: `0b580b4573c051c49cb2addcf94903dbd7f28fbf` — `fix: require user approval to start Team Mode`. Publication record is a subsequent documentation-only commit. The entries below are historical milestone references.
 
 Branding Logo + App Icon v2 implementation:
 

@@ -243,7 +243,7 @@ This acceleration changes sequencing and scope, not the security architecture. N
 
 ### Approved Post-MVP Order — Product Owner decision (2026-10-05)
 
-Direction approval is not implementation authorization. Each phase needs its own explicit task; Parallel Coding requires an approved architecture specification before implementation. v1.0.3 is published; its real installed-app and Team opt-in acceptance remains the current closure checkpoint.
+Direction approval is not implementation authorization. Each phase needs its own explicit task; Parallel Coding requires an approved architecture specification before implementation. v1.0.4 is published; its installed-app manual Team opt-in acceptance remains the current closure checkpoint.
 
 #### Phase 0 — Current closure
 
