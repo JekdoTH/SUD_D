@@ -243,7 +243,7 @@ This acceleration changes sequencing and scope, not the security architecture. N
 
 ### Approved Post-MVP Order — Product Owner decision (2026-10-05)
 
-Direction approval is not implementation authorization. Each phase needs its own explicit task; Parallel Coding requires an approved architecture specification before implementation. v1.0.5 is published; installed-app Current activity and manual Team opt-in owner acceptance remain the current closure checkpoint.
+Direction approval is not implementation authorization. Each phase needs its own explicit task; Parallel Coding requires an approved architecture specification before implementation. v1.0.5 is published; owner-authorized v1.0.6 Phase 1 publication is pending Windows CI, followed by installed-app acceptance. No subsequent phase is authorized.
 
 #### Phase 0 — Current closure
 
@@ -251,7 +251,7 @@ Complete owner acceptance of the installed Team opt-in fix: no active mission pl
 
 #### Phase 1 — Connection Auto Recovery / Auto Restart — manual initial Connect only
 
-Product Owner decision (2026-10-05): Auto Start is removed from product direction. Every fresh app session stays disconnected until the user explicitly presses Connect. The Phase 1 candidate now implements bounded recovery only for unexpected managed-runtime failure inside that manually started, session-local connection intent, with cancellation on Disconnect, shutdown or Restart & Update. Existing profile values are preserved; newly created profiles default Auto Recovery ON while `autoStart=false`, and this never auto-connects on launch. Architecture-approved design and implementation details are in [Connection Auto Recovery design](docs/superpowers/specs/2026-10-05-connection-auto-recovery-design.md) and [implementation plan](docs/superpowers/plans/2026-10-05-connection-auto-recovery.md). Owner real-app smoke and final repair/focused re-review have passed; the candidate is ready for a separate explicit commit/push authorization. Keep the fixed-purpose connection lifecycle, Secure Tunnel and credential boundaries; the renderer cannot select executable, argv, cwd or env.
+Product Owner decision (2026-10-05): Auto Start is removed from product direction. Every fresh app session stays disconnected until the user explicitly presses Connect. Phase 1 implements bounded recovery only for unexpected managed-runtime failure inside that manually started, session-local connection intent, with cancellation on Disconnect, shutdown or Restart & Update. Existing profile values are preserved; newly created profiles default Auto Recovery ON while `autoStart=false`, and this never auto-connects on launch. Architecture-approved design and implementation details are in [Connection Auto Recovery design](docs/superpowers/specs/2026-10-05-connection-auto-recovery-design.md) and [implementation plan](docs/superpowers/plans/2026-10-05-connection-auto-recovery.md). Owner real-app smoke and final repair/focused re-review passed. The owner authorized commit/push/release; commit `8a962e3` and tag `v1.0.6` are pushed, with publication pending Windows CI. Keep the fixed-purpose connection lifecycle, Secure Tunnel and credential boundaries; the renderer cannot select executable, argv, cwd or env.
 
 #### Phase 2 — Parallel Coding Team architecture / design
 
@@ -424,7 +424,7 @@ This inventory distinguishes shipped bounded tools from approved future directio
 | Status | Capability / boundary |
 | --- | --- |
 | Implemented / Complete | Workspace read/search/create/write; Tool Kernel / Basic Approval / Audit; local and bounded GitHub Git workflows; managed Serena 1.7.0 lifecycle/repair and semantic `code.*`; Restricted Verify; local Work Memory; sequential Team Mode V3; Windows installer and signed in-app update. |
-| Implemented candidate / pending integration | Phase 1 Connection Auto Recovery / Auto Restart with manual initial Connect only (Auto Start rejected), bounded 1s/3s/10s retries, 60-second stability reset, credential-revision invalidation and fail-closed shutdown/update handling. Owner smoke and final repair/focused re-review passed; explicit commit/push authorization remains separate. |
+| Integrated / publication pending | Phase 1 Connection Auto Recovery / Auto Restart with manual initial Connect only (Auto Start rejected), bounded 1s/3s/10s retries, 60-second stability reset, credential-revision invalidation and fail-closed shutdown/update handling. Owner smoke and final repair/focused re-review passed; owner-authorized commit/tag `v1.0.6` pushed, Windows release CI pending. |
 | Approved, not implemented — ordered | Design-first Parallel Coding Team with coordination, internal Task isolation and Lead integration; Computer Use after stable Parallel Coding. Each requires its own explicit task and gates above. |
 | Later / usage-driven | Restricted Project Runner expansion; full Recovery / Safe Delete; self-contained uv bootstrap; controlled Serena update/rollback; Team Presets; user-facing GitHub repository creation / Worktree UI; direct production client-connected signal. |
 | Blocked | Restricted Execute / general process execution: sandbox enforcement was not proven on the secondary device. No generic shell or unsandboxed fallback is exposed. Fixed-purpose Restricted Verify is implemented independently. |

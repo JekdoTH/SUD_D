@@ -1,13 +1,13 @@
 # Phase 1 — Connection Auto Recovery / Auto Restart
 
 Date: 2026-10-05. Baseline: `42789cdfa9da6a09932c7146102c1a6a7fce269f` (clean working tree).
-Status: **Architecture Review approved. Phase 1 implementation, owner smoke, final repair pass and focused re-review are complete; commit/push and release remain separately authorized.**
+Status: **Architecture Review approved. Phase 1 implementation, owner smoke, final repair pass and focused re-review are complete. The owner subsequently authorized commit/push/release; commit `8a962e3` and tag `v1.0.6` are pushed, with publication pending Windows CI.**
 
 ## Approved product decisions
 
 Every fresh Desktop process starts disconnected. Only the user pressing Connect establishes initial connection intent; configured credentials, Workspace, old settings and previous ChatGPT activity confer no intent. Auto Start is removed from product direction. Intent lives only in the current app process. Disconnect, normal quit and Restart & Update cancel recovery before cleanup. Recovery is limited to unexpected failure of the SUD-D-managed runtime; client absence alone never starts recovery. Attempts must be finite, configuration failures fail closed, and existing fixed-purpose runtime/credential/Workspace/Policy boundaries remain intact.
 
-Architecture Review ratified the implementation details below. Phase 1 changes production source only within the approved lifecycle boundary; there is no database migration, release or installer work.
+Architecture Review ratified the implementation details below. The implementation task changed production source only within the approved lifecycle boundary and performed no database migration. The subsequent owner-authorized release checkpoint is tracked separately in the Handoff.
 
 ## Baseline lifecycle and evidence
 
