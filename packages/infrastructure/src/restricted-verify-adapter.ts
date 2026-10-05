@@ -50,15 +50,25 @@ export function resolveRestrictedVerifyProfile(
 ): RestrictedVerifyLaunchPlan {
   const environment = options.hostEnvironment ?? process.env;
   const manifestPath = path.join(options.workspaceRoot, 'package.json');
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
-    readonly packageManager?: unknown;
-    readonly scripts?: Record<string, unknown>;
-  };
-  const script = manifest.scripts?.[options.action];
+  let manifest: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new RestrictedVerifyFailure('VERIFY_PROFILE_UNAVAILABLE');
+    }
+    manifest = parsed as Record<string, unknown>;
+  } catch {
+    throw new RestrictedVerifyFailure('VERIFY_PROFILE_UNAVAILABLE');
+  }
+  const scripts = manifest['scripts'];
+  if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) {
+    throw new RestrictedVerifyFailure('VERIFY_PROFILE_UNAVAILABLE');
+  }
+  const script = (scripts as Record<string, unknown>)[options.action];
   if (typeof script !== 'string' || script.length === 0) {
     throw new RestrictedVerifyFailure('VERIFY_PROFILE_UNAVAILABLE');
   }
-  const packageManager = typeof manifest.packageManager === 'string' ? manifest.packageManager : '';
+  const packageManager = typeof manifest['packageManager'] === 'string' ? manifest['packageManager'] : '';
   let cliPath: string;
   if (packageManager.startsWith('pnpm@')) {
     const appData = environment['APPDATA'];

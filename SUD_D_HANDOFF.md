@@ -1,5 +1,22 @@
 # SUD_D Handoff
 
+## v1.0.3 — owner-authorized installed-app release preparation (2026-10-05)
+
+- Owner requested the installed Desktop app release after dev acceptance: current Workspace has no active Team mission; live Desktop audit records `VERIFY_PASSED` for `verify.run(test)` with exit 0 and untruncated output. ChatGPT reports canonical v4.10.9 Runtime Handshake PASS and starts FRESH workflow. This confirms the current Normal Mode/Handshake flow, not completion of all production/final-file validators or the separate explicit Team control test.
+- Authorized publication scope: Team opt-in instructions from `313e5b9` plus safe missing/invalid verification-profile errors. Patch version v1.0.3 uses the existing release workflow, signing and provenance gates. No new tool/action, broad Project Runner, generic Execute, dependency, UI redesign or Skill change.
+- Local closure: workflow-required seven release files 63/63 PASS with isolated test LOCALAPPDATA. Changed Verify evidence remains valid: 16 focused tests plus 5 project-profile negatives PASS, Infrastructure typecheck/build, focused lint and diff checks PASS. Owner-authorized SUD-D commit/push/tag follows; installer/package/sign/publication evidence will be recorded after CI completes.
+- Builder Skill's declared project profile remains in that separate local Workspace, not in the SUD-D installer or Git history. It uses the existing `verify.run(test)` action. Other machines need the project configuration and its documented local host runtime prerequisites; publishing the app does not install a Skill or synchronize Workspaces.
+- STOP after verified publication and public asset/signature/feed checks, or on a required gate/environment blocker. Installed-app v1.0.3 update acceptance follows publication; owner authorization now permits the required SUD-D commit/push/tag. Do not commit the separate Builder Skill repository without explicit authorization for that repository.
+
+## Builder Skill Runtime Handshake — OWNER-TEST CANDIDATE (2026-10-05)
+
+- Baseline `7be9473`; owner authorized the planned fix. Restricted Verify now normalizes absent/unreadable/malformed/non-object manifests and invalid script maps to safe `VERIFY_PROFILE_UNAVAILABLE` instead of leaking through as `INTERNAL_ERROR`. No tool/action, Kernel, Policy, Approval or runtime DTO changed.
+- Used the existing declared project `test` profile rather than adding a new runner: created `package.json`, `scripts/verify-skill-runtime.mjs`, `scripts/verify-skill-runtime.test.mjs`, and `scripts/README-verification.md` in the separate Builder Skill Workspace (`C:\1.งานโด้\Skill builder\Skill-Script-ALL`). No dependency install, canonical Skill/Role/hash-manifest edit, old output read, production draft, or runtime DB mutation. Those four project files are not part of this SUD-D Git repository and remain uncommitted there; no Git operations were performed in Builder Skill.
+- The profile accepts no arguments, pins ghost-horror v4.10.9 contract/verifier hashes, validates canonical identity and package containment, and runs the actual declared Python verifier with `-I -B`. Host uv/Python resolution uses fixed host locations, offline/no-download/system-managed mode and no project/config discovery. Missing runtime, changed version/verifier/contract or outside junction fails closed; there is no generic shell fallback. Profile scope is Runtime Handshake only, not final-script/fresh-output validators.
+- Evidence: new manifest regression RED on the original ENOENT, then GREEN. Restricted Verify tests 16 PASS across initial run (15 PASS, sandbox timeout cleanup failure) plus isolated timeout rerun outside sandbox (1 PASS); no product change to bypass cleanup restrictions. Profile negative regression 5/5 PASS against temporary fixtures. Real built Infrastructure adapter → project npm test → canonical Python verifier PASS: `passed: true`, exit 0, JSON `pass: true`, signature `GH-4.10.9-XMACHINE-HASH-V1`, no failures, untruncated output. This is the real adapter execution seam, not a live MCP/Approval owner acceptance.
+- Infrastructure typecheck/build, focused ESLint and diff checks PASS. No full repository suite, installer, tag, release, commit or push in this candidate. Local details: `.serena/reports/builder-skill-verification-owner-test-candidate.md`.
+- Next action: restart dev SUD-D so rebuilt Infrastructure is loaded, reconnect with a new ChatGPT session, select Builder Skill, `work.resume`, request `verify.run(test)`, approve the pending exact action and retry. Confirm the runtime identity/PASS evidence before proceeding with the normal production Skill. Follow with the unchanged-Brief Normal Mode routing test; do not mark either owner acceptance complete before it runs.
+
 ## Builder Skill Runtime Handshake — diagnosed integration blocker (2026-10-05)
 
 - Read-only inspection of local Desktop DB confirms active Workspace `Builder Skill` at `C:\1.งานโด้\Skill builder\Skill-Script-ALL`; two recent `restricted_verify.run` audit entries show action `test`, result `INTERNAL_ERROR`, matching the owner report.
@@ -2136,15 +2153,15 @@ Exit code 0
 
 ## Immediate Next Action
 
-Owner tests the local Team opt-in candidate using fresh MCP initialization and a new ChatGPT chat. Call `work.resume`, inspect `team.status` for no active mission, then use the unchanged production-script bootstrap → “บันทึกเรื่องหลอน” → normal Brief. Expect canonical ghost-horror Skill / normal handshake and duration workflow, with no `team.start`. Use a separate fresh chat explicitly requesting Team Mode for the control. Do not stop an existing mission silently; use a Workspace without an active mission or obtain an explicit owner stop decision.
+Current checkpoint: publish the owner-authorized v1.0.3 installed-app release after the existing required release gates. After publication, installed-app Check for Updates → Download Update → Restart & Update and verify v1.0.3/revision. The candidate notes below retain their earlier verification scope; current Normal Mode/Handshake dev acceptance is confirmed above.
 
-The published installed-app v1.0.2 is accepted; this local source candidate needs a restarted development gateway to load its new instructions. It is not included in the installed release. Do not package or release it in this task.
+After installed-app update, open a fresh ChatGPT session and use the normal unchanged production bootstrap/Brief. Expect canonical ghost-horror Runtime Handshake through the configured project profile and no unsolicited `team.start`. Use a separate fresh chat explicitly requesting Team Mode for the control. Do not stop an existing mission silently; use a Workspace without one or obtain the owner's explicit stop decision. Other final production validators remain outside this profile's scope.
 
-**STOP after owner-authorized commit/push of this candidate.** Resume the fresh-session unchanged-Brief test tomorrow; do not mark routing acceptance PASS yet. Restricted Execute remains BLOCKED; no release, new capability or milestone starts here.
+Team opt-in candidate was committed/pushed as `313e5b9`; diagnosis notes as `7be9473`. Its routing acceptance is still pending. Restricted Execute remains BLOCKED; this verification-profile candidate does not enable broader Project Runner, generic Execute or shell.
 
 ## Last Commit SHA
 
-Current candidate baseline: `9548fb8` — `docs: record verified v1.0.2 publication`. Owner authorized the Team opt-in candidate commit/push; resolve its SHA from Git history. The entries below are historical milestone references.
+Current release baseline: `7be9473` — `docs: record Skill verification integration blocker`. Resolve the owner-authorized v1.0.3 release commit/tag from Git history after preparation. The entries below are historical milestone references.
 
 Branding Logo + App Icon v2 implementation:
 

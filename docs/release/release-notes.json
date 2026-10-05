@@ -1,11 +1,9 @@
 {
-  "new": [
-    "Show an in-app update notice on startup with View Update and Later, leaving download and installation to the user."
-  ],
+  "new": [],
   "improved": [
-    "Keep update availability visible in navigation after deferring the notice for the current app session."
+    "Use Normal Mode when no Team mission is active; start a new Team mission only when explicitly requested."
   ],
   "fixed": [
-    "Refresh Update status while the page is open, so completed checks appear without switching tabs."
+    "Report missing or invalid project verification profiles clearly instead of a generic internal error."
   ]
 }

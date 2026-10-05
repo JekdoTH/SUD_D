@@ -207,6 +207,22 @@ describe('Restricted Verify profile resolver', () => {
   });
 });
 describe('Restricted Verify profile failures', () => {
+  it('reports absent, malformed and invalid manifest shapes as unavailable without leaking host errors', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sud-d-verify-manifest-'));
+    tempDirs.push(root);
+    const resolve = () => resolveRestrictedVerifyProfile({
+      workspaceRoot: root, action: 'test', nodeExecutable: process.execPath,
+    });
+    const manifestPath = path.join(root, 'package.json');
+    for (const manifest of [undefined, '{invalid', 'null', '[]', '"text"', '{"scripts":null}']) {
+      if (manifest !== undefined) fs.writeFileSync(manifestPath, manifest, 'utf8');
+      expect(resolve).toThrow(expect.objectContaining({ code: 'VERIFY_PROFILE_UNAVAILABLE' }));
+      try { resolve(); } catch (error) {
+        expect(String(error)).not.toContain(root);
+        expect(String(error)).not.toMatch(/ENOENT|SyntaxError|TypeError/);
+      }
+    }
+  });
   it('fails closed with a stable code for unsupported or missing project profiles', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sud-d-verify-profile-deny-'));
     tempDirs.push(root);
