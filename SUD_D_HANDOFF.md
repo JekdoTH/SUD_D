@@ -1,5 +1,19 @@
 # SUD_D Handoff
 
+## v1.0.4 Team startup manual Approval — release preparation (2026-10-05)
+
+- Owner explicitly authorized the reliable Team opt-in repair and installed-app publication. Baseline `c53a24c`. Normal work requires no mode command; every new `team.start` now requires manual Desktop Approval, including Approve for me / Full Access. Pending or denied requests create no mission. Approval binds the exact goal, Workspace and runtime; a Workspace change before execution fails closed. Existing active missions and role transitions remain intact; no live DB or mission was modified.
+- Desktop Activity shows a short request ID for matching the chat request and the Workspace ID. Gateway instructions require an explicit Team request, waiting for manual approval and retrying the exact request. The Kernel prevents automatic startup; it does not authenticate natural-language intent or prevent an AI from submitting an unsolicited pending request.
+- Focused evidence: Team startup 9, Team mode 10, Approval security 22, Basic Approval 5, Team security 7, Team Desktop 7, atomicity 4, Approval Desktop 12, Work Resume guard 3 and Approval production 11 tests PASS. Required release seven files / 63 tests PASS. Two existing parallel-run timeouts passed isolated reruns; no timeout or product bypass was introduced. Domain/Application/Gateway builds, renderer typecheck/build, focused ESLint and diff checks PASS. Built renderer smoke PASS for request matching, pending state, explicit Approve/Deny and 780px layout; fixtures used no live user state. Independent Standards and Spec reviews have no remaining findings after the Workspace race and request-correlation fixes.
+- Next: commit/push the scoped fix, publish v1.0.4 through the existing Windows verification/signing/provenance workflow, then verify public assets/signature/feed. STOP after publication gates and public checks, or a real blocker; no next roadmap phase. Installed-app owner acceptance remains pending.
+- Owner acceptance after publication: update the installed app, confirm v1.0.4, use a normal prompt in a fresh chat with no active mission, then separately request Team Mode and approve the matching request in Activity. An existing active mission is preserved across update; use Stop Team when intentionally returning that Workspace to Normal Mode.
+
+## Team opt-in — owner acceptance failure (2026-10-05)
+
+- Owner reports no explicit Team request for the MONEY CONTROL Brief; Desktop screenshot shows an active Worker mission at Task 3/5. Read-only local audit confirms a new `TEAM_MISSION_STARTED` at 2026-10-05 15:38:25 Asia/Bangkok, not resumption of the older stopped/completed missions.
+- Installed package is v1.0.3; its packaged MCP Gateway contains the new instruction against automatic Team startup. Current `team.start` validates a goal and Workspace context, but does not require trusted evidence of user mode selection. Instruction-only opt-in has not established reliable owner acceptance; the exact chat tool-call/initialization context remains uninspected.
+- Phase 0 remains open with this reported failure. Next action: inspect the initiating chat's tool trace/session context and define a bounded reliable opt-in fix; preserve current work and do not silently stop the active mission. No runtime/source, DB or mission mutation was made during diagnosis.
+
 ## Post-MVP roadmap sync — owner-approved documentation (2026-10-05)
 
 - Updated README, stable Context and the authoritative Roadmap for the owner's approved post-MVP direction; sequencing and rationale live only in [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md). No runtime/source, installer or package changes. Owner reviewed the documentation summary and explicitly authorized commit/push on 2026-10-05.

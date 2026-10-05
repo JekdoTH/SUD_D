@@ -12,6 +12,7 @@ export type PolicyContext =
   | 'github_network';
 
 export interface PolicyRequest {
+  readonly capability?: string;
   readonly effect: Effect;
   readonly sensitivity: Sensitivity;
   readonly context: PolicyContext;
@@ -35,6 +36,10 @@ export function evaluatePolicy(req: PolicyRequest): PolicyDecision {
   // Generic network remains denied.
   if (req.context === 'network') {
     return { decision: 'deny', reason: 'Network access is not permitted' };
+  }
+
+  if (req.capability === 'team.start') {
+    return { decision: 'ask', reason: 'Starting Team Mode requires the user to approve this mission' };
   }
 
   // Reviewed fixed-purpose GitHub network operations require Approval.

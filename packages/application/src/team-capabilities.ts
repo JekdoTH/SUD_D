@@ -38,7 +38,14 @@ export function createTeamCapabilities(
       effect: 'create',
       validate: validateStartInput,
       resolveSecurity: dependencies.resolveWorkspaceSecurity,
-      execute(input) { return dependencies.teamService.start(input); },
+      approval: {
+        describe: (_input, security) => ok({ title: 'Start Team Mode for this task', resourceLabel: `Workspace ${security.workspaceId}` }),
+        bind: (input) => ok({ goal: input.goal }),
+      },
+      execute(input, context) {
+        if (!context.security.workspaceId) return err(appError('VALIDATION_FAILED', 'A Workspace is required to start Team Mode'));
+        return dependencies.teamService.start(input, context.security.workspaceId);
+      },
     }),
     defineToolCapability<TeamStatusInput, unknown>({
       name: 'team.status',

@@ -76,6 +76,7 @@ const GITHUB_NETWORK_AUTO_APPROVAL_CAPABILITIES = new Set([
 ]);
 
 function isAutoApprovalEligible(mode: ApprovalMode, request: ApprovalAuthorizationRequest): boolean {
+  if (request.capability === 'team.start') return false;
   if (mode === 'standard') return false;
 
   if (request.security.context === 'github_network') {

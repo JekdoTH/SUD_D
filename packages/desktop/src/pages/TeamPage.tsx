@@ -129,7 +129,7 @@ export function TeamPage(): React.ReactElement {
         ) : !mission ? (
           <div className="empty-state compact-empty">
             <strong>No active mission</strong>
-            <span>Start Team Mode from the connected AI with team.start(goal). Team tools only maintain orchestration state.</span>
+            <span>Use your normal prompt for Normal Mode. To use Team Mode, request it in the connected chat, then approve “Start Team Mode for this task” in SUD-D. Each new mission needs your approval, including in Full Access mode.</span>
           </div>
         ) : (
           <div className="team-details">

@@ -27,7 +27,7 @@ See the [Windows install and update guide](docs/release/PERSONAL_ALPHA_INSTALL.m
 
 ### Normal Mode and Team Mode
 
-Without an active Team mission, ordinary Skill/project work uses Normal Mode. Complexity alone does not start a new Team mission. To start one, explicitly request **Team Mode** in your prompt.
+Without an active Team mission, ordinary Skill/project work uses Normal Mode. To start a new mission, explicitly request **Team Mode** in your prompt, then manually approve **Start Team Mode for this task** in SUD-D. Each new mission requires this approval, including in Full Access mode. Pending or denied requests create no mission.
 
 An existing active mission can resume: after `work.resume`, the AI calls `team.status` and continues its bounded assignment. Current Team V3 uses sequential logical roles through one connected AI session; parallel Workers are planned separately.
 

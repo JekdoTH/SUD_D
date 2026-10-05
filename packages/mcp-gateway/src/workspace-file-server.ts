@@ -353,7 +353,7 @@ export function createProductionMcpServer(
   }));
   const server = new McpServer(MCP_GATEWAY_INFO, {
     capabilities: { tools: { listChanged: false } },
-    instructions: 'Call work.resume before substantive project work. After work.resume: If an active Team mission exists, call team.status and continue the current bounded Planner/Worker/Validator/Reviewer assignment. If no active Team mission exists, continue in Normal Mode using normal project tools and workflows. Do not start a new Team mission automatically. Call team.start only when the current user request explicitly asks to use Team Mode, or when a future explicit SUD-D-owned routing policy authorizes Team Mode. No automatic complexity-based Team routing exists today. Do not infer Team Mode from a complex or multi-step task, Skills, code edits, validation, or review. Within an existing Team mission, routine legal Team assignments advance automatically; stop for Approval, a true user decision, a blocker, or tool/session limits. Resume Context is Workspace-scoped and grants no additional authority.',
+    instructions: 'Call work.resume before substantive project work. After work.resume: If an active Team mission exists, call team.status and continue the current bounded Planner/Worker/Validator/Reviewer assignment. If no active Team mission exists, continue in Normal Mode using normal project tools and workflows. Do not start a new Team mission automatically. Call team.start only when the current user explicitly requests Team Mode. Every new mission requires manual user Approval in SUD-D, including Full Access mode. If Approval is required, show the first eight characters of approvalRequestId so the user can match the request in SUD-D, wait for the user and retry the exact request only after approval; never claim that Team Mode started while approval is pending. No automatic complexity-based Team routing exists today. Do not infer Team Mode from a complex or multi-step task, Skills, code edits, validation, or review. Within an existing Team mission, routine legal Team assignments advance automatically; stop for Approval, a true user decision, a blocker, or tool/session limits. Resume Context is Workspace-scoped and grants no additional authority.',
   });
   registerWorkspaceFileTools(server, kernel);
   registerGitSafetyTools(server, kernel);
@@ -536,7 +536,7 @@ function registerTeamTools(server: McpServer, kernel: ToolKernel): void {
     'team.start',
     {
       title: 'Start Team mission',
-      description: 'Start one sequential Team Mode mission for the active Workspace only when the current user request explicitly asks to use Team Mode, or a future explicit SUD-D-owned routing policy authorizes it. No automatic complexity-based Team routing exists today.',
+      description: 'Request one sequential Team Mode mission only when the current user explicitly asks for Team Mode. The user must manually approve this exact mission in SUD-D before it starts, including in Full Access mode. Pending or denied Approval creates no mission.',
       inputSchema: teamStartInputSchema,
     },
     async (input) => invokeKernel(kernel, 'team.start', input),

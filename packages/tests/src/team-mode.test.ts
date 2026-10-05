@@ -5,6 +5,7 @@ import path from 'node:path';
 import { PassThrough } from 'node:stream';
 
 import {
+  createApprovalCoordinator,
   createTeamCapabilities,
   createTeamService,
   createToolCapabilityRegistry,
@@ -13,6 +14,7 @@ import {
 } from '@sud-d/application';
 import {
   canonicalizePath,
+  createApprovalRepository,
   createAuditRepository,
   createTeamRepository,
   createTeamTransitionUnitOfWork,
@@ -356,14 +358,14 @@ describe('Team Mode - state machine and persistence', () => {
 });
 
 describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
-  it('registers four orchestration-only Team capabilities with fixed effects and no approval authority', async () => {
+  it('registers four Team capabilities with owner approval required only for startup', async () => {
     const h = makeHarness();
     const capabilities = createTeamCapabilities({
       teamService: h.service,
       resolveWorkspaceSecurity: () => ({ ok: true, value: { sensitivity: 'normal', context: 'workspace', workspaceId: h.workspace.id } }),
     });
     expect(capabilities.map((capability) => [capability.name, capability.effect, Boolean(capability.approval)])).toEqual([
-      ['team.start', 'create', false],
+      ['team.start', 'create', true],
       ['team.status', 'read', false],
       ['team.submit', 'modify', false],
       ['team.stop', 'modify', false],
@@ -373,7 +375,13 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
     const registry = createToolCapabilityRegistry(capabilities);
     expect(registry.ok).toBe(true);
     if (!registry.ok) throw new Error('registry failed');
-    const kernel = createToolKernel({ registry: registry.value, audit: h.auditRepo });
+    const approvalRepo = createApprovalRepository(h.db);
+    const approval = createApprovalCoordinator({ repository: approvalRepo, runtimeInstanceId: 'team-test', hmacKey: Buffer.alloc(32, 5) });
+    const kernel = createToolKernel({ registry: registry.value, audit: h.auditRepo, approval });
+    const pending = await kernel.invoke({ invocationId: 'team-pending', session: { id: 'team-test', type: 'mcp-stdio' }, capability: 'team.start', input: { goal: 'Coordinate a safe mission' } });
+    if (pending.ok || !pending.approvalRequestId) throw new Error('Expected owner approval');
+    expect(h.service.status({})).toMatchObject({ ok: true, value: null });
+    expect(approvalRepo.respond(pending.approvalRequestId, 'approve').ok).toBe(true);
     const start = requireExecuted<TeamMissionView>(await kernel.invoke({
       invocationId: `team-${++invocationCounter}`,
       session: { id: 'team-test', type: 'mcp-stdio' },
@@ -393,7 +401,10 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
 
   it('production MCP exposes exactly 39 tools with only the approved semantic reads and writes', async () => {
     const h = makeHarness();
+    const approvalRepo = createApprovalRepository(h.db);
+    const approval = createApprovalCoordinator({ repository: approvalRepo, runtimeInstanceId: 'mcp-team-test', hmacKey: Buffer.alloc(32, 6) });
     const server = createProductionMcpServer({
+      approval,
       workspaceRepo: h.workspaceRepo,
       gitSettingsRepo: createWorkspaceGitSettingsRepository(h.db),
       auditRepo: h.auditRepo,
@@ -425,7 +436,12 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
     expect(parsePayload(await reader.next())).toMatchObject({ ok: true, code: 'EXECUTED' });
 
     send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'team.start', arguments: { goal: 'Build a no-execute team plan' } } });
-    expect(parsePayload(await reader.next())).toMatchObject({ ok: true, code: 'EXECUTED', policyDecision: 'allow', value: { state: 'planning', currentRole: 'planner' } });
+    const pending = parsePayload(await reader.next());
+    expect(pending).toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED', policyDecision: 'ask' });
+    expect(h.service.status({})).toMatchObject({ ok: true, value: null });
+    expect(approvalRepo.respond(pending.approvalRequestId as string, 'approve').ok).toBe(true);
+    send({ jsonrpc: '2.0', id: 31, method: 'tools/call', params: { name: 'team.start', arguments: { goal: 'Build a no-execute team plan' } } });
+    expect(parsePayload(await reader.next())).toMatchObject({ ok: true, code: 'EXECUTED', policyDecision: 'ask', value: { state: 'planning', currentRole: 'planner' } });
     expect(h.workMemoryRepo.loadCurrent(h.workspace.id)).toMatchObject({ ok: true, value: { task: { title: 'Plan Team mission', status: 'in_progress' }, nextAction: 'Plan the Team mission and submit plan_ready.' } });
 
     send({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'team.submit', arguments: { outcome: 'plan_ready', summary: 'Plan ready', workItems: [{ title: 'Use existing workspace tools', targetPathHint: 'README.md' }] } } });

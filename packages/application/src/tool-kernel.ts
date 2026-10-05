@@ -200,6 +200,7 @@ export function createToolKernel(options: CreateToolKernelOptions): ToolKernel {
       let policyDecision: PolicyDecision;
       try {
         policyDecision = evaluatePolicy({
+          capability: capability.name,
           effect: capability.effect,
           sensitivity: security.value.sensitivity,
           context: security.value.context,

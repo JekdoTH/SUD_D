@@ -1,9 +1,10 @@
 {
   "new": [],
   "improved": [
-    "Use Normal Mode when no Team mission is active; start a new Team mission only when explicitly requested."
+    "Match Team Mode approval requests between your chat and SUD-D using a request identifier."
   ],
   "fixed": [
-    "Report missing or invalid project verification profiles clearly instead of a generic internal error."
+    "Require manual user approval before starting every new Team mission, including in Full Access mode.",
+    "Prevent a Workspace change from redirecting an approved Team startup to another Workspace."
   ]
 }

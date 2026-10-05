@@ -110,7 +110,7 @@ export interface TeamStopInput {
 }
 
 export interface TeamService {
-  start(input: TeamStartInput): Result<TeamMissionView, AppError>;
+  start(input: TeamStartInput, expectedWorkspaceId?: string): Result<TeamMissionView, AppError>;
   status(input?: TeamStatusInput): Result<TeamMissionView | null, AppError>;
   submit(input: TeamSubmitInput): Result<TeamMissionView, AppError>;
   stop(input?: TeamStopInput): Result<TeamMissionView, AppError>;
@@ -122,9 +122,12 @@ export function createTeamService(dependencies: TeamServiceDependencies): TeamSe
   const now = dependencies.now ?? (() => new Date());
 
   const service: TeamService = {
-    start(input) {
+    start(input, expectedWorkspaceId) {
       const workspace = getActiveWorkspace(dependencies.workspaceRepo);
       if (!workspace.ok) return workspace;
+      if (expectedWorkspaceId !== undefined && workspace.value.id !== expectedWorkspaceId) {
+        return err(appError('VALIDATION_FAILED', 'Workspace changed; request Team Mode again in the selected Workspace'));
+      }
       const summary = sanitizeText(input.goal, TEAM_LIMITS.maxGoalSummaryChars);
       if (!summary) return err(appError('VALIDATION_FAILED', 'Team mission goal is required'));
       const active = dependencies.teamRepo.findActiveByWorkspace(workspace.value.id);

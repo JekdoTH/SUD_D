@@ -114,6 +114,7 @@ export function ActivityPage(): React.ReactElement {
                 <div className="approval-row" key={approval.id}>
                   <div className="approval-context">
                     <strong>{approval.title}</strong>
+                    {approval.capability === 'team.start' && <div className="approval-resource">Request: {approval.id.slice(0, 8)} — approve only if you requested Team Mode in your chat.</div>}
                     {approval.resourceLabel && <div className="approval-resource">{approval.resourceLabel}</div>}
                     <div className="activity-details">
                       <span>Capability: {approval.capability}</span>

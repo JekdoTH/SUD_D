@@ -247,7 +247,7 @@ Direction approval is not implementation authorization. Each phase needs its own
 
 #### Phase 0 — Current closure
 
-Complete owner acceptance of v1.0.3 and Team opt-in: no active Team mission plus no explicit Team request means Normal Mode without `team.start`; an explicit Team request must still start the sequential Team normally. This closes existing behavior, not a new feature milestone.
+Complete owner acceptance of the installed Team opt-in fix: no active mission plus no explicit Team request means Normal Mode. Each new mission requires manual user approval in SUD-D, including in Full Access mode; an explicit Team request followed by approval must start sequential Team normally. The owner reported v1.0.3 instruction-only opt-in failed; current repair/release evidence belongs in the handoff. This closes existing behavior, not a new feature milestone.
 
 #### Phase 1 — Connection Auto Start / Auto Restart
 
@@ -429,7 +429,7 @@ This inventory distinguishes shipped bounded tools from approved future directio
 | Blocked | Restricted Execute / general process execution: sandbox enforcement was not proven on the secondary device. No generic shell or unsandboxed fallback is exposed. Fixed-purpose Restricted Verify is implemented independently. |
 | Not currently planned | Cloud Relay / device discovery / Work Memory sync; provider/model-selection runtime; macOS/Linux; enterprise/multi-user architecture. A general scheduler/background model runtime is not required for the approved manually opened chat approach. |
 
-`autoStart` / `autoRestart` are stored preferences, not running automation. The tunnel has a client-signal port, but production wiring is absent; this limitation does not invalidate the owner's real ChatGPT connection acceptance on Home and Work. Managed Serena can provision its pinned version through an available trusted `uv`; it is not a self-contained bootstrap on a machine without `uv`. The model-facing Team opt-in contract is instruction guidance, not a kernel proof of natural-language user intent.
+`autoStart` / `autoRestart` are stored preferences, not running automation. The tunnel has a client-signal port, but production wiring is absent; this limitation does not invalidate the owner's real ChatGPT connection acceptance on Home and Work. Managed Serena can provision its pinned version through an available trusted `uv`; it is not a self-contained bootstrap on a machine without `uv`. Model instructions guide explicit Team requests; the Kernel additionally requires manual user approval before each new mission. This grants no authority to infer user intent from a prompt.
 
 ### Privileged capability gate
 
