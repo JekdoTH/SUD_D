@@ -1,7 +1,7 @@
 # Phase 1 — Connection Auto Recovery implementation plan
 
 Date: 2026-10-05. Baseline: `42789cdfa9da6a09932c7146102c1a6a7fce269f`.
-Status: **Architecture-approved implementation plan. Phase 1 implementation, owner smoke and final repair/focused re-review are complete. Separate owner-authorized integration pushed commit `8a962e3` and tag `v1.0.6`; publication is pending Windows CI. The implementation-task STOP CONDITION below is retained as its historical scope.**
+Status: **Architecture-approved implementation plan. Phase 1 implementation, owner smoke and final repair/focused re-review are complete. Separate owner-authorized release `v1.0.6` / commit `8a962e3` is published; Windows CI and public asset verification PASS. Installed-app owner acceptance remains pending. The implementation-task STOP CONDITION below is retained as its historical scope.**
 
 Read [the design](../specs/2026-10-05-connection-auto-recovery-design.md) for authoritative lifecycle, retry, compatibility and UI semantics. Architecture Review approved this plan for implementation. Preserve unrelated changes and keep release/integration as a separate owner decision.
 
@@ -76,7 +76,7 @@ One final real Electron app/runtime smoke should cover:
 6. Quit with retry pending; verify no retry/child remains. Reopen disconnected. Verify Restart & Update cancellation through the real shared callback with a **fake provider**; do not publish/install a new release for this candidate. A live installed A→B update remains separate owner/release acceptance, not claimed by this smoke.
 7. Inspect Connection/Overview/shell agreement, recovery Disconnect, terminal Retry, keyboard focus/status announcements and narrower desktop wrapping. Keep test fixture/evidence local under .serena; use no real credentials in captures/logs.
 
-Owner smoke has passed for fresh launch/manual Connect, Auto Recovery ON/OFF, bounded 1s/3s/10s retries, 60-second reset, exhaustion/no attempt 4, terminal UI, Disconnect no-relaunch, normal app close and fresh reopen. Final re-review passed and the owner subsequently authorized commit/push/release. Integration is pushed; publication and installed update acceptance are tracked in the Handoff.
+Owner smoke has passed for fresh launch/manual Connect, Auto Recovery ON/OFF, bounded 1s/3s/10s retries, 60-second reset, exhaustion/no attempt 4, terminal UI, Disconnect no-relaunch, normal app close and fresh reopen. Final re-review passed and the owner subsequently authorized commit/push/release. v1.0.6 is published; publication evidence and pending installed update acceptance are tracked in the Handoff.
 
 ## Stop conditions
 

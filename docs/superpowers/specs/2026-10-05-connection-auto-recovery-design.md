@@ -1,7 +1,7 @@
 # Phase 1 — Connection Auto Recovery / Auto Restart
 
 Date: 2026-10-05. Baseline: `42789cdfa9da6a09932c7146102c1a6a7fce269f` (clean working tree).
-Status: **Architecture Review approved. Phase 1 implementation, owner smoke, final repair pass and focused re-review are complete. The owner subsequently authorized commit/push/release; commit `8a962e3` and tag `v1.0.6` are pushed, with publication pending Windows CI.**
+Status: **Architecture Review approved. Phase 1 implementation, owner smoke, final repair pass and focused re-review are complete. Owner-authorized release `v1.0.6` / commit `8a962e3` is published; Windows CI and public asset verification PASS. Installed-app owner acceptance remains pending.**
 
 ## Approved product decisions
 
