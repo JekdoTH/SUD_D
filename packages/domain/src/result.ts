@@ -1,5 +1,6 @@
 import type { CodingEngineFailureCode } from './coding-engine.js';
 import type { RestrictedVerifyFailureCode } from './restricted-verify.js';
+import type { ProjectRunnerFailureCode } from './project-runner.js';
 import type { WorkMemoryFailureCode } from './work-memory.js';
 
 // ---------------------------------------------------------------------------
@@ -77,6 +78,7 @@ export type AppErrorCode =
   | 'TEAM_STALE'
   | CodingEngineFailureCode
   | RestrictedVerifyFailureCode
+  | ProjectRunnerFailureCode
   | WorkMemoryFailureCode
   | 'VALIDATION_FAILED'
   | 'INTERNAL_ERROR';

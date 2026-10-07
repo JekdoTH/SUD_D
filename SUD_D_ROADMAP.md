@@ -245,7 +245,13 @@ This acceleration changes sequencing and scope, not the security architecture. N
 
 Direction approval is not implementation authorization. Each phase needs its own explicit task; Parallel Coding requires an approved architecture specification before implementation. v1.0.6 Phase 1 is published; installed-app owner acceptance is the current closure checkpoint. No subsequent phase is authorized.
 
+**Restricted Project Runner P0c — owner-authorized production slice (2026-10-07):** P0b Windows containment feasibility is accepted from the recorded real-OS AppContainer/Job/filesystem/network/process evidence. P0c is authorized for the smallest offline Node production slice. Aggregate writable-output/disk budget remains a mandatory P0c production-exposure gate and is not proven by P0b; `runner.start` stays unavailable until that budget and all other P0c security invariants are proven in the production path. This authorization grants no Network, secrets, generic shell, P0d Work Memory integration, Parallel Coding, package/release work, or automatic commit/push.
+
+**P0c.1 design-only review (2026-10-07): OUTPUT BROKER DESIGN BLOCKED.** Direct runner-writable host output is rejected. The broker candidate can bound its accepted logical artifact bytes, but sole persistent-writer authority and physical/global retained-storage bounds are not established. Next prerequisite is a separately authorized no-persistent-write/capacity-bound feasibility or stronger-isolation decision; no P0c.1 implementation starts from this review. P0b PASS and runner.start UNEXPOSED remain unchanged. Details belong in the [existing runner spec](docs/superpowers/specs/2026-10-06-restricted-project-runner-design.md#p0c1-bounded-artifact-output-broker--architecture-review) and [plan](docs/superpowers/plans/2026-10-06-restricted-project-runner.md#p0c1-broker-candidate--blocked-before-implementation), not a new milestone or reordered post-MVP roadmap.
+
 #### Phase 0 — Current closure
+
+**P0c.3 design-only decision (2026-10-07): STRONG STORAGE ISOLATION SELECTED for later feasibility only.** P0c.2 actual AppContainer profile/private-registry persistence is BLOCKED. A full Hyper-V Windows guest with fixed whole-guest disk, finite host-owned pool and bounded AF_HYPERV return is selected for a separately authorized Serena spike before any P0c broker/runtime production integration. Owner must review virtualization/one-time setup, privileged helper and fixed image/storage/RAM costs; complete host auxiliary capacity and crash-supervision proof are mandatory. P0b PASS; P0c/P0c.1/P0c.2 BLOCKED; runner.start UNEXPOSED. This changes only the prerequisite isolation sequence, not post-MVP order or global Windows support policy. Details: [existing spec](docs/superpowers/specs/2026-10-06-restricted-project-runner-design.md#p0c3-strong-storage-isolation--selected-for-feasibility-only), [plan](docs/superpowers/plans/2026-10-06-restricted-project-runner.md#p0c3-dedicated-serena-feasibility-plan--not-authorized-to-run).
 
 Complete owner acceptance of the installed Team opt-in fix: no active mission plus no explicit Team request means Normal Mode. Each new mission requires manual user approval in SUD-D, including in Full Access mode; an explicit Team request followed by approval must start sequential Team normally. The owner reported v1.0.3 instruction-only opt-in failed; current repair/release evidence belongs in the handoff. This closes existing behavior, not a new feature milestone.
 
@@ -365,9 +371,9 @@ The Restricted Verify slice must remain narrow:
 
 General shell / broader Execute remains outside the critical path unless separately approved.
 
-### Restricted Project Runner / Self-Development — Approved later, usage-driven
+### Restricted Project Runner / Self-Development — P0c offline slice authorized; broader expansion usage-driven
 
-The retained capability direction is a minimal Restricted Project Runner for installed SUD_D self-development. It is not the next milestone: the approved post-MVP order above takes priority, and broader runner actions require demonstrated usage need and a separate explicit task.
+The Product Owner authorized the minimal offline P0c Restricted Project Runner production slice on 2026-10-07 after accepting P0b containment feasibility. Production exposure remains fail-closed: `runner.start` is unavailable until the aggregate writable-output/disk budget and the complete P0c security gate pass. Broader runner actions still require demonstrated usage need and separate explicit authorization.
 
 Durable intent:
 
@@ -426,7 +432,8 @@ This inventory distinguishes shipped bounded tools from approved future directio
 | Implemented / Complete | Workspace read/search/create/write; Tool Kernel / Basic Approval / Audit; local and bounded GitHub Git workflows; managed Serena 1.7.0 lifecycle/repair and semantic `code.*`; Restricted Verify; local Work Memory; sequential Team Mode V3; Windows installer and signed in-app update. |
 | Published / installed owner acceptance pending | Phase 1 Connection Auto Recovery / Auto Restart with manual initial Connect only (Auto Start rejected), bounded 1s/3s/10s retries, 60-second stability reset, credential-revision invalidation and fail-closed shutdown/update handling. Owner smoke and final repair/focused re-review passed; `v1.0.6` publication, Windows CI and public asset verification PASS. |
 | Approved, not implemented — ordered | Design-first Parallel Coding Team with coordination, internal Task isolation and Lead integration; Computer Use after stable Parallel Coding. Each requires its own explicit task and gates above. |
-| Later / usage-driven | Restricted Project Runner expansion; full Recovery / Safe Delete; self-contained uv bootstrap; controlled Serena update/rollback; Team Presets; user-facing GitHub repository creation / Worktree UI; direct production client-connected signal. |
+| Authorized / foundations preserved, execution blocked | Restricted Project Runner P0c offline Node foundations; P0c.1/P0c.2 BLOCKED. P0c.3 full Hyper-V/fixed whole-state storage candidate SELECTED for later owner-authorized feasibility only; aggregate host/guest storage and all P0c gates remain unproven. runner.start UNEXPOSED. |
+| Later / usage-driven | Restricted Project Runner expansion beyond P0c; full Recovery / Safe Delete; self-contained uv bootstrap; controlled Serena update/rollback; Team Presets; user-facing GitHub repository creation / Worktree UI; direct production client-connected signal. |
 | Blocked | Restricted Execute / general process execution: sandbox enforcement was not proven on the secondary device. No generic shell or unsandboxed fallback is exposed. Fixed-purpose Restricted Verify is implemented independently. |
 | Not currently planned | Cloud Relay / device discovery / Work Memory sync; provider/model-selection runtime; macOS/Linux; enterprise/multi-user architecture. A general scheduler/background model runtime is not required for the approved manually opened chat approach. |
 

@@ -7,6 +7,8 @@ export * from './coding-engine-service.js';
 export * from './coding-semantic-read-capabilities.js';
 export * from './coding-semantic-write-capabilities.js';
 export * from './restricted-verify-capabilities.js';
+export * from './project-runner-service.js';
+export * from './project-runner-capabilities.js';
 export * from './work-memory-service.js';
 export * from './work-memory-capabilities.js';
 export * from './work-resume-guard.js';

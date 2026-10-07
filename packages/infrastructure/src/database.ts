@@ -370,6 +370,44 @@ const MIGRATIONS: string[] = [
     primary_remote_name TEXT,
     updated_at TEXT NOT NULL
   );
+  `,
+  // Migration 009 — Restricted Project Runner bounded operational Job facts
+  `
+  CREATE TABLE runner_jobs (
+    job_id TEXT PRIMARY KEY,
+    attempt_id TEXT NOT NULL UNIQUE,
+    workspace_id TEXT NOT NULL,
+    runner_id TEXT NOT NULL,
+    execution_fingerprint TEXT NOT NULL,
+    owner_runtime_epoch TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('starting','running','succeeded','failed','cancelled','timed_out','interrupted')),
+    created_at TEXT NOT NULL,
+    started_at TEXT,
+    ended_at TEXT,
+    exit_code INTEGER,
+    terminal_code TEXT,
+    output_bytes INTEGER NOT NULL DEFAULT 0 CHECK(output_bytes >= 0),
+    dropped_log_bytes INTEGER NOT NULL DEFAULT 0 CHECK(dropped_log_bytes >= 0)
+  );
+  CREATE UNIQUE INDEX idx_runner_one_active_workspace
+    ON runner_jobs(workspace_id)
+    WHERE state IN ('starting','running');
+  CREATE INDEX idx_runner_workspace_recent
+    ON runner_jobs(workspace_id, created_at DESC);
+  CREATE INDEX idx_runner_attempt ON runner_jobs(attempt_id);
+
+  CREATE TABLE runner_artifacts (
+    job_id TEXT NOT NULL REFERENCES runner_jobs(job_id) ON DELETE CASCADE,
+    artifact_id TEXT NOT NULL,
+    relative_path TEXT NOT NULL,
+    media_type TEXT NOT NULL,
+    size INTEGER NOT NULL CHECK(size >= 0),
+    sha256 TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY(job_id, artifact_id),
+    UNIQUE(job_id, relative_path)
+  );
+  CREATE INDEX idx_runner_artifacts_job ON runner_artifacts(job_id);
   `
 ];
 

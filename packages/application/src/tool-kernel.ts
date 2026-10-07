@@ -271,12 +271,25 @@ export function createToolKernel(options: CreateToolKernelOptions): ToolKernel {
             startedAt,
           });
         }
-        if (!descriptor.ok || !binding.ok) {
+        if (!descriptor.ok) {
           return blockWithAudit({
             audit: options.audit,
             request,
             capabilityName: capability.name,
             code: 'APPROVAL_CONTEXT_FAILED',
+            causeCode: descriptor.error.code,
+            policyDecision: 'ask',
+            security: security.value,
+            startedAt,
+          });
+        }
+        if (!binding.ok) {
+          return blockWithAudit({
+            audit: options.audit,
+            request,
+            capabilityName: capability.name,
+            code: 'APPROVAL_CONTEXT_FAILED',
+            causeCode: binding.error.code,
             policyDecision: 'ask',
             security: security.value,
             startedAt,
