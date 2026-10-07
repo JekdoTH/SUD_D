@@ -1,5 +1,12 @@
 # SUD_D Handoff
 
+## Restricted Project Runner — P0c.3 WORK PC SPIKE: BLOCKED (2026-10-07)
+
+- Work PC pre-flight on `p0c-hyperv-spike` stopped at the Hyper-V management permission gate: corrected `Get-VM` and `Get-VMHost` denied the non-elevated token. No VM, VHDX, helper, broker or guest state was created; production source and dependencies were unchanged by the spike.
+- Evidence: [P0c.3 Hyper-V spike report](.serena/reports/restricted-project-runner-hyperv.md). Product Owner explicitly authorized committing this exact report as an exception to the usual local-only `.serena/` rule, plus this directly related handoff entry. Existing P0c foundations in `85faef9` are preserved.
+- Sync checks run: initial tracked worktree/index clean; report inspected; report-only cached whitespace/stat and unstaged diff checks PASS. No runtime tests/build were run for this documentation sync. Final commit/push SHA and clean-status verification are returned in the sync chat.
+- Owner next: establish an authorized, narrowly scoped elevated execution channel for the exact P0c.3 helper before rerunning the unchanged spike. Feasibility remains BLOCKED; `runner.start` remains unexposed. This sync does not authorize another spike, production implementation, merge or master update.
+
 ## Restricted Project Runner — P0c.3 ARCHITECTURE: SELECTED FOR FEASIBILITY ONLY (2026-10-07)
 
 - **STRONG STORAGE ISOLATION DECISION: SELECTED.** Candidate: one full Hyper-V Gen2 Windows guest, fixed complete guest OS disk, finite private host runner pool and bounded AF_HYPERV artifact broker. Selected means worth a dedicated later Serena spike, not enforcement PASS. Risk: **SECURITY / DATA CRITICAL**.
