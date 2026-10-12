@@ -13,7 +13,7 @@ import {
   type GitRemoteTransport,
   type Result,
 } from '@sud-d/domain';
-import { resolveExistingResource } from './path-adapter.js';
+import { hasReparsePoint, resolveExistingResource } from './path-adapter.js';
 import {
   createGitCommandRunner,
   type GitCommandResult,
@@ -1683,6 +1683,9 @@ function detectRepository(
   workspaceCanonicalRoot: string,
   commandRunner: GitCommandRunner,
 ): Result<GitDetectResult, AppError> {
+  const reparse = hasReparsePoint(workspaceCanonicalRoot);
+  if (!reparse.ok) return reparse;
+  if (reparse.value) return err(appError('REPARSE_POINT_DENIED', 'Workspace root must not traverse a reparse point'));
   const gitMarker = path.join(workspaceCanonicalRoot, '.git');
   try {
     if (!fs.existsSync(gitMarker)) {
@@ -1713,7 +1716,9 @@ function detectRepository(
 
     const root = canonicalExisting(decode(top.value.stdout).trim());
     if (!root.ok) return root;
-    if (!samePath(root.value, workspaceCanonicalRoot)) {
+    const workspaceRoot = canonicalExisting(workspaceCanonicalRoot);
+    if (!workspaceRoot.ok) return workspaceRoot;
+    if (!samePath(root.value, workspaceRoot.value)) {
       return ok({ isRepository: true, isSupported: false, reason: 'WORKSPACE_ROOT_MISMATCH', state: 'normal' });
     }
 

@@ -1,16 +1,17 @@
 {
   "new": [
-    "Owner-test v1.0.7: read-only runner.discover reports validated .sud-d/runners.json candidates in the active Workspace after work.resume. Runner execution remains unavailable.",
+    "Owner-test v1.0.8: read-only runner.discover reports validated .sud-d/runners.json candidates in the active Workspace after work.resume. Runner execution remains unavailable.",
     "Works now: register and select your own Workspace, manually Connect, resume context, and use approved Workspace/Git/Team tools. Existing connection recovery and user preferences are preserved."
   ],
   "improved": [
-    "Works with prerequisites: verify.run supports test, lint, typecheck and build from an owner-reviewed package.json declaring pnpm@<version> or npm@<version>. Node must be on PATH. pnpm must exist at %APPDATA%\\npm\\node_modules\\pnpm\\bin\\pnpm.cjs; npm must exist beside Node at node_modules\\npm\\bin\\npm-cli.js. Install project dependencies separately. diff_check and secret_scan require Git on PATH.",
+    "Works with prerequisites: verify.run supports test, lint, typecheck and build from an owner-reviewed package.json declaring pnpm@<version> or npm@<version>. Node must be on PATH. pnpm must exist at %APPDATA%\\npm\\node_modules\\pnpm\\bin\\pnpm.cjs; npm must exist beside Node at node_modules\\npm\\bin\\npm-cli.js. Install project dependencies separately. diff_check and secret_scan require Git for Windows at C:\\Program Files\\Git\\cmd\\git.exe (or bin\\git.exe).",
     "This installer bundles the MCP Gateway, not host Node/pnpm, FFmpeg/FFprobe or media/provider tools. code.* needs the separately configured trusted uv/Serena runtime. See the Windows install guide for field-test steps.",
     "Update keeps the same per-user application identity and %LOCALAPPDATA%\\SUD-D data root. Existing Workspace records, settings, credentials, Approval and Audit state are retained; manual Connect is still required each new session.",
     "NOT YET VERIFIED: the other Windows device, live Desktop tunnel workflows, end-to-end AI goal-to-video, real Thai TTS, AI images and provider spending. There is no installed Workflow Run page or portable one-click MP4 workflow. Isolated synthetic video proof is not shipped proof.",
     "Personal Alpha limitation: the EXE is Authenticode unsigned. The update manifest is Ed25519 signed and version/revision/SHA-512 checks remain mandatory. Host-user verify.run isolation and process cleanup are best effort, not Windows Job-grade containment."
   ],
   "fixed": [
-    "Discovery fails closed on absent, oversized, duplicate-key, unsupported or traversing manifests, linked manifest/entry paths and internal SUD-D roots. Manifest prose and project paths are omitted from discovery results."
+    "Discovery fails closed on absent, oversized, duplicate-key, unsupported or traversing manifests, linked manifest/entry paths and internal SUD-D roots. Manifest prose and project paths are omitted from discovery results.",
+    "Git verification accepts a Windows short-path alias only when both paths resolve to the same physical Workspace root. Unrelated or nested repository roots remain rejected."
   ]
 }

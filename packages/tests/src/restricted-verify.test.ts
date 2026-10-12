@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   createRestrictedVerifyCapabilities,
@@ -310,6 +310,48 @@ describe('Restricted Verify process failures', () => {
   });
 });
 describe('Restricted Verify infrastructure adapter', () => {
+  it.runIf(process.platform === 'win32')('denies a registered Workspace root replaced by a junction', async () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'sud-d-verify-root-junction-'));
+    tempDirs.push(base);
+    const registered = path.join(base, 'registered');
+    const outside = path.join(base, 'outside');
+    fs.mkdirSync(registered);
+    fs.mkdirSync(outside);
+    const registeredRoot = canonical(registered);
+    execFileSync('git', ['init', '-q'], { cwd: outside, windowsHide: true });
+    execFileSync('git', ['config', 'user.name', 'Fixture User'], { cwd: outside, windowsHide: true });
+    execFileSync('git', ['config', 'user.email', 'fixture@example.invalid'], { cwd: outside, windowsHide: true });
+    fs.writeFileSync(path.join(outside, 'tracked.txt'), 'outside fixture\n', 'utf8');
+    execFileSync('git', ['add', '--', 'tracked.txt'], { cwd: outside, windowsHide: true });
+    execFileSync('git', ['commit', '-q', '-m', 'fixture'], { cwd: outside, windowsHide: true });
+    fs.rmdirSync(registered); // The exclusive fixture directory is empty.
+    fs.symlinkSync(outside, registered, 'junction');
+    await expect(createRestrictedVerifyAdapter().run(
+      { workspaceId: 'verify-ws', canonicalRoot: registeredRoot }, { action: 'diff_check' },
+    )).rejects.toMatchObject({ code: 'VERIFY_PROFILE_UNAVAILABLE' });
+  });
+  it.runIf(process.platform === 'win32')('verifies the same Workspace through its Windows short-path alias', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sud-d-verify-windows-alias-'));
+    tempDirs.push(root);
+    execFileSync('git', ['init', '-q'], { cwd: root, windowsHide: true });
+    execFileSync('git', ['config', 'user.name', 'Fixture User'], { cwd: root, windowsHide: true });
+    execFileSync('git', ['config', 'user.email', 'fixture@example.invalid'], { cwd: root, windowsHide: true });
+    fs.writeFileSync(path.join(root, 'tracked.txt'), 'base\n', 'utf8');
+    execFileSync('git', ['add', '--', 'tracked.txt'], { cwd: root, windowsHide: true });
+    execFileSync('git', ['commit', '-q', '-m', 'fixture'], { cwd: root, windowsHide: true });
+    // Only the generated fixture path enters this fixed, read-only Windows alias query.
+    expect(root).not.toMatch(/[%"&|<>^]/);
+    const aliasResult = spawnSync(path.join(process.env['SystemRoot'] ?? 'C:\\Windows', 'System32', 'cmd.exe'),
+      ['/d', '/c', 'for %I in ("' + root + '") do @echo %~sI'],
+      { encoding: 'utf8', windowsHide: true, windowsVerbatimArguments: true });
+    expect(aliasResult.status).toBe(0);
+    const shortRoot = aliasResult.stdout.trim();
+    expect(shortRoot).toMatch(/~[0-9]/);
+    const result = await createRestrictedVerifyAdapter().run(
+      { workspaceId: 'verify-ws', canonicalRoot: canonical(shortRoot) }, { action: 'diff_check' },
+    );
+    expect(result).toMatchObject({ action: 'diff_check', passed: true, exitCode: 0 });
+  });
   it('composes the fixed profile and bounded runner without exposing process controls', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sud-d-verify-adapter-'));
     tempDirs.push(root);
