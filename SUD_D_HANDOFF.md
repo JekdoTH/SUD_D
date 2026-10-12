@@ -1,3 +1,12 @@
+# Current v1.0.8 documentation acceptance — Owner confirmations (2026-10-13)
+
+- **Owner-Confirmed Cross-device Field Test:** v1.0.8 was used on another Windows computer. Owner confirms MCP Connection, `work.resume`, `verify.run(test)`, `verify.run(build)` and a Final MP4 from real assets. This is Owner confirmation; no raw cross-device MCP/Audit export or complete clean-install/fresh-machine checklist was reviewed here.
+- **Owner Manual Acceptance: PASS** for the 1920×1080/25 FPS video `real-assets-bgm-overlay-v108-1080p25-burnin-20261013-r2`: usable picture/resolution, narration and BGM, intended overlay, visible burned-in Thai subtitles and overall result. Fresh artifact hash/FFprobe and stored QC also pass, but they are separate from the Owner's visual/listening confirmation; historical renderer-to-QC hash binding and linked raw MCP/Audit remain unverified.
+- Published Core provides Workspace/Gateway access, Policy/Approval/Audit, restricted `verify.run` and read-only `runner.discover`. Owner-prepared Workspace scripts/assets/renderer define media settings and QC. An executable general Workflow Runner and Core AI TTS/image generation were not shipped in v1.0.8.
+- [README](README.md) summarizes release capability and responsibility; [v1.0.8 field evidence](docs/field-tests/v1.0.8-owner-workspace.md) records evidence categories, outputs and remaining checks. Owner next: review the documentation PR and merge if accepted. Field feedback and any implementation work need separate scope. Earlier audit state follows as historical context.
+
+---
+
 # SUD_D Handoff — Current Release Checkpoint
 
 ## v1.0.8 Limited Owner-Test Windows — PUBLISHED (2026-10-12)
