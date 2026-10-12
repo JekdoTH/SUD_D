@@ -1,3 +1,15 @@
+# SUD_D Handoff — Current Release Checkpoint
+
+## v1.0.8 Limited Owner-Test Windows — PUBLISHED (2026-10-12)
+
+- This checkpoint supersedes older release-readiness/dispatch text below. Owner authorized one limited Windows test release before full AI Video Workflow completion. Published tag v1.0.8, commit dc4dc7db8f480174e1212487d25b404aad43cdb6: https://github.com/JekdoTH/SUD_D/releases/tag/v1.0.8. The failed v1.0.7 tag remains unchanged, with no published release.
+- CI https://github.com/JekdoTH/SUD_D/actions/runs/38255688479 SUCCESS: Tests  93 passed (93); Test Files  10 passed (10); Windows package/provenance, signing identity, signed manifest/hash gates and publication PASS. Independent public download/signature/version/revision/feed/hash checks PASS. Installer SHA-256: 5a6a9d6ff90cbbad87301c3fbe50cb7ddbc2f5f4a6da3881da9adf8e605742ab. EXE Authenticode NotSigned; update metadata is signed.
+- Shipped minimal read-only runner.discover and reviewed runtime/release fixes, including Windows Git alias equivalence with reparse-point rejection before Git access. Final affected security tests 55/55 PASS; typecheck/lint/build/package, packaged real approved verify.run(test), isolated profile preservation and independent Standards/Spec reviews PASS. No Native experiments, dependency churn, new DB migration or other person's Workspace access. Original dirty work is preserved; this checkpoint was prepended without rewriting its prior body.
+- Owner next: Update → Check for Updates → Download Update → verified Restart & Update; confirm v1.0.8 / dc4dc7d and existing Workspace/preferences/credentials/Approval/Audit state. On your own Workspace manually Connect, work.resume, then approve/retry verify.run(test). Host Node/package-manager/dependencies and fixed Git prerequisites: docs/release/PERSONAL_ALPHA_INSTALL.md. Full AI/TTS/images/media, Workflow Run UI, live tunnel and other-machine acceptance remain pending; runner execution is unavailable.
+- Closeout for ChatGPT Project Advisor (ตรวจ Repo และเสนอขั้นตอน): local-only .serena/reports/owner-test-windows-release-closeout-20261012.md. Publication STOP reached; field feedback/next release requires a new instruction. Previous body follows unchanged for historical evidence.
+
+---
+
 # SUD_D Handoff
 
 ## v1.0.6 Phase 1 Connection Auto Recovery — PUBLISHED (2026-10-06)
