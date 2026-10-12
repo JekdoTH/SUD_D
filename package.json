@@ -16,7 +16,7 @@
     "serena:spike": "cross-env SUD_D_SERENA_SPIKE=1 vitest run packages/tests/src/serena-runtime-spike.test.ts --reporter=verbose",
     "serena:managed-runtime": "cross-env SUD_D_SERENA_MANAGED_RUNTIME=1 vitest run packages/tests/src/serena-managed-runtime.acceptance.test.ts --reporter=verbose",
     "dev": "pnpm --filter @sud-d/desktop dev",
-    "postinstall": "pnpm --filter @sud-d/desktop rebuild",
+    "postinstall": "pnpm --filter @sud-d/desktop run rebuild",
     "package:win": "pnpm --filter @sud-d/desktop package:win",
     "release:bump:patch": "node scripts/release/bump-version.mjs patch",
     "release:bump:minor": "node scripts/release/bump-version.mjs minor",

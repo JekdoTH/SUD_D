@@ -21,6 +21,7 @@ export * from './serena-engine-provisioner.js';
 export * from './serena-managed-runtime.js';
 
 export * from './restricted-verify-adapter.js';
+export * from './runner-manifest.js';
 
 export * from './work-memory-repository.js';
 export * from './team-transition-unit-of-work.js';

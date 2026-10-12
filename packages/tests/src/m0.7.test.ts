@@ -557,7 +557,7 @@ describe('M0.7 — diagnostics IPC', () => {
 
     registerDesktopDiagnosticsIpcHandlers(
       { handle: (channel, listener) => handlers.set(channel, listener) },
-      { checkDoctor, listActivity },
+      { checkDoctor, listActivity, listActivityForWorkspace: vi.fn(() => ({ ok: true as const, value: [] })) },
       () => true,
     );
 

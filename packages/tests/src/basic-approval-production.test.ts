@@ -50,6 +50,7 @@ const APPROVED_TOOLS = [
   'git.remote.select',
   'git.status',
   'git.sync',
+  'runner.discover',
   'team.start',
   'team.status',
   'team.stop',
@@ -227,7 +228,7 @@ afterEach(async () => {
 });
 
 describe('Basic Approval - production MCP workspace flows', () => {
-  it('tools/list exposes exactly 39 approved tools, no approval tool, and normal tools remain usable', async () => {
+  it('tools/list exposes exactly 40 approved tools, no approval tool, and normal tools remain usable', async () => {
     const h = await makeHarness({ gitRepo: true });
     expect(h.initialized.result?.serverInfo?.name).toBe('SUD-D');
     const listed = await h.listTools();

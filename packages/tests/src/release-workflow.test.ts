@@ -49,7 +49,7 @@ describe('Windows release workflow', () => {
     expect(workflow).toContain('git merge-base --is-ancestor $env:GITHUB_SHA origin/master');
     expect(workflow).toContain('verify-windows-release.mjs');
     expect(verifier).toContain("EXPECTED_TOOL_SURFACE_VERSION = '2026.9.14'");
-    expect(verifier).toContain('EXPECTED_TOOL_COUNT = 39');
+    expect(verifier).toContain('EXPECTED_TOOL_COUNT = 40');
     for (const name of ['git.fetch', 'git.sync', 'git.push', 'git.branch.merge']) {
       expect(verifier).toContain(`'${name}'`);
     }

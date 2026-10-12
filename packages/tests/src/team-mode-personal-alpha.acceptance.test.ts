@@ -37,6 +37,7 @@ const APPROVED_TOOLS = [
   'git.checkpoint', 'git.clone', 'git.commit', 'git.detect', 'git.diff',
   'git.fetch', 'git.init', 'git.inspect', 'git.push', 'git.remote.configure',
   'git.remote.select', 'git.status', 'git.sync',
+  'runner.discover',
   'team.start', 'team.status', 'team.stop', 'team.submit',
   'verify.run',
   'work.checkpoint', 'work.resume',
@@ -211,7 +212,7 @@ describe('Team Mode Personal Alpha Home-PC production acceptance', () => {
       const listed = await a.list();
       const names = (listed.result?.tools ?? []).map((tool) => tool.name).filter((name): name is string => typeof name === 'string').sort();
       expect(names).toEqual(APPROVED_TOOLS);
-      expect(names).toHaveLength(39);
+      expect(names).toHaveLength(40);
       expect(names.filter((name) => name.startsWith('team.'))).toEqual(['team.start', 'team.status', 'team.stop', 'team.submit']);
 
       const preResume = payload(await a.call('team.start', { goal: 'must not dispatch' }));

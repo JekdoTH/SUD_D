@@ -57,7 +57,7 @@ function redactTunnelDiagnosticLine(line: string, sensitiveValues: readonly stri
     redacted = redacted.split(value).join('[REDACTED]');
   }
   redacted = redacted
-    .replace(/(bearer\s+)[A-Za-z0-9._~+\/-]+=*/gi, '$1[REDACTED]')
+    .replace(/(bearer\s+)[A-Za-z0-9._~+/-]+=*/gi, '$1[REDACTED]')
     .replace(/((?:api[_-]?key|token|secret|password|passwd|credential|authorization)\s*[:=]\s*)\S+/gi, '$1[REDACTED]')
     .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, '[REDACTED]');
   return redacted.slice(-TUNNEL_STDERR_LINE_CHARS);

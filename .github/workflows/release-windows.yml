@@ -55,6 +55,9 @@ jobs:
         shell: pwsh
         run: >
           pnpm exec cross-env ELECTRON_RUN_AS_NODE=1 electron ./node_modules/vitest/vitest.mjs run
+          packages/tests/src/project-runner-discovery-production.test.ts
+          packages/tests/src/restricted-verify.test.ts
+          packages/tests/src/update-data-preservation.test.ts
           packages/tests/src/public-readiness.test.ts
           packages/tests/src/release-workflow.test.ts
           packages/tests/src/update-release-tooling.test.ts

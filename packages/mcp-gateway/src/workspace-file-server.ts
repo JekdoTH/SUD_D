@@ -11,6 +11,7 @@ import {
   createGitWorkspaceService,
   createWorkspaceService,
   createRestrictedVerifyCapabilities,
+  createProjectRunnerDiscoveryCapabilities,
   createWorkMemoryCapabilities,
   createWorkMemoryService,
   createWorkResumeGuardedToolKernel,
@@ -163,6 +164,7 @@ const restrictedVerifyInputSchema = z.object({
   action: z.enum(RESTRICTED_VERIFY_ACTIONS),
 }).strict();
 
+const runnerDiscoverInputSchema = z.object({}).strict();
 const workResumeInputSchema = z.object({}).strict();
 const workMemoryTextItemSchema = z.string().min(1).max(WORK_MEMORY_LIMITS.maxItemChars).refine((value) => !value.includes('\0'));
 const workCheckpointInputSchema = z.object({
@@ -321,6 +323,10 @@ export function createProductionMcpServer(
       restrictedVerify: dependencies.restrictedVerify,
       summaryAudit: dependencies.auditRepo,
     }),
+    ...createProjectRunnerDiscoveryCapabilities({
+      workspaceRepo: dependencies.workspaceRepo,
+      internalRoots: dependencies.internalRoots,
+    }),
     ...createWorkMemoryCapabilities({
       workspaceRepo: dependencies.workspaceRepo,
       internalRoots: dependencies.internalRoots,
@@ -361,6 +367,7 @@ export function createProductionMcpServer(
   registerCodingSemanticReadTools(server, kernel);
   registerCodingSemanticWriteTools(server, kernel);
   registerRestrictedVerifyTools(server, kernel);
+  registerProjectRunnerDiscoveryTool(server, kernel);
   registerWorkMemoryTools(server, kernel);
   return server;
 }
@@ -666,6 +673,18 @@ function registerRestrictedVerifyTools(server: McpServer, kernel: ToolKernel): v
       inputSchema: restrictedVerifyInputSchema,
     },
     async (input) => invokeKernel(kernel, 'verify.run', input),
+  );
+}
+
+function registerProjectRunnerDiscoveryTool(server: McpServer, kernel: ToolKernel): void {
+  server.registerTool(
+    'runner.discover',
+    {
+      title: 'Discover Workspace Project Runners',
+      description: 'Read validated runner candidates from the active Workspace; execution is unavailable.',
+      inputSchema: runnerDiscoverInputSchema,
+    },
+    async (input) => invokeKernel(kernel, 'runner.discover', input),
   );
 }
 

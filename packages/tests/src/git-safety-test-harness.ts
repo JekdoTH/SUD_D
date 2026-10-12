@@ -36,7 +36,7 @@ export const CODE_READ_TOOLS = ['code.overview', 'code.find_symbol', 'code.find_
 export const CODE_WRITE_TOOLS = ['code.replace_symbol', 'code.insert_before', 'code.insert_after', 'code.rename'] as const;
 export const VERIFY_TOOLS = ['verify.run'] as const;
 export const WORK_MEMORY_TOOLS = ['work.resume', 'work.checkpoint'] as const;
-export const APPROVED_TOOLS = [...WORKSPACE_TOOLS, ...GIT_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS, ...WORK_MEMORY_TOOLS].sort();
+export const APPROVED_TOOLS = [...WORKSPACE_TOOLS, ...GIT_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS, ...WORK_MEMORY_TOOLS, 'runner.discover'].sort();
 export const LEGACY_PROTOCOL_VERSION = '2025-06-18';
 
 const tempDirs: string[] = [];
@@ -46,6 +46,8 @@ let invocationCounter = 0;
 export interface RpcMessage {
   readonly id?: number;
   readonly result?: {
+    readonly serverInfo?: { readonly name?: string; readonly version?: string };
+    readonly capabilities?: { readonly tools?: { readonly listChanged?: boolean } };
     readonly tools?: Array<{ readonly name?: string }>;
     readonly content?: Array<{ readonly type?: string; readonly text?: string }>;
   };

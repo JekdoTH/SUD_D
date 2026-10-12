@@ -1,13 +1,16 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { readFile, stat } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 
 const EXPECTED_SERVER_NAME = 'SUD-D';
 const EXPECTED_TOOL_SURFACE_VERSION = '2026.9.14';
-const EXPECTED_TOOL_COUNT = 39;
+const EXPECTED_TOOL_COUNT = 40;
 const REQUIRED_GIT_TOOLS = [
+  'runner.discover',
+  'verify.run',
   'git.inspect',
   'git.init',
   'git.remote.configure',
@@ -74,9 +77,10 @@ async function probePackagedApp({ executablePath, resourcesPath, expectedVersion
 }
 
 async function probeGateway({ executablePath, entryPath }) {
+  const probeRoot = await mkdtemp(join(tmpdir(), 'sud-d-release-probe-'));
   const child = spawn(executablePath, [entryPath], {
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', LOCALAPPDATA: probeRoot, APPDATA: probeRoot },
     windowsHide: true,
   });
   const lines = createInterface({ input: child.stdout });
@@ -148,12 +152,23 @@ async function probeGateway({ executablePath, entryPath }) {
     if (!Array.isArray(names) || names.length !== EXPECTED_TOOL_COUNT) {
       throw new Error('Packaged MCP tool count is invalid.');
     }
+    for (const forbidden of ['runner.start', 'runner.status', 'runner.logs', 'runner.stop', 'shell', 'execute_shell_command']) {
+      if (names.includes(forbidden)) throw new Error('Packaged MCP exposes an unapproved execution tool.');
+    }
     for (const tool of REQUIRED_GIT_TOOLS) {
       if (!names.includes(tool)) throw new Error(`Packaged MCP tool is missing: ${tool}`);
     }
   } finally {
     lines.close();
     child.kill();
+    await new Promise(resolveExit => {
+      if (child.exitCode !== null || child.signalCode !== null) resolveExit();
+      else child.once('exit', resolveExit);
+    });
+    if (dirname(probeRoot) !== resolve(tmpdir()) || !basename(probeRoot).startsWith('sud-d-release-probe-')) {
+      throw new Error('Unsafe release probe cleanup path.');
+    }
+    await rm(probeRoot, { recursive: true, force: true });
   }
 }
 

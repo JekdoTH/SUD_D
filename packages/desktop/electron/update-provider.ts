@@ -2,7 +2,7 @@ import { request } from 'node:https';
 
 import { autoUpdater } from 'electron-updater';
 
-import { normalizeElectronUpdateCheckResult } from './update-provider-result';
+import { normalizeElectronUpdateCheckResult } from './update-provider-result.js';
 
 export const RELEASE_OWNER = 'JekdoTH';
 export const RELEASE_REPO = 'SUD_D';

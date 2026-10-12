@@ -44,6 +44,7 @@ const RESUME_GUARDED_CAPABILITIES = new Set<string>([
   'code.insert_after',
   'code.rename',
   'verify.run',
+  'runner.discover',
   'work.checkpoint',
 ]);
 

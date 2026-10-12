@@ -1,3 +1,4 @@
+import type { ProjectRunnerFailureCode } from './project-runner.js';
 import type { CodingEngineFailureCode } from './coding-engine.js';
 import type { RestrictedVerifyFailureCode } from './restricted-verify.js';
 import type { WorkMemoryFailureCode } from './work-memory.js';
@@ -76,6 +77,7 @@ export type AppErrorCode =
   | 'TEAM_REVIEW_LOOP_LIMIT'
   | 'TEAM_STALE'
   | CodingEngineFailureCode
+  | ProjectRunnerFailureCode
   | RestrictedVerifyFailureCode
   | WorkMemoryFailureCode
   | 'VALIDATION_FAILED'
