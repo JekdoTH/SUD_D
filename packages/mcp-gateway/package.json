@@ -19,7 +19,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "2.0.0",
+    "@modelcontextprotocol/server": "2.3.0",
     "@sud-d/application": "workspace:*",
     "@sud-d/domain": "workspace:*",
     "@sud-d/infrastructure": "workspace:*",
