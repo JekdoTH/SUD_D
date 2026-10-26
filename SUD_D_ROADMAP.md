@@ -1,802 +1,105 @@
 # SUD_D Roadmap
 
-> Master Plan / Source of Truth for long-term architecture, milestones, product direction, and approved future ideas.
+This file owns approved direction, sequencing and capability gates. [SUD_D_HANDOFF.md](SUD_D_HANDOFF.md) owns current execution, evidence and the next assignment. [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) owns stable architecture/security facts; [AGENTS.md](AGENTS.md) owns development rules.
 
-For current execution status, verification, open issues, immediate next action, and latest completed milestone commit, see `SUD_D_HANDOFF.md`.
+## North Star and personal-first delivery
 
----
+SUD_D is a local-first Windows Personal AI Team Harness / Orchestrator: a user supplies a goal and constraints, tools operate through the secure core, and verified artifacts/results return to the user. It is domain-agnostic; project-specific coding, content, providers, rendering and QC belong in Workspaces.
 
-## 1. North Star
+The primary user is the Owner. Prioritize a usable one-person flow, small owner-test candidates and evidence-driven repairs. Enterprise/multi-user architecture, speculative scale and extra coordination ceremony are not prerequisites. Single-user delivery does not relax security or data boundaries.
 
-SUD_D is a **local-first Personal AI Team Harness / Orchestrator for Windows**, built on a secure personal AI control gateway/runtime. The MCP Gateway is an important integration boundary, not the final product destination.
+**Current priority:** the 2026-10-14 Serena-first direction and 2026-10-15 fast-closure decision supersede the earlier Trusted Local Runner-first and Parallel Coding-first priorities. Preserve their designs and gates for later use; do not reactivate their old next actions.
 
-The long-term product flow is:
+## Near-term sequence — Serena-first Solo MVP
 
-```text
-User defines a Goal and constraints
-→ SUD_D forms and coordinates an AI team
-→ the team plans, delegates, works, verifies, reviews, hands off, and preserves context
-→ SUD_D returns artifacts and a Final Result for user review or approval
-```
+| Order | Outcome | Gate before advancing |
+| --- | --- | --- |
+| 1 | A genuinely usable Desktop owner-test candidate using existing Workspace/file/Git/Approval capabilities | Actual required build/runtime/profile-isolation evidence; truthful limitations and exact owner test steps. Current bounded assignment is linked from HANDOFF. |
+| 2 | Opt-in Solo Expert integration through managed Serena and real SUD-D review/consent | Real durable Approval, Workspace generation/Resume, Gateway default-OFF registration, managed-session identity, logging/risk disclosure and focused negative proofs. Synthetic source tests are not runtime acceptance. |
+| 3 | B2: one harmless real managed tool/Terminal proof | Separate command/device/Workspace/expiry/effects/logging risk packet and genuine contextual SUD-D human Approval; prerequisite integration accepted. No general shell grant follows. |
+| 4 | B3–B5: useful development scripts, long jobs and a real Workspace workflow | Explicit bounded tasks with actual ownership/stop/log/retry/resume proof and any required provider, credential or spend consent. |
 
-Goals:
+TGNK is the first external workflow pilot, not SUD-D core logic. The intended pilot outcome is a new authorized workflow through verified Final MP4; imported-audio historical resume is deferred. A synthetic media sample does not prove real Thai TTS, AI imagery or provider integration. The earlier two-trusted-user Private MVP goal is retained as background; current delivery targets the primary Owner.
 
-- Make it easy for ChatGPT/AI to work with local projects.
-- Be safer than an unrestricted generic agent.
-- Keep CLI out of the normal user workflow.
-- Make AI actions bounded and auditable.
-- Support local continuity across ChatGPT sessions and cross-device project continuity through Git commit/push/pull.
-- Let the user direct outcomes through goals, constraints, sensitive-action approvals, and final review instead of micro-managing every agent.
-- Reach a useful **Personal Alpha and Team Mode MVP quickly** for the primary Windows user before investing in enterprise-scale hardening or broad platform polish.
+**Selected direction:** Option B, opt-in Solo Expert, uses stock managed Serena with per-call manual consent and truthful disclosure of local raw logging and ambient Windows-user rights. Cooperative consent is not OS-enforced filesystem/network confinement, safe secret logging, proven descendant termination or A1 independently verifiable consent. Restricted Mode remains the default. This direction alone enables no real process/tool.
 
-SUD_D is not an unrestricted shell wrapper. Security decisions must be enforced below the UI and remain effective even if the UI is bypassed or compromised.
+Detailed contracts and rationale:
 
-### Security pillars
+- [Serena-first C1 plan and milestone contract](docs/superpowers/plans/2026-10-14-serena-first-solo-permission-bridge-c1.md).
+- [A/B decision review](docs/superpowers/plans/2026-10-14-serena-first-a-b-advisor-review.md).
+- [B1 integration design](docs/superpowers/research/2026-10-14-solo-expert-b1-codex-design.md).
+- [G2 source/artifact/lifecycle design](docs/superpowers/research/2026-10-15-solo-expert-b1b-g2-codex-design.md).
 
-- Workspace Boundary
-- Policy
-- Approval
-- Audit
-- File Recovery
+Read these only for their relevant boundary. Old prepared/approved assignments inside them do not replace the current assignment or renew consumed attempts.
 
-### Baseline policy
+## Capability baseline
 
-| Capability | Baseline |
+This is the retained capability classification, not a fresh runtime or installed-release verification. Use HANDOFF and the relevant task evidence for exact revision/device readiness.
+
+| Classification | Capability |
 | --- | --- |
-| Workspace read/search/write | ALLOW |
-| Delete | ASK |
-| Execute | ASK |
-| Secrets | ASK / DENY |
-| Network | DENY by default |
-| Outside Workspace | DENY |
-| InternalRoot | DENY |
-| Audit | ON |
-| Delete | Recoverable |
+| Implemented foundation | M0 connection foundation; Tool Kernel/Basic Approval/Audit; bounded Workspace read/search/create/write; local and bounded GitHub Git workflows; Restricted Verify; local Work Memory; sequential Team Mode V3. |
+| Implemented managed tooling | Pinned managed Serena lifecycle/repair and semantic code facade; trusted uv is still a prerequisite. |
+| Implemented distribution/connection | Windows installer and signed in-app updates; manual initial Connect and bounded same-session Auto Recovery. Publication is distinct from installed-app owner acceptance. |
+| In development, acceptance gated | Serena-first Solo Expert; source/compiled proof must not be described as live product readiness. |
+| Unexposed/blocked | General Execute, legacy restricted runner production exposure, and A1 independently verifiable Owner Consent. |
+| Deferred | Delete/full Recovery, Parallel Coding, Computer Use and the usage-driven capabilities below. |
 
-Security defaults are fail-closed and least-privilege. Destructive actions must be recoverable where practical.
+Git is an Alpha rollback aid for committed files, not a recovery guarantee for untracked or uncommitted data. Full Recovery remains necessary before destructive Delete exposure. Fixed-purpose GitHub network capabilities do not authorize generic network access. Restricted Verify exposes validated actions, not arbitrary shell or packaging/release authority.
 
----
+## Retained security and blocked-path gates
 
-## 2. Current Repository Architecture
+All capabilities use the [security model](SUD_D_CONTEXT.md#security-model) and [agent security invariants](AGENTS.md#security-invariants). Incremental exposure requires the capability's own Kernel/Policy/Approval/security/verification gates. Team roles receive no additional authority.
 
-SUD_D is currently a pnpm TypeScript monorepo with these package boundaries:
-
-- `packages/domain` — core types, policy/classification primitives, connection state model, fail-closed state transitions.
-- `packages/contracts` — Zod schemas and typed DTOs for IPC/runtime boundaries.
-- `packages/infrastructure` — SQLite repositories, path/data-root adapters, audit persistence, and Doctor checks.
-- `packages/application` — orchestration/use-case services such as workspace management.
-- `packages/mcp-gateway` — guarded production stdio tools and model-facing session instructions.
-- `packages/desktop` — Electron main/preload plus renderer UI shell.
-- `packages/tests` — phase/integration coverage.
-
-Architecture direction:
-
-```text
-Desktop / External Boundary
-        ↓
-Application Orchestration
-        ↓
-Domain + Contracts
-        ↓
-Infrastructure Adapters
-```
-
-Exact dependency direction should stay conservative: domain/security rules must not depend on renderer concerns, and privileged host behavior must remain behind validated boundaries.
-
----
-
-## 3. Connection Architecture
-
-### SUD_D v1
-
-```text
-ChatGPT
-→ OpenAI Secure MCP Tunnel
-→ tunnel-client
-→ stdio
-→ SUD_D MCP Gateway
-→ Tool Kernel
-→ Policy
-→ Approval
-→ Execution
-```
-
-Current connection direction:
-
-- Provider: `openai_secure_mcp_tunnel`
-- Transport: `stdio`
-- Preserve a `ConnectionProvider` abstraction so future providers can be added without weakening current boundaries.
-
-### Current device model
-
-- primary validation device uses its own Secure Tunnel.
-- secondary validation device uses its own Secure Tunnel.
-- Secure Tunnel setup is performed once per machine.
-- SUD_D Desktop hides profile/key/path/CLI complexity from normal UX.
-- primary validation device and secondary validation device are independent local devices at this stage.
-
-Conceptual device state:
-
-- `deviceId`
-- `deviceName`
-- `provider`
-- `connectionStatus`
-- `activeWorkspace`
-
-### Not implemented now
-
-- GitHub OAuth
-- SUD_D Cloud
-- Cloud Relay
-- Account Sync
-- Cloud Device Registry
-
-Do not build cloud infrastructure in the current roadmap phase.
-
-### Current product decision
-
-Cloud Relay, cloud Device Registry/discovery and cloud Work Memory synchronization are not currently planned. Git commit/push/pull provides project continuity between the owner's Windows machines; connection credentials and runtime state remain local to each device. Existing provider seams do not make cloud services an active requirement.
-
----
-
-## 4. M0 — Connection Foundation
-
-### M0.1 — Contracts + State Model
-
-**STATUS: COMPLETE**
-
-Delivered foundation includes:
-
-- typed connection/runtime state model
-- fail-closed transition rules
-- provider/transport contracts
-- component status/error contracts
-- strict lifecycle input schemas
-- transition and contract tests
-
-M0.1 intentionally does not implement credential persistence, process supervision, tunnel integration, MCP Gateway runtime, privileged tools, or Connection UI.
-
-### M0.2 — Non-secret Config + Credential Boundary
-
-**STATUS: COMPLETE**
-
-Purpose: establish a safe boundary between ordinary connection configuration and secret credential material before lifecycle orchestration begins.
-
-Direction:
-
-- Keep non-secret connection configuration separate from credentials.
-- Preserve provider-independent boundaries where practical.
-- Renderer must never receive plaintext credentials.
-- Credentials must not leak into normal config serialization, logs, audit events, IPC DTOs, or error messages.
-- Missing/invalid credential state must fail closed.
-- Preserve current `openai_secure_mcp_tunnel` + `stdio` scope.
-- Do not add cloud identity, cloud relay, account sync, or privileged MCP tools.
-
-### M0.3 — ConnectionService + Test Doubles
-
-Introduce lifecycle orchestration behind interfaces with deterministic test doubles. Keep provider/process specifics behind adapters.
-
-### M0.4 — Inert MCP Gateway
-
-- MCP connection only.
-- No privileged tools.
-- Validate lifecycle and transport boundaries before tool exposure.
-
-### M0.5 — OpenAI Secure Tunnel Adapter
-
-Add the concrete tunnel-client / OpenAI Secure MCP Tunnel adapter while preserving the provider abstraction.
-
-### M0.6 — Desktop Connection + Overview UI
-
-Expose safe lifecycle/status controls through Desktop UI without exposing credentials or CLI complexity.
-
-### M0.7 — Doctor + Activity Integration
-
-Integrate connection health/status into Doctor and auditable Activity surfaces.
-
-### M0.8 — End-to-End Connection Acceptance
-
-Verify the complete connection path from ChatGPT through Secure Tunnel to the inert/safe SUD_D runtime before moving into privileged tool milestones.
-
-Post-M0.8 Secure Runtime API Key Setup and Connection UI/UX Simplification are complete; see `SUD_D_HANDOFF.md` for current execution evidence.
-
----
-
-## 5. Accelerated Personal Alpha Roadmap
-
-SUD_D is currently personal-first: one primary Windows user with approximately one occasional tester. Personal Alpha, Work Memory, and Team Mode MVP V3 are implemented. The current phase is post-MVP dogfooding, owner feedback, and bounded hardening while keeping the core security boundary intact.
-
-### Implemented — Git Bootstrap + Branch + Remote Sync
-
-The implemented Product Owner-approved design is [Git Bootstrap + Branch + Remote Sync Design](docs/superpowers/specs/2026-09-14-git-bootstrap-branch-remote-sync-design.md), with its sequence in [Git Bootstrap + Branch + Remote Sync Implementation Plan](docs/superpowers/plans/2026-09-14-git-bootstrap-branch-remote-sync.md). Current production includes the bounded bootstrap, branch, remote, fetch/sync/push/clone workflow; verification history lives in the handoff.
-
-Durable scope:
-
-- repository bootstrap, local branch workflow, **Sync from GitHub**, and **Push to GitHub** remain core;
-- GitHub HTTPS and SSH are the only v1 network Git transports/host scope;
-- Primary Remote is resolved from trusted repository state/user choice and is not hard-coded to `origin`;
-- Primary / Default Branch is resolved from trusted Git state and is not hard-coded to `master` or `main`;
-- existing linked-worktree compatibility remains, while user-facing worktree create/list/remove lifecycle is deferred;
-- creating a GitHub repository from SUD_D remains deferred;
-- Network Git remains fixed-purpose behind Kernel / Policy / Approval / Audit; generic Network DENY, credential secrecy, and no-shell/no-force/no-auto-rebase rules remain intact.
-
-Detailed behavior, error states, authentication, safety rules, UI, and verification live in the design spec rather than this roadmap.
-
-The completed foundation below is historical context. The approved post-MVP phases that follow govern new work rather than the historical milestone numbers:
-
-```text
-Connection Foundation + Connection UX COMPLETE
-→ M1 Tool Execution Kernel COMPLETE
-→ Personal Alpha Workspace File Tools: Read / Search / Write COMPLETE
-→ Git Safety + Integration COMPLETE (including bounded network Git)
-→ Basic Approval COMPLETE
-→ Milestone B CLOSED (Managed Serena Runtime Foundation)
-→ Semantic Read COMPLETE
-→ Semantic Write COMPLETE
-→ Restricted Verify COMPLETE
-→ Work Memory / Automatic Resume MVP COMPLETE
-→ Team Mode MVP V3 COMPLETE
-→ Windows installer + signed in-app updates COMPLETE
-```
-
-This acceleration changes sequencing and scope, not the security architecture. No capability may bypass the Tool Kernel, Policy, Approval where applicable, workspace boundary, audit, or secret rules.
-
-### Approved Post-MVP Order — Product Owner decision (2026-10-05)
-
-Direction approval is not implementation authorization. Each phase needs its own explicit task; Parallel Coding requires an approved architecture specification before implementation. v1.0.6 Phase 1 is published; installed-app owner acceptance is the current closure checkpoint. No subsequent phase is authorized.
-
-**Restricted Project Runner P0c — owner-authorized production slice (2026-10-07):** P0b Windows containment feasibility is accepted from the recorded real-OS AppContainer/Job/filesystem/network/process evidence. P0c is authorized for the smallest offline Node production slice. Aggregate writable-output/disk budget remains a mandatory P0c production-exposure gate and is not proven by P0b; `runner.start` stays unavailable until that budget and all other P0c security invariants are proven in the production path. This authorization grants no Network, secrets, generic shell, P0d Work Memory integration, Parallel Coding, package/release work, or automatic commit/push.
-
-**P0c.1 design-only review (2026-10-07): OUTPUT BROKER DESIGN BLOCKED.** Direct runner-writable host output is rejected. The broker candidate can bound its accepted logical artifact bytes, but sole persistent-writer authority and physical/global retained-storage bounds are not established. Next prerequisite is a separately authorized no-persistent-write/capacity-bound feasibility or stronger-isolation decision; no P0c.1 implementation starts from this review. P0b PASS and runner.start UNEXPOSED remain unchanged. Details belong in the [existing runner spec](docs/superpowers/specs/2026-10-06-restricted-project-runner-design.md#p0c1-bounded-artifact-output-broker--architecture-review) and [plan](docs/superpowers/plans/2026-10-06-restricted-project-runner.md#p0c1-broker-candidate--blocked-before-implementation), not a new milestone or reordered post-MVP roadmap.
-
-#### Phase 0 — Current closure
-
-**P0c.3 design-only decision (2026-10-07): STRONG STORAGE ISOLATION SELECTED for later feasibility only.** P0c.2 actual AppContainer profile/private-registry persistence is BLOCKED. A full Hyper-V Windows guest with fixed whole-guest disk, finite host-owned pool and bounded AF_HYPERV return is selected for a separately authorized Serena spike before any P0c broker/runtime production integration. Owner must review virtualization/one-time setup, privileged helper and fixed image/storage/RAM costs; complete host auxiliary capacity and crash-supervision proof are mandatory. P0b PASS; P0c/P0c.1/P0c.2 BLOCKED; runner.start UNEXPOSED. This changes only the prerequisite isolation sequence, not post-MVP order or global Windows support policy. Details: [existing spec](docs/superpowers/specs/2026-10-06-restricted-project-runner-design.md#p0c3-strong-storage-isolation--selected-for-feasibility-only), [plan](docs/superpowers/plans/2026-10-06-restricted-project-runner.md#p0c3-dedicated-serena-feasibility-plan--not-authorized-to-run).
-
-Complete owner acceptance of the installed Team opt-in fix: no active mission plus no explicit Team request means Normal Mode. Each new mission requires manual user approval in SUD-D, including in Full Access mode; an explicit Team request followed by approval must start sequential Team normally. The owner reported v1.0.3 instruction-only opt-in failed; current repair/release evidence belongs in the handoff. This closes existing behavior, not a new feature milestone.
-
-#### Phase 1 — Connection Auto Recovery / Auto Restart — manual initial Connect only
-
-Product Owner decision (2026-10-05): Auto Start is removed from product direction. Every fresh app session stays disconnected until the user explicitly presses Connect. Phase 1 implements bounded recovery only for unexpected managed-runtime failure inside that manually started, session-local connection intent, with cancellation on Disconnect, shutdown or Restart & Update. Existing profile values are preserved; newly created profiles default Auto Recovery ON while `autoStart=false`, and this never auto-connects on launch. Architecture-approved design and implementation details are in [Connection Auto Recovery design](docs/superpowers/specs/2026-10-05-connection-auto-recovery-design.md) and [implementation plan](docs/superpowers/plans/2026-10-05-connection-auto-recovery.md). Owner real-app smoke and final repair/focused re-review passed. Owner-authorized commit `8a962e3` / release `v1.0.6` is published with Windows CI and public signature/hash/download verification PASS; installed-app acceptance remains pending. Keep the fixed-purpose connection lifecycle, Secure Tunnel and credential boundaries; the renderer cannot select executable, argv, cwd or env.
-
-#### Phase 2 — Parallel Coding Team architecture / design
-
-The next major capability after the small connection improvement is explicitly requested **Parallel Team** for coding. The current user-opened ChatGPT conversation automatically becomes the **Requirement / Lead Chat**; the user need not request or configure a separate Lead role. Users manually open Worker Chat A/B/C. SUD_D does not create ChatGPT conversations or add an OpenAI API/model runtime for this Personal Alpha approach.
-
-The Lead understands project requirements, inspects repository truth, splits bounded Tasks, identifies dependencies and truly independent work, sets scope/likely paths/do-not-touch boundaries and verification criteria, then coordinates integration, verification and final review. It acts as a Worker only for an explicit Integration Task.
-
-```text
-User → Requirement / Lead Chat → dependency-aware Tasks
-→ SUD_D Task Queue → manually opened Worker Chats A/B/C
-→ structured Task Results → Lead integration
-→ integrated verification → final review → Final Result
-```
-
-Script/content production does not currently need Parallel Team orchestration: independent ChatGPT chats for Channel A/B/C can produce independent outputs. The design targets coding dependencies and integration first.
-
-#### Phase 3 — Parallel Task coordination
-
-Only after architecture approval, design/implement readiness and a dependency graph; Task claim/lease and worker/session ownership; available / claimed / working / blocked / completed states; safe lease expiry/recovery; and multiple active Tasks within one Team mission. These are proposed concepts, not current V3 states.
-
-No Worker may silently take another Worker's Task. SUD_D mission state coordinates work without a direct Worker-to-Worker chat dependency. Define an explicit evolution of the sequential V3 state machine rather than weakening its existing transitions. Live parallel coding remains gated on Phase 4 isolation.
-
-#### Phase 4 — Internal Task worktree / branch isolation
-
-Internal isolation is a prerequisite for safe Parallel Coding; user-facing Worktree Management UI remains a later convenience. A mission has its main Workspace and each coding Task has an isolated branch/worktree, allowing Workers to change the same repository paths without live filesystem overwrites.
-
-Preserve Workspace containment, Git Safety, Policy / Approval / Audit, and user-owned changes. Use no reset-hard, clean or force shortcuts. This phase does not expose destructive Delete authority.
-
-#### Phase 5 — Task Result and Lead integration
-
-Workers return bounded structured results: Task ID/state, branch/worktree, commit/reference when applicable, changed paths, verification evidence, blockers/findings and dependency/result notes. Repository artifacts and structured SUD_D state carry results; large code blobs exchanged between chats are not the coordination mechanism.
-
-The Lead inspects results, releases newly unblocked Tasks, integrates in dependency order, handles merge conflicts explicitly, runs integrated verification, performs final review and produces the Final Result.
-
-Review Work Memory for parallel ownership: the existing single Workspace current checkpoint must not let Worker A overwrite Worker B's continuation. Reuse Mission/Task/Handoff concepts rather than creating a second memory system. The approved spec must establish this boundary before concurrent Worker execution.
-
-#### Phase 6 — Computer Use
-
-Approved later major capability after Parallel Coding is stable. Execution must follow SUD_D capability → Tool Kernel → Policy → Approval where required → Execution → Audit. Desktop/browser control grants no security bypass or generic uncontrolled host authority.
-
-### Later — Only when usage justifies it
-
-- Restricted Project Runner / Self-Development expansion beyond Restricted Verify.
-- Full Recovery and Safe Delete / recoverable destructive mutation. Both remain required before exposing Delete; they do not block isolated Parallel Coding while Delete stays unavailable.
-- Self-contained uv bootstrap for clean-machine Serena setup. For the current small Windows user base, installing trusted uv once per new machine is acceptable; SUD_D already manages pinned Python/Serena thereafter. Revisit when onboarding friction justifies self-provisioning.
-- Controlled Serena update/rollback and Team Presets.
-- User-facing GitHub repository creation and general Worktree Management UI; internal Task isolation has the separate prerequisite priority above.
-- Direct production `client_connected` wiring: trusted MCP-activity reconciliation is sufficient now. Revisit only if dogfooding demonstrates a real Waiting-for-ChatGPT problem.
-
-### Not currently planned
-
-Cloud Relay, cloud Device Registry/discovery, cloud/cross-device Work Memory sync, provider/model-selection runtime, macOS/Linux support and enterprise/multi-user architecture are outside the active implementation path. Git remains the accepted cross-device project mechanism; local Work Memory remains per-device. Parallel Coding's use of manually opened chats does not require independent/background model runtimes or a general scheduler.
-
-### M1 — Tool Execution Kernel
-
-Create the central typed execution path through which future tools must pass.
-
-M1 is complete. Its typed request/result, policy/classification, execution dispatch, audit, and fail-closed seams remain the foundation for later capabilities.
-
-### Personal Alpha File Tools — Read / Search / Write
-
-This near-term slice combines the original M2 read-only goal with a deliberately narrow early portion of file mutation so SUD_D becomes useful for real project work sooner.
-
-Implemented capabilities:
-
-- list
-- read
-- stat
-- search
-- create file
-- update/write file
-
-Rules for the Personal Alpha slice:
-
-- all paths remain workspace-bound and audited
-- outside-workspace and InternalRoot remain denied
-- no delete capability
-- no destructive rename/move semantics unless separately approved
-- no arbitrary process or network capability
-- writes must use the Tool Kernel and policy path rather than direct renderer/filesystem access
-- Git-backed project workspaces are the preferred Personal Alpha safety model; the latest committed repository state is an accepted temporary rollback baseline for early real-world testing
-- this temporary Git safety model does **not** replace the planned full Recovery engine
-
-### Git Safety + Integration — Pulled Forward
-
-Git is promoted ahead of full Recovery because it provides high value for a personal development workflow: inspectable diffs, checkpoints, repository state, and a practical rollback baseline for committed project files.
-
-The implemented local-first slice includes detection, status, diff, checkpoint/commit and bounded bootstrap/branch/remote workflows. Fixed-purpose GitHub network operations are also implemented; generic network authority remains denied.
-
-Git operations must use the same Kernel / Policy / Approval / Audit model. Network Git operations such as push/fetch remain separate from local repository operations and must not silently bypass the default Network DENY policy.
-
-Git is an **Alpha recovery aid**, not a complete recovery guarantee. Untracked files and uncommitted changes may not be recoverable from Git; full Recovery is usage-driven later scope and remains a gate before destructive Delete.
-
-### Basic Approval — Pulled Before Full Recovery
-
-Implemented: pending requests, trusted Desktop Approve / Deny, exact retry binding and one-time grants for protected Personal Alpha actions.
-
-The goal is not a generalized enterprise approval system. It is a simple, reliable user boundary for actions whose policy is ASK, especially restricted process execution and later sensitive Git/file operations.
-
-### Restricted Verify — Early Team Mode Prerequisite
-
-Implemented: `verify.run` supports fixed/validated test, lint, typecheck, build, diff_check, and secret_scan actions with their existing Policy / Approval decisions. It does not implement general shell or project packaging/release actions.
-
-The Restricted Verify slice must remain narrow:
-
-- no unrestricted or general shell surface
-- no renderer-controlled arbitrary executable, argv, cwd, or env
-- prefer fixed/validated verification actions such as test, lint, typecheck, and build
-- preserve Policy / Approval where applicable, bounded safe output/error handling, and audit
-- no generic process manager surface
-
-General shell / broader Execute remains outside the critical path unless separately approved.
-
-### Restricted Project Runner / Self-Development — P0c offline slice authorized; broader expansion usage-driven
-
-The Product Owner authorized the minimal offline P0c Restricted Project Runner production slice on 2026-10-07 after accepting P0b containment feasibility. Production exposure remains fail-closed: `runner.start` is unavailable until the aggregate writable-output/disk budget and the complete P0c security gate pass. Broader runner actions still require demonstrated usage need and separate explicit authorization.
-
-Durable intent:
-
-- user commands continue to come through normal SUD_D chat/agent workflows; no separate CLI-first user workflow is required;
-- reuse/extend the existing Restricted Verify path where practical rather than creating a parallel execution subsystem;
-- support the project-declared development actions actually needed for self-development, starting from existing verification actions and bounded packaging/release-candidate actions such as the repository's `package:win` workflow;
-- keep execution Workspace-bound, audited, and behind Tool Kernel / Policy / Approval where applicable;
-- do not expose caller-controlled arbitrary executable, argv, cwd, env, shell, raw command text, or generic process authority;
-- the goal is installed SUD_D -> open SUD_D source Workspace -> edit -> verify/build/package -> Git, while preserving the existing security architecture.
-
-This is an approved capability direction, not authorization to implement a general shell. Exact command allowlisting, project-profile discovery, packaging approval semantics, and UI belong in a separately authorized design/implementation task.
-
-### Incremental Production MCP Exposure
-
-Production MCP exposure is no longer treated as one monolithic late gate. Approved capability slices may be exposed incrementally **only after their own required Kernel/Policy/security/verification gates pass**.
-
-This allows the Personal Alpha to become useful earlier without exposing Delete, unrestricted Execute, secrets, outside-workspace access, or unfinished future capabilities.
-
-### Team Mode MVP — Primary Product Target
-
-Implemented and verified: Team Mode V3 uses one connected AI session with sequential logical Planner / Worker / Validator / Reviewer roles, bounded Tasks/rework, persisted state, and atomic Team/Work Memory/audit transitions. New missions require an explicit user Team request; existing active missions resume through `work.resume` / `team.status`. Task complexity alone does not authorize `team.start`.
-
-The MVP should prove the North Star flow:
-
-```text
-User Goal
-→ SUD_D coordinates a small AI team
-→ team plans / works / verifies / reviews
-→ all tool use stays behind SUD_D security boundaries
-→ artifacts + final result return to the user
-```
-
-Team Mode MVP does **not** require full Delete/Recovery, generic Execute, installer polish, cloud sync, cross-platform support, or enterprise orchestration features. Capabilities not yet implemented remain unavailable to Team Mode rather than being bypassed.
-
-### Retained post-MVP boundaries
-
-The implemented MVP does not grant additional authority. Apply the approved post-MVP phases above; retain these boundaries:
-
-- arbitrary/general shell and broader Execute
-- full Safe File Mutation + Recovery engine
-- Safe Delete semantics and recoverable delete
-- Serena auto-update / unattended runtime promotion
-- Computer Use only after stable Parallel Coding under Phase 6
-- further packaged distribution polish (Windows installer and signed in-app updates are implemented)
-- cross-platform support and enterprise/multi-user architecture are not currently planned
-- non-critical UI polish
-
-Prioritize real-world dogfooding after Team Mode MVP; promote later hardening when usage demonstrates the need.
-
-### Current Capability Classification
-
-This inventory distinguishes shipped bounded tools from approved future directions; current evidence and owner acceptance belong in the handoff. None of the future items below authorizes implementation in the current task.
-
-| Status | Capability / boundary |
+| Boundary | Retained gate |
 | --- | --- |
-| Implemented / Complete | Workspace read/search/create/write; Tool Kernel / Basic Approval / Audit; local and bounded GitHub Git workflows; managed Serena 1.7.0 lifecycle/repair and semantic `code.*`; Restricted Verify; local Work Memory; sequential Team Mode V3; Windows installer and signed in-app update. |
-| Published / installed owner acceptance pending | Phase 1 Connection Auto Recovery / Auto Restart with manual initial Connect only (Auto Start rejected), bounded 1s/3s/10s retries, 60-second stability reset, credential-revision invalidation and fail-closed shutdown/update handling. Owner smoke and final repair/focused re-review passed; `v1.0.6` publication, Windows CI and public asset verification PASS. |
-| Approved, not implemented — ordered | Design-first Parallel Coding Team with coordination, internal Task isolation and Lead integration; Computer Use after stable Parallel Coding. Each requires its own explicit task and gates above. |
-| Authorized / foundations preserved, execution blocked | Restricted Project Runner P0c offline Node foundations; P0c.1/P0c.2 BLOCKED. P0c.3 full Hyper-V/fixed whole-state storage candidate SELECTED for later owner-authorized feasibility only; aggregate host/guest storage and all P0c gates remain unproven. runner.start UNEXPOSED. |
-| Later / usage-driven | Restricted Project Runner expansion beyond P0c; full Recovery / Safe Delete; self-contained uv bootstrap; controlled Serena update/rollback; Team Presets; user-facing GitHub repository creation / Worktree UI; direct production client-connected signal. |
-| Blocked | Restricted Execute / general process execution: sandbox enforcement was not proven on the secondary device. No generic shell or unsandboxed fallback is exposed. Fixed-purpose Restricted Verify is implemented independently. |
-| Not currently planned | Cloud Relay / device discovery / Work Memory sync; provider/model-selection runtime; macOS/Linux; enterprise/multi-user architecture. A general scheduler/background model runtime is not required for the approved manually opened chat approach. |
-
-`autoStart` remains an inert compatibility field and never starts a connection. Persisted `autoRestart` now drives same-session Auto Recovery only after manual Connect; existing values are preserved and new profiles default it ON without granting startup intent. The tunnel has a client-signal port, but production wiring is absent; client absence is not a recovery trigger and this limitation does not invalidate the owner's real ChatGPT connection acceptance on Home and Work. Managed Serena can provision its pinned version through an available trusted `uv`; it is not a self-contained bootstrap on a machine without `uv`. Model instructions guide explicit Team requests; the Kernel additionally requires manual user approval before each new mission. This grants no authority to infer user intent from a prompt.
-
-### Privileged capability gate
-
-The privileged path remains:
-
-```text
-MCP Gateway → Tool Kernel → Policy → Approval → Execution → Audit / Recovery
-```
-
-Incremental Alpha exposure may use only the capabilities whose own gates are ready. Delete stays unavailable until its recovery semantics are implemented. Execute stays ASK and restricted until a later approved expansion. Team Mode receives no direct filesystem/process/network privileges and can only use capabilities SUD_D has safely exposed.
-
----
-
-## Team Mode / Agent Orchestration — Implemented MVP and Future Expansion
-
-**STATUS: MVP V3 IMPLEMENTED; BROADER ORCHESTRATION REMAINS FUTURE SCOPE.**
-
-Team Mode is the orchestration layer above SUD_D's secure execution foundation. The current V3 MVP coordinates sequential logical roles through one connected AI session and produces inspectable artifacts/results. Future Parallel Coding uses one Requirement / Lead Chat and manually opened Worker chats, with design-first sequencing in Section 5; it is approved but not implemented. Presets remain usage-driven later scope.
-
-### Core Team Model
-
-```text
-User
- ↓ Goal
-SUD_D Team Mode
- ↓
-Lead / Orchestrator
- ├─ Planner
- ├─ Worker / Specialist
- ├─ Tester / Validator
- ├─ Reviewer
- └─ Handoff / Memory
-        ↓
-     Workspace / Artifacts
-```
+| Restricted Project Runner P0c | P0b evidence does not prove aggregate writable-output/disk bounds or all production invariants. P0c.1–P0c.4 feasibility remains blocked; P0c.5 is deferred/not passed. runner.start stays unexposed. No unsandboxed fallback. |
+| Private MVP F0/F2/H1 | Preserve the approved Option B application-TCB/operational-storage-budget contract, reviewed handle-isolation approach and selected topology B. Native readiness and remaining physical gates are not proven by inert source; old grants do not authorize new attempts. |
+| A1 independently verifiable Owner Consent | Option A remains the selected design and is paused/blocked. Solo Expert cooperative consent does not satisfy or weaken this separate trust-anchor requirement. |
+| Real host execution | Explicit applicable scope, provenance/identity, data isolation, approval and cleanup proof are required. Missing mandatory evidence means STOP, not simulated readiness. |
+| Delete / Recovery | Delete remains unavailable until reviewed recoverability and destructive-action semantics are implemented and verified. |
+| Release / publication | Separate authorization and required package/update/signature/hash checks. A dev candidate or compiled artifact is not a signed release. |
 
-For a future Software Development preset, the conceptual roles are:
+Authoritative retained runner contracts: [Restricted Project Runner specification](docs/superpowers/specs/2026-10-06-restricted-project-runner-design.md) and [plan](docs/superpowers/plans/2026-10-06-restricted-project-runner.md), including their P0c, F0, F2 and H1 sections. These boundaries remain applicable to their respective paths; do not impose legacy F2/Hyper-V gates on separately approved ordinary Restricted Verify work or treat that separate route as permission to bypass a legacy gate.
 
-```text
-Lead / Orchestrator
- ├─ Planner
- ├─ Developer
- ├─ Tester
- ├─ Reviewer
- └─ Handoff / Memory
-```
+A1 rationale/evidence is preserved in the [historical roadmap](SUD_D_ROADMAP_ARCHIVE_2026-10-27.md). Resuming a blocked path requires a new bounded assignment and applicable approval, not merely reading an archive.
 
-The Lead / Orchestrator coordinates work; it is not a security superuser. The implemented V3 workflow is Planner → Worker → Validator → Reviewer. The broader role diagrams and preset examples describe future expansion.
-
-### Domain-Agnostic Presets
-
-Team Mode must not be coupled to software development. Future Team Presets may include:
-
-- Software Development
-- Podcast Production
-- Research
-- Content Writing
-- Custom Team
+## Later sequence — Parallel Coding, then Computer Use
 
-A future Podcast Production preset might express this flow:
+The 2026-10-05 expansion sequence is retained after the near-term Solo priority; no phase starts automatically.
 
-```text
-User Brief
-→ Lead / Orchestrator
-→ Brief Analyst
-→ Research Agent
-→ Script Writer
-→ Editor
-→ Fact Checker
-→ QA Reviewer
-→ Final Script
-```
+1. **Parallel Coding architecture:** after an explicit Parallel Team request, the user's existing conversation is Requirement / Lead Chat; the user manually opens Worker chats. No automatic creation of ChatGPT conversations or new OpenAI API/model runtime.
+2. **Task coordination:** approve dependency/readiness, claims/leases, worker/session ownership, expiry/recovery and the evolution of sequential V3 before implementation. Workers cannot silently take one another's work.
+3. **Internal branch/worktree isolation:** prerequisite for live concurrent coding, preserving Workspace/Git/Policy/Approval/Audit and owner changes. User-facing Worktree Management UI can wait. No reset-hard/clean/force shortcuts.
+4. **Task Result and Lead integration:** bounded results carry task/state, branch/reference, changed paths, evidence and blockers. Lead integrates in dependency order, handles conflicts and verifies the integrated result. Lead writes only through an explicit Integration Task. Work Memory must prevent one Worker overwriting another's continuation before concurrent execution.
+5. **Computer Use:** only after stable Parallel Coding and a separately approved capability design; same Kernel/Policy/Approval/Audit path.
 
-These examples establish domain independence only; preset definitions and workflows are deferred.
+Coding dependency/integration work is the target. Independent content chats need not acquire Parallel Team machinery. Sequential V3 remains the available Team behavior until the future contracts are implemented and verified.
 
-### Conceptual Orchestration Vocabulary
+## Later — only when usage justifies it
 
-The current model implements Goal, Task, logical Role, checkpoint/Work Memory, handoff, findings and Final Result. The vocabulary below also includes future extensions; it is not a claim that presets, independent agents or a scheduler exist:
+- Restricted Runner/self-development expansion beyond existing Restricted Verify; prefer existing fixed-purpose seams over a duplicate execution engine.
+- Full Recovery / Safe Delete, with the destructive capability gate intact.
+- Self-contained uv bootstrap; controlled Serena update/rollback. Managed Serena remains pinned; do not vendor/fork it merely to appear built in.
+- Team Presets, additional orchestration UI, user-facing GitHub repository creation and Worktree Management UI.
+- Direct production client-connected signaling when real dogfood evidence warrants it; client absence alone is not a recovery trigger.
 
-- Goal
-- Task
-- Subtask
-- Agent Role
-- Team / Team Preset
-- Work Queue
-- Artifact
-- Checkpoint
-- Work Memory / Automatic Resume
-- Task History
-- Review Result
-- Approval
-- Tool Access
-- Agent Status
-- Handoff
-- Final Result
+The product remains domain-agnostic. Future Software Development, Podcast, Research and Content presets are examples, not mandatory subsystems. Serena is not a universal dependency for all presets. Reuse Goal/Task/Artifact/Checkpoint/Decision/Handoff/Final Result and existing Work Memory; do not invent parallel memory stores.
 
-### Secure Execution Boundary
+## Not currently planned
 
-Team Mode sits above, and never bypasses, the existing privileged path:
+Cloud Relay, cloud device discovery/registry, cloud Work Memory sync, provider/model-selection runtime, macOS/Linux support and enterprise/multi-user architecture remain outside the active path. An independent/background model runtime or general scheduler is not required by the manually opened chat approach.
 
-```text
-Team / Agent
-→ SUD_D Tool Interface
-→ Tool Kernel
-→ Policy
-→ Approval
-→ Execution
-→ Audit / Recovery
-```
+Git is the cross-device project mechanism. Device connection state, runtime ownership, credentials and Work Memory stay local; one machine's acceptance does not prove another's. Existing architectural seams grant no authority to implement deferred providers or cloud services.
 
-Every role, including the Lead / Orchestrator, uses this same path. Agent roles do not gain direct filesystem or process access, bypass Policy or Approval, gain privilege through coordination status, or send arbitrary executable, `argv`, `cwd`, or `env` through the renderer.
+## Reference and change control
 
-Capabilities that are deferred at Team Mode MVP—especially Delete and broad Execute—remain unavailable rather than being implemented through a shortcut.
+- Stable connection, package, UX and resume contracts live in [CONTEXT](SUD_D_CONTEXT.md); [automatic resume architecture](docs/superpowers/specs/2026-09-04-automatic-work-resume-architecture-decision.md) remains the detailed continuity reference.
+- [Connection Auto Recovery design](docs/superpowers/specs/2026-10-05-connection-auto-recovery-design.md) and [plan](docs/superpowers/plans/2026-10-05-connection-auto-recovery.md) retain manual-start and fixed-purpose lifecycle requirements.
+- Every implementation maps to one explicit task/checkpoint. Approved future direction is not implementation, runtime, machine-change or publication authority.
+- Product direction changes belong here; technical gate detail belongs in its task/spec; progress and immediate next action belong only in HANDOFF. Update links rather than copy execution history across files.
+- Security weakening requires explicit Owner decision and architecture/security review; a smaller workflow never waives required proof.
 
-### Serena's Role
+## History
 
-Target product experience: Serena behaves like a built-in SUD_D coding dependency rather than something the user installs, configures, starts, or repairs manually. SUD_D owns Serena install/provisioning, the reviewed version pin, managed config, start/stop lifecycle, health, and repair behind the SUD_D control plane.
-
-Internally Serena remains a pinned SUD_D-managed runtime behind fixed SUD_D `code.*` mappings and the normal capability/security boundary. Do not fork, copy, or vendor Serena source into SUD_D merely to make the integration appear built in.
-
-Serena remains a specialist capability rather than a universal Team Mode dependency. A future Software Development team may choose either or both specialist paths:
-
-```text
-Developer Agent
- ├─ SUD_D native code tools
- └─ Serena-backed semantic code tools
-```
-
-Non-software presets such as Podcast Production and Research do not require Serena.
-
-### Approved Capability Vision
-
-The approved product direction is goal-based orchestration: the user supplies a Goal and constraints; SUD_D plans, coordinates, verifies, and advances the work until the Goal is complete or a user approval/stop condition is reached.
-
-- **Multi-agent handoff** uses the shared Goal / Task / Checkpoint / Artifact / Decision / Handoff model. Team Mode must not invent a parallel continuity system.
-- **Cross-chat continuation** is provided by Work Memory / Automatic Resume and its bounded Workspace-scoped Resume Context.
-- **Automatic result-checking and next-step dispatch** belong to the Lead / Orchestrator: inspect results, decide the next Task, dispatch it, and repeat within the approved constraints.
-- **Files / code / test / Git work** uses SUD_D secure tools, with Serena-backed semantic coding capabilities where appropriate.
-- **Computer Use** is an approved future browser/desktop-control capability direction. It must enter through SUD_D capability, Tool Kernel, Policy, Approval, and Audit boundaries and is not required before Team Mode MVP unless separately approved.
-- **Sensitive actions** remain governed by SUD_D Policy / Approval. Agent role, Serena capability, Computer Use, or orchestration status never grants bypass authority.
-
-Durable North Star:
-
-```text
-User gives Goal
-→ SUD_D Orchestrator plans/coordinates
-→ selects appropriate agent/tool/Serena/Computer Use capability
-→ executes through Tool Kernel / Policy / Approval / Audit
-→ verifies results
-→ dispatches the next step
-→ stores bounded Work Memory/checkpoints
-→ returns Final Result to the user
-```
-
-### User and Harness Responsibilities
-
-The user should primarily define the Goal or Brief, set constraints, approve sensitive actions, and review the Final Result. SUD_D should own planning, delegation, coordination, verification, handoff, and progress tracking within those constraints.
-
-### Relationship to the Secure Core
-
-M0 plus the accelerated Personal Alpha foundation in Section 5 are the required near-term base for Team Mode MVP. Team Mode depends on the Workspace Boundary, Tool Kernel, Policy, Basic Approval, Audit, workspace file tools, Git safety, Restricted Verify, Work Memory / Automatic Resume, and MCP/runtime foundations that are actually available at that time.
-
-Full Recovery, Safe Delete and broader Execute remain later scope under Section 5, with no authority available until their gates pass. Windows installer/updates are implemented; cross-platform support is not currently planned. None was required for the first sequential Team Mode experiment.
-
-For Git-backed Personal Alpha projects, the latest committed repository state is accepted as the temporary rollback baseline during early testing. This does not change the long-term requirement for recoverable destructive actions and does not authorize Delete before the full recovery design is implemented.
-
-### Approved vs Deferred
-
-**Approved:**
-
-- Team Mode / Personal AI Team Harness is the primary product North Star.
-- Team Mode MVP V3 and its Personal Alpha prerequisites are implemented; current work is dogfooding and bounded fixes.
-- Orchestration is domain-agnostic: user goal → team → artifacts and results.
-- The secure SUD_D core remains the execution boundary for every agent role.
-- Serena is optional and is not a required core runtime dependency.
-- Full Recovery/Delete and broad Execute may follow the first Team Mode MVP rather than blocking it.
-
-**Approved future direction; not implemented by the V3 MVP:**
-
-- Parallel Coding design, dependency-aware coordination, internal worktree isolation and explicit Lead integration/conflict handling, in Section 5 order.
-- Computer Use after Parallel Coding is stable.
-- Team Presets and further orchestration UI only when usage justifies them; current Desktop Team status/stop UI is implemented.
-
-Independent/background model runtime and a general scheduler are not required by the approved chat approach. Model/provider selection and cloud Work Memory sync are not currently planned.
-
----
-
-## 6. UI / UX Direction
-
-Use UI references the user likes as inspiration only. Do not copy branding or UI 1:1.
-
-### Style
-
-- simple
-- status-first
-- card based
-- light neutral background
-- white rounded cards
-- clear spacing
-- non-technical by default
-
-### Status colors
-
-- green = connected / safe
-- amber = Ask / approval required
-- red = Deny / Error
-
-### Main navigation
-
-- Overview
-- Workspaces
-- Connection
-- Activity
-- Security
-- Recovery
-- Environment / Doctor
-
-### Overview content
-
-- This Device
-- Connection status
-- Active Workspace
-- Security summary
-- Pending Approval
-- Recent Activity
-- Recovery
-
-### Normal UX
-
-```text
-Open SUD-D
-→ Choose Workspace
-→ Set up Runtime API Key
-→ Set up Secure Tunnel
-→ Connect ChatGPT
-→ AI works inside allowed workspace
-```
-
-### Approval UX
-
-```text
-AI requests protected action
-→ notification/card
-→ Approve / Deny
-```
-
-Normal users should not need to manage tunnel profile names, keys, executable paths, or CLI commands. Advanced diagnostics may expose safe technical metadata when needed.
-
----
-
-## 7. Work Memory / Automatic Resume
-
-**IMPLEMENTED — Workspace-scoped resume/checkpoint and guarded session bootstrap.**
-
-Work Memory / Automatic Resume is the implemented continuity foundation used by Team Mode V3. A new ChatGPT conversation can connect and resume bounded Workspace state without copying the previous chat. SUD_D owns continuation state; ChatGPT and Serena are not authoritative memory stores.
-
-The intended flow is:
-
-```text
-New ChatGPT conversation
-→ connect to SUD_D
-→ call work.resume (required before substantive project work)
-→ load bounded Resume Context for the active Workspace
-→ validate live Workspace/Git state
-→ continue unfinished work
-```
-
-The bootstrap/resume contract is product-owned and authority-neutral:
-
-- expose an idempotent session/workspace bootstrap/resume capability;
-- instruct a new AI session to bootstrap before substantive project work;
-- resolve the active Workspace and return bounded Resume Context when unfinished work exists;
-- where practical, fail project-scoped privileged work closed until the current session/Workspace has bootstrapped;
-- require a fresh bootstrap when the active Workspace changes;
-- never grant additional Tool Kernel / Policy / Approval / Audit authority;
-- never require raw ChatGPT conversation transcripts or a ChatGPT conversation ID as the source of truth.
-
-Minimal Resume Context remains bounded structured state per Workspace, not one global memory pool: Goal, current Task/status, Completed work, important Decisions, Blockers, Next Action, relevant Artifacts/changed paths, verification evidence summary, Git/checkpoint reference when available, and updated timestamp.
-
-Use both automatic state derived from SUD_D tool/task activity where reliable and explicit checkpoints at meaningful boundaries. Checkpoints stay operational: Current Task / Completed / Decisions / Blocker / Next Action / Evidence.
-
-Team Mode must reuse this same state model rather than create a second memory system. Shared concepts include Goal, Task/Subtask, Checkpoint, Artifact, Decision, Task History, Handoff, and Final Result.
-
-Work Memory remains local per-device; cloud synchronization is not a current product requirement. Git commit/push/pull plus repository handoff provides cross-device development continuity. Parallel Task ownership and continuation must be reviewed under Section 5 before concurrent Workers are enabled. `.serena/` remains local tooling state, not project memory.
-
-Durable architecture contract: `docs/superpowers/specs/2026-09-04-automatic-work-resume-architecture-decision.md`.
-
----
-
-## 8. Multi-device Direction
-
-Device concept:
-
-- `deviceId`
-- `deviceName`
-- `provider`
-- `connectionStatus`
-- `activeWorkspace`
-
-### Current
-
-primary validation device and secondary validation device are independent local devices. Each manages its own Secure Tunnel connection and local state.
-
-Project continuity uses Git commit/push/pull. Local Work Memory, credentials and connection/runtime ownership remain per-device. Cloud Relay, Device Registry/discovery and cloud Work Memory sync are not currently planned; any future change needs a new Product Owner decision and security review.
-
----
-
-## 9. Design Principles
-
-- local-first
-- personal-first and fast to usable Alpha
-- secure by default
-- fail closed
-- least privilege
-- recoverable destructive actions
-- auditable
-- provider-independent where practical
-- UI hides technical complexity
-- security boundaries must not depend on UI
-- renderer must not receive plaintext credentials
-- defer enterprise-scale complexity until demonstrated need
-
----
-
-## 10. Document Responsibilities
-
-### `SUD_D_ROADMAP.md`
-
-Owns:
-
-- long-term architecture
-- milestones
-- product direction
-- approved future ideas
-- milestone sequencing and security gates
-
-This file is the long-term Master Plan / Source of Truth for approved product direction.
-
-### `SUD_D_HANDOFF.md`
-
-Owns:
-
-- current milestone
-- current status
-- completed work
-- verification
-- open issues
-- immediate next action
-- latest completed milestone commit
-
-Do not duplicate the entire roadmap in the handoff. Link back to this file instead.
-
----
-
-## 11. Change Control
-
-- New implementation should map to an explicit milestone or approved accelerated capability slice before work begins.
-- Section 5's approved post-MVP phases govern new execution priorities; completed historical milestone numbers remain useful capability labels.
-- Security gates may become stricter without weakening the architecture; weakening them requires explicit architecture review.
-- Deferring Full Recovery/Delete does not authorize destructive file operations before those gates are ready.
-- Approved future directions require separate explicit tasks; excluded cloud/platform/model-runtime ideas are outside the active path.
-- When roadmap and handoff differ, use `SUD_D_ROADMAP.md` for long-term direction and `SUD_D_HANDOFF.md` for current execution state.
+[Complete pre-consolidation roadmap snapshot](SUD_D_ROADMAP_ARCHIVE_2026-10-27.md) preserves the original decisions, milestone descriptions, evidence and superseded sequencing verbatim. It is an evidence/design lookup, not routine bootstrap or an active dispatch queue. This consolidation changes document organization, not milestone approvals or product runtime status.

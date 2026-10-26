@@ -6,13 +6,15 @@ This document holds stable project context, not milestone progress. For approved
 
 SUD_D is a local-first Windows AI control gateway/runtime whose secure core supports the long-term North Star: a domain-agnostic **Personal AI Team Harness / Orchestrator**. A user defines a goal and constraints; Team Mode coordinates planning, specialist work, verification, review, handoff, memory, and final artifacts for user review or approval.
 
-The MCP Gateway is a foundation rather than the final product destination. Implemented Team Mode V3 coordinates sequential logical Planner / Worker / Validator / Reviewer assignments through the connected AI session. Every role uses the same Tool Kernel → Policy → Approval → Execution path. Serena is an optional specialist integration behind the SUD_D-managed runtime and `code.*` facade. With trusted uv already installed on the machine, SUD_D provisions and manages its pinned Python/Serena runtime; self-contained uv bootstrap and controlled runtime update/rollback remain later work. Broader orchestration follows the approved roadmap.
+The MCP Gateway is a foundation rather than the final product destination. Implemented Team Mode V3 coordinates sequential logical Planner / Worker / Validator / Reviewer assignments through the connected AI session. Every role uses the same Tool Kernel → Policy → Approval → Execution path. **Current shipped/in-development implementation:** Serena is an optional managed specialist integration behind the SUD_D-managed runtime and the limited `code.*` facade. With trusted uv already installed, SUD_D provisions and manages its pinned Python/Serena runtime; self-contained uv bootstrap and controlled runtime update/rollback remain later work.
+
+**Owner-approved Serena-first product direction (2026-10-14), not yet implemented:** Serena should be the general Workspace tool-operating hand; ChatGPT plans and invokes tools while SUD-D mediates Workspace/Policy, explicit user-selected permission and risk review, Approval, and Audit. Do not unnecessarily recreate tools already provided by Serena. Keep SUD-D domain-agnostic; TGNK is an external first pilot. Default Restricted Mode remains unchanged until separately authorized capabilities are implemented and verified. User permission for host-user tools is informed cooperative consent, not OS-enforced confinement or a replacement for the separately BLOCKED A1 Option A independently verifiable Owner Consent. Implementation order, conditions, and completion status live in [SUD_D_ROADMAP.md](SUD_D_ROADMAP.md) and [SUD_D_HANDOFF.md](SUD_D_HANDOFF.md).
 
 Approved future Parallel Coding uses the user's current conversation as Requirement / Lead Chat after an explicit Parallel Team request, with Worker chats opened manually by the user. SUD_D does not create ChatGPT conversations or add an OpenAI API/model runtime for this approach. This is future direction, not current sequential V3 behavior; design and gates belong in the roadmap.
 
 SUD_D is local-first by design: project state and continuity live in Git, device runtime state stays local, and cloud infrastructure is not a prerequisite for the core product.
 
-SUD_D is built for one primary owner who tests local changes in the app. The near-term delivery rhythm is a small working owner-test candidate, one relevant app check, then owner feedback; broad test suites normally belong to explicit milestone or publication closure unless the changed boundary requires them earlier. This preference changes development effort, not the Workspace, Policy, Approval, Audit, Recovery, or credential boundaries. [AGENTS.md](AGENTS.md) defines the verification rules.
+SUD_D is built for one primary owner who tests local changes in the app. Success means completing that owner's real local workflow with understandable approvals and recoverable work, without requiring enterprise/multi-user infrastructure. Prefer small working owner-test candidates and evidence-driven feedback. [AGENTS.md](AGENTS.md) owns verification effort and security/data proof; single-user delivery does not weaken the Workspace, Policy, Approval, Audit, Recovery or credential boundaries.
 
 ## Security Model
 
@@ -95,7 +97,7 @@ Protected work should surface a clear Approve / Deny decision with enough contex
 
 ## Work Memory / Automatic Resume and Session Continuity
 
-Work Memory / Automatic Resume is implemented. A new MCP session calls `work.resume` before substantive project work; the guard requires a fresh resume for the active Workspace. SUD_D owns bounded local Goal/Task/checkpoint state, live Git drift information, and Resume Context rather than raw chat transcripts. Team transitions derive continuation through the same atomic Work Memory boundary.
+Work Memory / Automatic Resume is implemented. A new SUD-D MCP session calls `work.resume` before substantive project work through that session; the guard requires a fresh resume for the active Workspace. SUD_D owns bounded local Goal/Task/checkpoint state, live Git drift information, and Resume Context rather than raw chat transcripts. Team transitions derive continuation through the same atomic Work Memory boundary. Native repository development is a separate authorized host workflow, not evidence of product bootstrap or Desktop Approval; [AGENTS.md](AGENTS.md#development-workflow-and-product-runtime) defines the operating distinction.
 
 New Team missions require user choice: the AI requests `team.start` only when the user explicitly requests Team Mode, and the Tool Kernel / Policy / Approval path requires manual Desktop approval for the exact goal and Workspace before creating a mission. Approval modes, including Full Access, cannot select Team on the user's behalf. A pending/denied request creates no mission. After `work.resume`, existing active missions resume through `team.status`; normal role transitions do not require repeated startup approval. Without an active mission, use Normal Mode. Complexity, Skills, file edits, validation and review do not authorize startup.
 
@@ -105,9 +107,7 @@ Git plus `SUD_D_HANDOFF.md` remains the cross-device development continuity mech
 
 Development agents are expected to follow the repository-defined skill routing in [AGENTS.md](AGENTS.md) autonomously. `AGENTS.md` is the sole source of truth for routing details and progressive-disclosure rules.
 
-SUD_D follows a risk-based development model: use focused proof for changed security/data boundaries and quick app checks for ordinary UI work. The owner can test a local candidate before broader milestone/release verification.
-
-Before changing production source, agents use the concise risk/verification check in [AGENTS.md](AGENTS.md); the detailed four-heading form applies to security/data changes and explicit milestone gates.
+Verification, skill selection and pre-implementation checks have one authoritative home in AGENTS; this context does not define a second workflow. Evidence states are defined in [agent workflows](docs/agent-workflows.md#evidence-and-completion-states).
 
 - [AGENTS.md](AGENTS.md) — operating rules for every coding agent.
 - [SUD_D_CONTEXT.md](SUD_D_CONTEXT.md) — stable product, security, architecture, connection, and UX context.
