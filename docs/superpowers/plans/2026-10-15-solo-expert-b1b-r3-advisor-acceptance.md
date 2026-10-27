@@ -1,0 +1,31 @@
+# SOLO-EXPERT-B1b-R3 — Independent Advisor Closeout Review (Recovered after lost chat)
+
+**Review date:** 2026-10-15. **R3 Closeout created:** 2026-10-15 00:51 +07. **Decision: GATE 0 ACCEPT, GATE 1 ACCEPT ONLY AS SOURCE/FAKE, GATE 2 PARTIAL/NO-GO; FULL B1b NOT ACCEPTED; B2 NOT AUTHORIZED.**
+
+**Serena Closeout:** `.serena/reports/solo-expert-b1b-r3-code-only-closeout-20261014.md` (ignored, preserved despite missing original Serena chat). **Binding R3:** `docs/superpowers/plans/2026-10-14-solo-expert-b1b-r3-serena-assignment.md`. Owner authorized exactly 23 source/test paths + 4 Contracts dist-index artifacts + one uniquely task-owned backup area, code-only.
+
+## Recovery evidence, inspected directly by Advisor
+
+- Confirmed actual ignored R3 Closeout **exists**, ~19.8 KB, LastWriteTime **2026-10-15 00:51:24** local; prior R1 and R2 Closeouts remain present. These records persist independently of chat history.
+- Original R3 manager process is **not running** according to current Serena process manager (`advisor-codex-b1b-r3-contracts-20261014` exited). There is **no named running R3 implementation process** in the Serena manager inventory. This does not prove absence of every possible unrelated OS process or recover the missing UI conversation.
+- Independently reran all SIX R3-focused suites on the already-approved installed Electron 36.9.5 as test-only Node/SQLite host: **6/6 suites and 75/75 tests PASS; exit_code=0**, reporter duration ~14.91 s. This includes B1a integration 43, B1a runtime 14, B1b Approval 5, durable SQLite persistence 5, R3 Desktop IPC 6, and R3 fake Gateway/Kernel 2. A test pass is not proof of live managed Serena or of real cross-process Desktop runtime.
+- Independently recalculated SHA-256 of all **5 changed R3 source/test files** (Contracts index src, Desktop Approval Controller, ActivityPage, new Desktop test and Gateway fake test) and **4 generated Contracts index dist artifacts**. All **9/9 match** the hashes documented in R3 Closeout.
+- Independently imported exact `packages/contracts/dist/index.js` into the current Node runtime (no product Desktop): `ApprovalRespondInputSchema.safeParse` accepts legacy two-field decision, accepts valid lowercase 64-hex `reviewDigest`, and rejects malformed digest. This is real compiled Contract transport proof, not product readiness.
+- Current Git branch `p0c-hyperv-spike`, HEAD `7e4c54687f363b2abe6bd34ff71afb4d1a211299`; staged=0; after R3 **293 Git-visible entries** (two new R3 tests). Serena's historical start 291 vs final 293 inventory with filtered matching fingerprint is closeout evidence, NOT independently witnessed baseline preservation or byte-identical proof for every other dirty file. No stage/commit/push was performed by Advisor.
+- R3 reported all scoped Domain/App/Infrastructure/Contracts/MCP-Gateway/Desktop-web noEmit checks exit 0, scoped ESLint pass, isolated Desktop typecheck pass, and `git diff --check` pass. **Advisor did not independently rerun all these commands in this recovery turn.** Desktop-Node package-wide TypeScript remains non-green (existing/prebuilt-import diagnostics). Keep this separate from passed R3-focused tests.
+
+## Exact accepted vs blocked boundaries
+
+**Gate 0 ACCEPT:** strict optional digest in Contracts source and the **four narrow compiled index artifacts**, with no extra dist output. Task-owned original-artifact TEMP backup exists per Closeout; backup/restore-on-failure was not exercised. Package build of all Contracts sources was not used.
+
+**Gate 1 ACCEPT WITH LIMIT:** actual protected unchanged IPC was tested via fake sender/controller and explicitly imported compiled runtime schema; source Desktop Controller + Activity uses same immutable displayed review digest and warns about stock local logging/host-user privileges. Fake IPC + actual in-memory SQLite Coordinator tests include manual user-sourced HMAC and denial. **No real built/running Electron Desktop UI or actual owner review through the full installed package graph was observed.**
+
+**Gate 2 PARTIAL — NO-GO:** source-only ToolKernel / Policy / same Approval Coordinator / SQLite claimed→UNKNOWN fencing test is 2/2 PASS with a **synthetic fake Serena session**. Managed Runtime still requires `integrity:'synthetic-fixture'` and has no demonstrated independent installed-byte/session/epoch attestation; real Gateway production MCP registration and trusted Work Resume / Workspace generation binding are not proven. The Gateway implementation deliberately remains OFF/unregistered, no B2 command. Additional `packages/application/dist` and `packages/infrastructure/dist` are stale/unchanged and were outside the R3 owner-approved emitted-artifact scope. **Do not promote source/fake PASS to B1b production READY.**
+
+## Recommended next scope (proposal, no new authorization)
+
+Owner need not re-run R3. Advisor should prepare the **smallest new read-only, source-grounded follow-up** focused on the real managed Serena ready-only identity/provenance boundary, persistent Workspace/Resume, OFF-by-default Gateway registration and reproducible dependent package-graph artifact parity. Make a new **exact minimal source/generated-output allowlist**, distinguishing test-only code and generated executables, then obtain explicit Owner permission before Serena implementation/build or physical process. This may be two bounded steps (runtime attestation source design and controlled artifact/integration) if necessary; do not authorize generic shell, OS process, network/provider/secrets, Windows Policy, native/TGNK or production shell to shortcut the permission boundary.
+
+**Security continuity:** Option B cooperative local upstream logging/ambient Windows-user risk must be disclosed. Default Restricted, A1 separately verifiable Owner Consent PAUSED/BLOCKED. B2 one-shot actual Terminal through SUD-D requires independently reviewed, frozen device/account/workspace/command/risks plus genuine human one-use approval after the product trace is verified. User's missing chat does not invalidate the Closeout; neither does a Closeout by itself certify live readiness.
+
+**Next actor:** Product Owner/ChatGPT Advisor plan the narrow Gate 2 recovery on top of recorded R3 Gate 0/1. No previous mission is to be re-dispatched by default.

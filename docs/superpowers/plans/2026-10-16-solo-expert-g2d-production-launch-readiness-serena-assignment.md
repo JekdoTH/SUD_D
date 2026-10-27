@@ -1,0 +1,34 @@
+# SUD_D — G2d Product Serena Startup: ONE Focused Source Recovery (Serena ONE LONG BOUNDED Mission, 2026-10-16)
+
+**ROLE:** Serena Home New IMPLEMENTATION, separate chat. **Priority:** working Solo MVP, no more G2c physical smoke iterations or speculative trust framework. **Binding Advisor decision:** [Final physical smoke acceptance](2026-10-16-solo-expert-g2c-last-physical-smoke-advisor-final-review.md). ONE long bounded read-only root-cause/conditional source fix/focused tests/ONE Final Closeout→STOP. Do NOT call Codex CLI/MCP, subagents/delegates, Team Mode or Remote Desktop Commander.
+
+## Hard status, never misrepresent
+Last DEV one-shot `sudd-g2c-dev-mcp-handshake-20261016-04` **failed** before MCP initialize: owned Serena 1.7.0 child exited code 1 after 120 seconds, stderr category `FileNotFound`, raw exception message/path UNKNOWN, stdout0, tools/list NOT_RUN; prior `-03` also failed. Config WAS precreated in -04. The -03/-04 temp roots and previous Closeouts are FROZEN READ-ONLY. **No further Serena physical DEV smoke allowed in this mission**, even if root cause suspected: DO NOT launch binaries/Node subprocess/native processes/server, create -05, start/attach to existing Serena, use network, provider, B2, Electron or product Gateway. Preserve old `dist`, Desktop/release/native artifacts and user data. Git HEAD `7e4c54687f363b2abe6bd34ff71afb4d1a211299`, staged zero, inherited dirty/untracked OWNER WORK must remain intact. No Git writes.
+
+## Exact writable allowlist
+1. **Existing** `packages/infrastructure/src/serena-managed-runtime.ts` — only if a real production-path defect has been **independently proven by concrete source evidence**, not merely a DEV harness failure. No new tool registration or trust-policy weakening.
+2. **Existing** `packages/tests/src/serena-managed-runtime.acceptance.test.ts` — add at most narrow mocked regression proving the exact fault and intended correction, never actual Native/Installed Serena/real process.
+3. **ONE NEW ignored Closeout only** `.serena/reports/solo-expert-g2d-production-serena-startup-source-recovery-closeout-20261016.md`. Must be absent initially; create exclusively. If no proven production bug, leave BOTH existing Source/Test files UNCHANGED and still deliver closeout.
+
+All other Source and config (including `serena-managed-config.ts`, `serena-engine-provisioner.ts`, Gateway/Application/Domain/Policy/Approval/Audit), installed Serena 1.7.0 executable/Python source, user original files, old Dev helpers, temporary roots, `dist`, release, and package manifests are **READ-ONLY**.
+
+## Gate A — pin and analyze only decisive evidence
+Read `AGENTS.md`, `SUD_D_ADVISOR.md`, current top `SUD_D_HANDOFF.md`, decision and prior immutable `.serena/reports/solo-expert-g2c-startup-parity-dev-handshake-closeout-20261016.md`. Run repository Skill Router and load `diagnosing-bugs` and `tdd` if code changes. Independently inspect only relevant installed Serena 1.7.0 `cli.py`, `mcp.py`, `serena_config.py` and direct imports where FileNotFound occurs before `Starting MCP server`. Do not run these installed Python modules. Inspect `-04/observation.json`, config and task-owned log READ ONLY; previously redacted stderr category `FileNotFound` is not path proof. Compare actual `serena-managed-runtime.ts` production `buildManagedSerenaLaunchPlan`, `safeManagedRuntimeEnvironment` and `prepareManagedSerenaConfig` call order to DEV helper `cleanEnvironment`. Advisor already confirmed DEV PATH omitted installed Git `C:\Program Files\Git\cmd` and Node directories, while Production allowlists and inherits normal host PATH. That mismatch is a TEST HARNESS DEFECT HYPOTHESIS, not proof of a production bug.
+
+**Decision Gate:** (a) If evidence pinpoints a **specific current production code fault**, name exact source line/call graph and one focused no-process regression; only then patch it. (b) If evidence shows only DEV-helper omission or remains ambiguous, write **NO_PRODUCTION_PATCH_JUSTIFIED** and STOP code changes; do not rewrite Production PATH or weaken environment/Approval because of conjecture. Do not fake a stack trace or assert specific missing file.
+
+## Gate B — conditional smallest implementation
+Only if Gate A proves a real product fault, add one RED→GREEN test in allowed fake-injected existing file, correct minimal implementation within `serena-managed-runtime.ts` while preserving existing read-only `inspectLiveSoloReadinessOnly` NOT_READY, managed session lifecycle, user workspace isolation, tool manifest/LSP contract and error redaction. No new source files, packages, process supervisor, loader, runtime feature, tool registration, fake or another generic static graph. Up to THREE focused repairs for this diagnosed exact code cause.
+
+## Gate C — exact verification, not a smoke
+If modified: run only safe in-memory/mock focused checks and narrow affected TypeScript checks, both reporter/exit 0. **No runtime/process launches, Vite/esbuild/Node CLI build/root pnpm build**, no code invoking Serena even indirectly. If tests cannot execute within this source-only gate, report NOT_RUN rather than fake success. If no change: verify both file SHA unchanged. Always `git diff --check`, Git HEAD/staged zero, inherited user state preserved; no original dist/Release updates.
+
+## Gate D — product-directed one Final Closeout
+Write ONE ignored `.serena/reports/solo-expert-g2d-production-serena-startup-source-recovery-closeout-20261016.md` with:
+- exact confirmed vs still-unknown `FileNotFound` facts, real DEV/Production PATH and config differences and whether production source patch was warranted;
+- if patch: exact two allowed paths, focused tests, expected behavior, known trust limitations;
+- **one NEXT ACTION PLAN** for the **latest-source isolated Desktop/Gateway DEVELOPMENT build** from current dirty/untracked repository WITHOUT invoking old destructive `prepare-mcp-gateway-runtime.mjs`, `predev` or `package:win`, and WITHOUT writing canonical hardlinked `dist`/`dist-release`; explain minimum native dependency/signature gate and what would actually become owner-testable. Do not create another source copy or build as part of this source-only mission.
+- state Live Solo Agent remains UNREGISTERED and NOT_READY, real managed session NOT OBSERVED, B2 NOT AUTHORIZED and Owner Test DEFERRED. Preserve the existing production capabilities truthfully (workspace/file/git/semantic adapters already wired, no fake).
+- ONE Final Closeout path only; STOP. Do not self-dispatch a physical retry, Codex or next mission.
+
+**Goal ceiling:** `G2d EXACT PRODUCTION STARTUP DEFECT CODE_ONLY FIXED` only if independently proved and tested, otherwise `G2d NO_PRODUCTION_PATCH_JUSTIFIED / DEV HARNESS FAILURE ISOLATED`. Both are valid truthful outcomes. This mission moves from repeat DEV preflights toward a real user-testable Desktop/Gateway build, never labels mocked Solo as working.
