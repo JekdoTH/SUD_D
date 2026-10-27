@@ -12,8 +12,10 @@ import {
 import {
   GIT_SAFETY_LIMITS,
   validateRelativePath,
-  type GitSafetyAdapter,
-  type WorkspaceRepository,
+} from '@sud-d/infrastructure/gateway-core';
+import type {
+  GitSafetyAdapter,
+  WorkspaceRepository,
 } from '@sud-d/infrastructure';
 import { defineToolCapability, type RegisteredToolCapability } from './tool-kernel.js';
 import { createGitWorkflowCapabilities, type GitCapabilityDependencies } from './git-workflow-capabilities.js';

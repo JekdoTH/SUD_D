@@ -25,12 +25,16 @@ export interface WorkMemoryService {
     input: WorkCheckpointInput,
   ): Result<WorkCheckpointResult, AppError>;
   requireResumed(session: ClientSession, workspaceId: string): Result<void, AppError>;
+  /** Bound to verified DB selection generation, not caller-supplied resumed:true. */
+  requireResumedSolo(session: ClientSession, workspaceId: string, generation: string): Result<void, AppError>;
 }
 
 export interface WorkMemoryServiceDependencies {
   readonly repository: WorkMemoryRepository;
   readonly gitSafety: GitSafetyAdapter;
   readonly clock?: () => Date;
+  /** Inject the active Workspace Repository's DB-backed generation reader. */
+  readonly getWorkspaceGeneration?: (workspaceId: string) => string | undefined;
 }
 
 interface TrustedGitState {
@@ -44,9 +48,17 @@ export function createWorkMemoryService(
   dependencies: WorkMemoryServiceDependencies,
 ): WorkMemoryService {
   const bootstrappedWorkspaceBySession = new Map<string, string>();
+  const soloGenerationBySession = new Map<string, { workspaceId: string; generation: string }>();
   const clock = dependencies.clock ?? (() => new Date());
 
   const service: WorkMemoryService = {
+    requireResumedSolo(session, workspaceId, generation) {
+      const entry = soloGenerationBySession.get(session.id);
+      const trusted = dependencies.getWorkspaceGeneration?.(workspaceId);
+      return entry && entry.workspaceId === workspaceId && entry.generation === generation && trusted === generation
+        ? ok(undefined)
+        : err(appError('WORK_RESUME_REQUIRED', 'Workspace generation has changed; resume again'));
+    },
     requireResumed(session, workspaceId) {
       return bootstrappedWorkspaceBySession.get(session.id) === workspaceId
         ? ok(undefined)
@@ -63,6 +75,9 @@ export function createWorkMemoryService(
       if (!trustedGit.ok) return trustedGit;
       const git = buildGitValidation(current.value?.git, trustedGit.value);
       bootstrappedWorkspaceBySession.set(session.id, workspace.id);
+      const generation = dependencies.getWorkspaceGeneration?.(workspace.id);
+      if (generation) soloGenerationBySession.set(session.id, {workspaceId:workspace.id,generation});
+      else soloGenerationBySession.delete(session.id);
       return ok({
         workspaceId: workspace.id,
         ...(current.value ? { context: current.value } : {}),

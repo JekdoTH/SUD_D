@@ -15,8 +15,10 @@ import {
   isProjectRunnerSnapshotFresh,
   prepareProjectRunnerSnapshot,
   verifyProjectRunnerSnapshot,
-  type ProjectRunnerApprovedSnapshot,
-  type WorkspaceRepository,
+} from '@sud-d/infrastructure/gateway-core';
+import type {
+  ProjectRunnerApprovedSnapshot,
+  WorkspaceRepository,
 } from '@sud-d/infrastructure';
 
 export interface ProjectRunnerRuntimePort {
@@ -31,9 +33,17 @@ export interface ProjectRunnerServiceDependencies {
   readonly runtime: ProjectRunnerRuntimePort;
 }
 
-export interface ProjectRunnerService {
+export interface ProjectRunnerDiscoveryPort {
   resolveSecurity(): Result<ResolvedToolSecurityContext, AppError>;
   discover(): Result<readonly ProjectRunnerCandidate[], AppError>;
+}
+
+export interface ProjectRunnerDiscoveryDependencies {
+  readonly workspaceRepo: WorkspaceRepository;
+  readonly internalRoots: readonly InternalRoot[];
+}
+
+export interface ProjectRunnerService extends ProjectRunnerDiscoveryPort {
   reviewStart(request: ProjectRunnerStartRequest): Result<ProjectRunnerApprovedSnapshot, AppError>;
   startApproved(request: ProjectRunnerStartRequest): Promise<Result<ProjectRunnerStartResult, AppError>>;
 }
@@ -53,35 +63,27 @@ function sameInput(left: unknown, right: unknown): boolean {
   }
 }
 
-export function createProjectRunnerService(
-  dependencies: ProjectRunnerServiceDependencies,
-): ProjectRunnerService {
-  const reservations = new Map<string, ProjectRunnerApprovedSnapshot>();
-  const started = new Map<string, Promise<Result<ProjectRunnerStartResult, AppError>>>();
+function findActiveRunnerWorkspace(workspaceRepo: WorkspaceRepository) {
+  try {
+    const active = workspaceRepo.list().filter((workspace) => workspace.isActive);
+    return active.length === 1 ? active[0] : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
-  const activeWorkspace = () => {
-    try {
-      const active = dependencies.workspaceRepo.list().filter((workspace) => workspace.isActive);
-      return active.length === 1 ? active[0] : undefined;
-    } catch {
-      return undefined;
-    }
-  };
-
-  const service: ProjectRunnerService = {
-    resolveSecurity() {
+export function createProjectRunnerDiscoveryService(
+  dependencies: ProjectRunnerDiscoveryDependencies,
+): ProjectRunnerDiscoveryPort {
+  const activeWorkspace = () => findActiveRunnerWorkspace(dependencies.workspaceRepo);
+  return Object.freeze({
+    resolveSecurity(): Result<ResolvedToolSecurityContext, AppError> {
       const workspace = activeWorkspace();
-      if (!workspace) {
-        return err(appError('WORKSPACE_NOT_FOUND', 'Exactly one active Workspace is required'));
-      }
-      return ok({
-        sensitivity: 'normal',
-        context: 'workspace',
-        workspaceId: workspace.id,
-      });
+      return workspace
+        ? ok({ sensitivity: 'normal', context: 'workspace', workspaceId: workspace.id })
+        : err(appError('WORKSPACE_NOT_FOUND', 'Exactly one active Workspace is required'));
     },
-
-    discover() {
+    discover(): Result<readonly ProjectRunnerCandidate[], AppError> {
       const workspace = activeWorkspace();
       if (!workspace) {
         return err(appError('WORKSPACE_NOT_FOUND', 'Exactly one active Workspace is required'));
@@ -91,6 +93,21 @@ export function createProjectRunnerService(
         internalRoots: [...dependencies.internalRoots],
       });
     },
+  });
+}
+
+export function createProjectRunnerService(
+  dependencies: ProjectRunnerServiceDependencies,
+): ProjectRunnerService {
+  const discovery = createProjectRunnerDiscoveryService(dependencies);
+  const reservations = new Map<string, ProjectRunnerApprovedSnapshot>();
+  const started = new Map<string, Promise<Result<ProjectRunnerStartResult, AppError>>>();
+
+  const activeWorkspace = () => findActiveRunnerWorkspace(dependencies.workspaceRepo);
+
+  const service: ProjectRunnerService = {
+    resolveSecurity: () => discovery.resolveSecurity(),
+    discover: () => discovery.discover(),
 
     reviewStart(request) {
       const workspace = activeWorkspace();

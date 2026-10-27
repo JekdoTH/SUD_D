@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   appError,
   err,
@@ -25,6 +25,8 @@ export interface NewApprovalRequest {
   readonly workspaceId?: string;
   readonly title: string;
   readonly resourceLabel?: string;
+  /** Immutable nonsecret reviewed source only; Basic Approval omits this entirely. */
+  readonly soloExpertReview?: Readonly<Record<string, unknown> & {reviewDigest: string}>;
   readonly createdAt: string;
   readonly expiresAt: string;
 }
@@ -36,7 +38,7 @@ export interface ApprovalRepository {
   recordModeApproval(request: NewApprovalRequest, nowIso: string): Result<ApprovalRequestRecord, AppError>;
   countActive(runtimeInstanceId: string, nowIso: string): Result<number, AppError>;
   listPending(limit?: number, nowIso?: string): Result<readonly ApprovalRequestRecord[], AppError>;
-  respond(id: string, decision: ApprovalUserDecision, nowIso?: string): Result<ApprovalRequestRecord, AppError>;
+  respond(id: string, decision: ApprovalUserDecision, nowIso?: string, reviewDigest?: string): Result<ApprovalRequestRecord, AppError>;
   consumeApproved(runtimeInstanceId: string, bindingDigest: string, nowIso: string): Result<ApprovalRequestRecord | undefined, AppError>;
   expireStale(nowIso: string): Result<number, AppError>;
   expireOtherRuntimes(runtimeInstanceId: string, nowIso: string): Result<number, AppError>;
@@ -62,6 +64,8 @@ interface ApprovalRow {
   decided_at: string | null;
   consumed_at: string | null;
   decision_source: 'user' | 'mode' | null;
+  solo_review_json: string | null;
+  solo_review_digest: string | null;
 }
 
 export function createApprovalRepository(db: Db): ApprovalRepository {
@@ -76,8 +80,9 @@ export function createApprovalRepository(db: Db): ApprovalRepository {
     INSERT OR IGNORE INTO approval_requests(
       id, runtime_instance_id, binding_digest, session_id, session_type,
       capability, effect, sensitivity, policy_context, workspace_id,
-      safe_title, safe_resource_label, status, created_at, expires_at
-    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+      safe_title, safe_resource_label, status, created_at, expires_at,
+      solo_review_json, solo_review_digest
+    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
   `);
   const insertModeApproval = db.prepare(`
     INSERT INTO approval_requests(
@@ -110,6 +115,7 @@ export function createApprovalRepository(db: Db): ApprovalRepository {
     UPDATE approval_requests
     SET status = ?, decided_at = ?, decision_source = 'user'
     WHERE id = ? AND status = 'pending' AND expires_at > ?
+      AND (capability <> 'solo_expert.smoke' OR solo_review_digest = ?)
   `);
   const consume = db.prepare(`
     UPDATE approval_requests
@@ -127,6 +133,7 @@ export function createApprovalRepository(db: Db): ApprovalRepository {
   const cleanup = db.prepare(`
     DELETE FROM approval_requests
     WHERE status IN ('denied','consumed','expired') AND created_at < ?
+      AND capability <> 'solo_expert.smoke'
   `);
 
   const byId = (id: string): ApprovalRequestRecord | undefined => {
@@ -170,6 +177,8 @@ export function createApprovalRepository(db: Db): ApprovalRepository {
           request.resourceLabel ?? null,
           request.createdAt,
           request.expiresAt,
+          request.soloExpertReview ? JSON.stringify(request.soloExpertReview) : null,
+          request.soloExpertReview?.reviewDigest ?? null,
         );
         if (inserted.changes === 1) {
           const record = byId(id);
@@ -186,6 +195,9 @@ export function createApprovalRepository(db: Db): ApprovalRepository {
     },
 
     recordModeApproval(request, nowIso) {
+      if (request.capability === 'solo_expert.smoke') {
+        return err(appError('APPROVAL_STATE_INVALID', 'Solo Expert requires manual user approval'));
+      }
       try {
         const latest = findLatest.get(request.runtimeInstanceId, request.bindingDigest) as ApprovalRow | undefined;
         if (latest?.status === 'pending' && latest.expires_at > nowIso) {
@@ -241,17 +253,22 @@ export function createApprovalRepository(db: Db): ApprovalRepository {
       }
     },
 
-    respond(id, decision, nowIso = new Date().toISOString()) {
+    respond(id, decision, nowIso = new Date().toISOString(), reviewDigest) {
       try {
         const existing = byId(id);
         if (!existing) return err(appError('APPROVAL_STATE_INVALID', 'Approval request is unavailable'));
         if (existing.status !== 'pending') return err(appError('APPROVAL_STATE_INVALID', 'Approval request is no longer pending'));
+        const reviewed = existing as ApprovalRequestRecord & {soloExpertReview?: {reviewDigest: string}};
+        if (existing.capability === 'solo_expert.smoke' &&
+            (!reviewDigest || reviewed.soloExpertReview?.reviewDigest !== reviewDigest)) {
+          return err(appError('APPROVAL_STATE_INVALID', 'Exact reviewed Solo Expert scope is stale'));
+        }
         if (existing.expiresAt <= nowIso) {
           expireById.run(id);
           return err(appError('APPROVAL_EXPIRED', 'Approval request expired'));
         }
         const next = decision === 'approve' ? 'approved' : 'denied';
-        const changed = respond.run(next, nowIso, id, nowIso);
+        const changed = respond.run(next, nowIso, id, nowIso, reviewDigest ?? null);
         if (changed.changes !== 1) return err(appError('APPROVAL_STATE_INVALID', 'Approval request changed concurrently'));
         const record = byId(id);
         return record ? ok(record) : err(appError('INTERNAL_ERROR', 'Failed to read approval decision'));
@@ -296,6 +313,77 @@ export function createApprovalRepository(db: Db): ApprovalRepository {
   return Object.freeze(repository);
 }
 
+/** Exact structural mirror of packages/domain/src/approval.ts for stale package dist types.
+ * Runtime checks below validate EVERY required immutable display field before cast.
+ */
+interface StoredSoloReview {
+  readonly version: 'b1b-review-v1';
+  readonly attemptId: string;
+  readonly command: 'echo SUD_D_B1_OK';
+  readonly profileId: 'harmless-short-smoke';
+  readonly profileRevision: 'b1-smoke-v1';
+  readonly workspaceId: string;
+  readonly canonicalRoot: string;
+  readonly workspaceGeneration: string;
+  readonly sessionId: string;
+  readonly sessionType: string;
+  readonly gatewayEpoch: string;
+  readonly managedEpoch: string;
+  readonly deviceLabel: string;
+  readonly accountLabel: string;
+  readonly provenance: 'unverified-observation';
+  readonly riskDisclosure: string;
+  readonly privacy: 'stock-local-logging';
+  readonly issuedAt: string;
+  readonly expiresAt: string;
+  readonly maxCalls: 1;
+  readonly maxRetries: 0;
+  readonly reviewDigest: string;
+}
+const SOLO_REVIEW_TEXT_FIELDS = [
+  'attemptId','workspaceId','canonicalRoot','workspaceGeneration','sessionId','sessionType',
+  'gatewayEpoch','managedEpoch','deviceLabel','accountLabel','riskDisclosure',
+  'issuedAt','expiresAt',
+] as const;
+const SOLO_REVIEW_KEYS = [
+  'version','attemptId','command','profileId','profileRevision','workspaceId',
+  'canonicalRoot','workspaceGeneration','sessionId','sessionType','gatewayEpoch',
+  'managedEpoch','deviceLabel','accountLabel','provenance','riskDisclosure','privacy',
+  'issuedAt','expiresAt','maxCalls','maxRetries','reviewDigest',
+] as const;
+
+/** Re-validate persisted projection before any Desktop display or trusted consumption. */
+function decodeStoredSoloReview(raw: string, digest: string): Readonly<StoredSoloReview> {
+  const value: unknown = JSON.parse(raw);
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Object.prototype ||
+      raw.length > 4096 || !/^[a-f0-9]{64}$/.test(digest)) {
+    throw new Error('Invalid stored reviewed approval');
+  }
+  const item = value as Record<string, unknown>;
+  const { reviewDigest, ...base } = item;
+  if (reviewDigest !== digest ||
+      createHash('sha256').update(JSON.stringify(base)).digest('hex') !== digest ||
+      item['version'] !== 'b1b-review-v1' ||
+      item['command'] !== 'echo SUD_D_B1_OK' ||
+      item['profileId'] !== 'harmless-short-smoke' ||
+      item['provenance'] !== 'unverified-observation' ||
+      item['privacy'] !== 'stock-local-logging' ||
+      item['profileRevision'] !== 'b1-smoke-v1' ||
+      !SOLO_REVIEW_TEXT_FIELDS.every(key =>
+        typeof item[key] === 'string' && (item[key] as string).length > 0) ||
+      Reflect.ownKeys(item).length !== SOLO_REVIEW_KEYS.length ||
+      !SOLO_REVIEW_KEYS.every(key => Object.prototype.hasOwnProperty.call(item, key)) ||
+      !/^[A-Za-z]:[\\/]/.test(String(item['canonicalRoot'])) ||
+      String(item['canonicalRoot']).includes('..') ||
+      !Number.isFinite(Date.parse(String(item['issuedAt']))) ||
+      !Number.isFinite(Date.parse(String(item['expiresAt']))) ||
+      item['maxCalls'] !== 1 || item['maxRetries'] !== 0) {
+    throw new Error('Invalid stored reviewed approval digest');
+  }
+  return Object.freeze(item as unknown as StoredSoloReview);
+}
+
 function rowToRecord(row: ApprovalRow): ApprovalRequestRecord {
   return {
     id: row.id,
@@ -316,5 +404,7 @@ function rowToRecord(row: ApprovalRow): ApprovalRequestRecord {
     ...(row.decided_at ? { decidedAt: row.decided_at } : {}),
     ...(row.consumed_at ? { consumedAt: row.consumed_at } : {}),
     ...(row.decision_source ? { decisionSource: row.decision_source } : {}),
+    ...(row.solo_review_json && row.solo_review_digest
+      ? { soloExpertReview: decodeStoredSoloReview(row.solo_review_json, row.solo_review_digest) } : {}),
   };
 }

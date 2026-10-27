@@ -23,6 +23,8 @@ function rowToWorkspace(row: WorkspaceRow): Workspace {
 }
 
 export interface WorkspaceRepository {
+  /** DB-owned monotonic generation: must be checked with active root at each admission. */
+  getGeneration(id: string): string | undefined;
   list(): Workspace[];
   findById(id: string): Workspace | undefined;
   findByCanonicalRoot(root: string): Workspace | undefined;
@@ -33,6 +35,10 @@ export interface WorkspaceRepository {
 
 export function createWorkspaceRepository(db: Db): WorkspaceRepository {
   return {
+    getGeneration(id): string | undefined {
+      const row = db.prepare('SELECT generation FROM workspaces WHERE id = ?').get(id) as {generation:number} | undefined;
+      return row ? String(row.generation) : undefined;
+    },
     list(): Workspace[] {
       const rows = db
         .prepare('SELECT * FROM workspaces ORDER BY created_at ASC')
@@ -67,8 +73,10 @@ export function createWorkspaceRepository(db: Db): WorkspaceRepository {
     setActive(id: string): void {
       const now = new Date().toISOString();
       db.transaction(() => {
-        db.prepare('UPDATE workspaces SET is_active = 0, updated_at = ?').run(now);
-        db.prepare('UPDATE workspaces SET is_active = 1, updated_at = ? WHERE id = ?').run(
+        const target = db.prepare('SELECT id FROM workspaces WHERE id = ?').get(id);
+        if (!target) throw new Error('Unknown Workspace');
+        db.prepare('UPDATE workspaces SET is_active = 0, updated_at = ?, generation = generation + CASE WHEN is_active = 1 THEN 1 ELSE 0 END').run(now);
+        db.prepare('UPDATE workspaces SET is_active = 1, updated_at = ?, generation = generation + 1 WHERE id = ?').run(
           now,
           id,
         );
@@ -88,7 +96,7 @@ export function createWorkspaceRepository(db: Db): WorkspaceRepository {
             .prepare('SELECT id FROM workspaces ORDER BY created_at DESC LIMIT 1')
             .get() as { id: string } | undefined;
           if (next) {
-            db.prepare('UPDATE workspaces SET is_active = 1, updated_at = ? WHERE id = ?').run(
+            db.prepare('UPDATE workspaces SET is_active = 1, updated_at = ?, generation = generation + 1 WHERE id = ?').run(
               now,
               next.id,
             );

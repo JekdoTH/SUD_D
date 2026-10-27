@@ -35,6 +35,7 @@ const APPROVED_TOOLS = [
   'git.checkpoint', 'git.clone', 'git.commit', 'git.detect', 'git.diff',
   'git.fetch', 'git.init', 'git.inspect', 'git.push', 'git.remote.configure',
   'git.remote.select', 'git.status', 'git.sync',
+  'runner.discover',
   'team.start', 'team.status', 'team.stop', 'team.submit',
   'verify.run',
   'work.checkpoint', 'work.resume',
@@ -214,7 +215,7 @@ describe('Restricted Verify Home-PC Windows production acceptance', () => {
         .filter((name): name is string => typeof name === 'string')
         .sort();
       expect(names).toEqual(APPROVED_TOOLS);
-      expect(names).toHaveLength(39);
+      expect(names).toHaveLength(40);
       expect(names).not.toContain('code.run');
       expect(names).not.toContain('dev.verify');
       expect(names).not.toContain('execute_shell_command');

@@ -408,6 +408,95 @@ const MIGRATIONS: string[] = [
     UNIQUE(job_id, relative_path)
   );
   CREATE INDEX idx_runner_artifacts_job ON runner_artifacts(job_id);
+  `,
+  // Migration 010 — independent, non-executable Private MVP Mission admission ledger.
+  // Does not change historical runner_jobs or p0c-offline-v1 semantics.
+  `
+  CREATE TABLE runner_missions (
+    mission_id TEXT PRIMARY KEY,
+    revision INTEGER NOT NULL CHECK(revision > 0),
+    goal_digest TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    workspace_generation TEXT NOT NULL,
+    runner_id TEXT NOT NULL,
+    execution_fingerprint TEXT NOT NULL,
+    input_digest TEXT NOT NULL,
+    resource_policy_identity TEXT NOT NULL,
+    profile_revision TEXT NOT NULL CHECK(profile_revision = 'private-mvp-reviewed-v1'),
+    approval_id TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL CHECK(status IN ('active','revoked','closed')),
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count BETWEEN 0 AND 3),
+    charged_bytes INTEGER NOT NULL DEFAULT 0 CHECK(charged_bytes >= 0)
+  );
+  CREATE UNIQUE INDEX idx_runner_mission_one_device
+    ON runner_missions((1)) WHERE status IN ('active','revoked');
+  CREATE TABLE runner_mission_attempts (
+    attempt_id TEXT PRIMARY KEY,
+    mission_id TEXT NOT NULL REFERENCES runner_missions(mission_id),
+    ordinal INTEGER NOT NULL CHECK(ordinal BETWEEN 1 AND 3),
+    state TEXT NOT NULL CHECK(state IN ('reserved','settled')),
+    reserved_bytes INTEGER NOT NULL CHECK(reserved_bytes >= 0),
+    created_at TEXT NOT NULL,
+    settled_at TEXT,
+    UNIQUE(mission_id, ordinal)
+  );
+  CREATE UNIQUE INDEX idx_runner_mission_one_reserved
+    ON runner_mission_attempts((1)) WHERE state = 'reserved';
+  `,
+  // Migration 011 — one-time durable launch claim, never a process-launch grant by itself.
+  // Keep the F2-A reserved/settled state and the historical P0c tables unchanged.
+  `
+  ALTER TABLE runner_mission_attempts ADD COLUMN launch_claimed_at TEXT;
+  `,
+  // Migration 012 — H1 non-executable native-preparation crash fence.
+  // Every native state is controller-reported and never grants H1 execution.
+  // An unresolved row blocks new native enrollment even after process restart.
+  `
+  CREATE TABLE runner_mission_native_attempts (
+    attempt_id TEXT PRIMARY KEY REFERENCES runner_mission_attempts(attempt_id),
+    mission_id TEXT NOT NULL REFERENCES runner_missions(mission_id),
+    state TEXT NOT NULL CHECK(state IN ('pending','owned','terminated','cleanup_unknown','cleaned')),
+    owner_epoch TEXT NOT NULL,
+    stage_seal_digest TEXT NOT NULL CHECK(length(stage_seal_digest) = 64),
+    prepared_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX idx_runner_native_one_unresolved
+    ON runner_mission_native_attempts((1)) WHERE state != 'cleaned';
+  CREATE INDEX idx_runner_native_by_mission
+    ON runner_mission_native_attempts(mission_id, state);
+  `,
+  // Migration 013 — B1b immutable nonsecret review, global unresolved-attempt fence,
+  // and monotonically incremented Workspace generation. No historical migration edits.
+  `
+  ALTER TABLE approval_requests ADD COLUMN solo_review_json TEXT
+    CHECK(solo_review_json IS NULL OR length(solo_review_json) BETWEEN 1 AND 4096);
+  ALTER TABLE approval_requests ADD COLUMN solo_review_digest TEXT
+    CHECK(solo_review_digest IS NULL OR length(solo_review_digest) = 64);
+  CREATE TRIGGER solo_approval_immutable BEFORE UPDATE OF solo_review_json, solo_review_digest
+    ON approval_requests
+    WHEN OLD.solo_review_json IS NOT NEW.solo_review_json
+      OR OLD.solo_review_digest IS NOT NEW.solo_review_digest
+    BEGIN SELECT RAISE(ABORT, 'immutable B1b review'); END;
+
+  ALTER TABLE workspaces ADD COLUMN generation INTEGER NOT NULL DEFAULT 1 CHECK(generation >= 1);
+  CREATE TABLE solo_expert_attempts (
+    attempt_id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    workspace_generation TEXT NOT NULL,
+    review_digest TEXT NOT NULL CHECK(length(review_digest) = 64),
+    state TEXT NOT NULL CHECK(state IN ('prepared','claimed','closed','unknown','revoked')),
+    approval_id TEXT UNIQUE REFERENCES approval_requests(id) ON DELETE RESTRICT,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    claimed_at TEXT,
+    finished_at TEXT
+  );
+  CREATE UNIQUE INDEX solo_expert_one_unresolved ON solo_expert_attempts((1))
+    WHERE state IN ('prepared','claimed','unknown');
+  CREATE INDEX solo_expert_by_workspace ON solo_expert_attempts(workspace_id, state);
   `
 ];
 

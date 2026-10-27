@@ -12,7 +12,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { openDatabase } from '@sud-d/infrastructure';
+import { openDatabase, createPrivateMvpMissionAdmissionRepository, createF2H1DesktopRunnerOwner } from '@sud-d/infrastructure';
 import { createWorkspaceRepository } from '@sud-d/infrastructure';
 import { createAuditRepository, createApprovalModeRepository, createApprovalRepository, createGitSafetyAdapter, createTeamRepository, createTeamTransitionUnitOfWork, createWorkMemoryRepository } from '@sud-d/infrastructure';
 import { getDataRoot, canonicalizePath } from '@sud-d/infrastructure';
@@ -47,6 +47,9 @@ import {
   type DiagnosticsIpcMain,
 } from './diagnostics-ipc.js';
 import { createDesktopApprovalController } from './approval-controller.js';
+import {createPreH1MissionPreparationBridge,observePreH1MissionBudget}
+  from './pre-h1-mission-preparation.js';
+import {createPreH1NativeConsentBridge} from './pre-h1-native-consent.js';
 import {
   registerDesktopApprovalIpcHandlers,
   type ApprovalIpcMain,
@@ -101,6 +104,20 @@ const updatePublicKeyPem = typeof __SUD_D_UPDATE_PUBLIC_KEY_PEM__ === 'string'
   : '';
 
 const db = openDatabase(dbPath);
+// F2-H1 startup RECOVERY ONLY: SQLite crash fencing is part of the actual
+// Desktop lifetime, before any future runner owner can be constructed.
+// This does NOT create/attach a Gateway/launcher process, Job, ACL or profile.
+const h1Recovery = createPrivateMvpMissionAdmissionRepository(db)
+  .recoverNativeJournalAfterRestart();
+if (!h1Recovery.ok) {
+  throw new Error('F2_H1_NATIVE_RECOVERY_AUDIT_UNCONFIRMED');
+}
+// No H1 native owner/start/resume is registered. A live independent Desktop
+// PROCESS-HANDLE handoff to the externally spawned MCP stdio Gateway is still
+// missing, and cannot be replaced with connection-status or PID assertions.
+// Construct ONLY the inert, hard-gated Topology B lifecycle; no process, Job,
+// DLL binding, profile, stage or Runner endpoint is created at startup.
+const desktopRunnerOwner = createF2H1DesktopRunnerOwner();
 const workspaceRepo = createWorkspaceRepository(db);
 const auditRepo = createAuditRepository(db);
 const approvalRepo = createApprovalRepository(db);
@@ -110,7 +127,18 @@ const gitSafety = createGitSafetyAdapter();
 const workMemoryRepo = createWorkMemoryRepository(db);
 const approvalService = createApprovalService(approvalRepo, auditRepo);
 const approvalModeService = createApprovalModeService(approvalModeRepo);
-const approvalController = createDesktopApprovalController(approvalService, approvalModeService);
+const preH1PreparationBridge=createPreH1MissionPreparationBridge({
+  db,approvals:approvalRepo,workspaces:workspaceRepo,audit:auditRepo,
+  mode:()=>approvalModeRepo.get(),
+  observeBudget:root=>observePreH1MissionBudget(db,root),
+});
+const preH1NativeConsentBridge=createPreH1NativeConsentBridge({
+  db,approvals:approvalRepo,audit:auditRepo,mode:()=>approvalModeRepo.get(),
+});
+const approvalController = createDesktopApprovalController(
+  approvalService, approvalModeService,preH1PreparationBridge.reviewForPendingApproval,
+  preH1NativeConsentBridge.reviewForPendingApproval,
+);
 
 // SUD-D data root is an InternalRoot — agents must not access it as a workspace
 const dataRootCanonical = canonicalizePath(dataRoot);
@@ -187,6 +215,7 @@ const overviewStatusController = createDesktopOverviewStatusController({
   },
 });
 const connectionShutdown = createConnectionShutdown({
+  runnerLifecycle: desktopRunnerOwner,
   connectionService,
   disposeGit: async () => {
     await gitController.dispose();
@@ -389,6 +418,8 @@ function registerIpcHandlers(): void {
     ipcMain as unknown as ApprovalIpcMain,
     approvalController,
     validateDesktopSender,
+    preH1PreparationBridge,
+    preH1NativeConsentBridge,
   );
   registerDesktopGitIpcHandlers(
     ipcMain as unknown as GitIpcMain,

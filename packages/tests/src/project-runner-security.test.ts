@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   createApprovalCoordinator,
   createProjectRunnerCapabilities,
+  createProjectRunnerDiscoveryCapabilities,
+  createProjectRunnerDiscoveryService,
   createProjectRunnerService,
   createToolCapabilityRegistry,
   createToolKernel,
@@ -243,6 +245,76 @@ describe('Restricted Project Runner manifest fail-closed rules', () => {
       workspaceCanonicalRoot: fs.realpathSync(child),
       internalRoots: [],
     })).toMatchObject({ ok: false, error: { code: 'RUNNER_MANIFEST_INVALID' } });
+  });
+});
+
+describe('F1 runner.discover isolated read-only service and Tool Kernel', () => {
+  it('takes no runtime dependency, accepts only {}, and never returns prose, paths or sensitive config', async () => {
+    const root = workspace();
+    writeReportRunnerManifest(root);
+    const repo = fakeWorkspaceRepo(runnerWorkspace(root));
+    const service = createProjectRunnerDiscoveryService({ workspaceRepo: repo, internalRoots: [] });
+    const registry = createToolCapabilityRegistry(createProjectRunnerDiscoveryCapabilities({ service }));
+    if (!registry.ok) throw new Error('discovery registration failed');
+    expect(registry.value).toBeDefined();
+    const kernel = createToolKernel({ registry: registry.value, audit: { append: () => undefined } });
+    const invoke = (input: unknown) => kernel.invoke({
+      invocationId: 'f1-validation',
+      session: { id: 'f1', type: 'mcp-stdio' },
+      capability: 'runner.discover',
+      input,
+    });
+    for (const invalid of [null, undefined, [], '', { runnerId: 'report' }, { command: 'cmd.exe' }, { argv: [] }, { cwd: root }, { env: {} }, { profile: 'node-offline-v1' }]) {
+      expect(await invoke(invalid)).toMatchObject({ ok: false, causeCode: 'RUNNER_INPUT_INVALID' });
+    }
+    const result = await invoke({});
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        executionAvailable: false,
+        executionBlockedReason: expect.any(String),
+        candidates: [{ id: 'report', supported: true, runtime: 'node-offline-v1' }],
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/Create local report|tools\/report|\.mjs|snapshotPaths|secretProfile|networkProfile/);
+    expect(await kernel.invoke({
+      invocationId: 'f1-start-rejected',
+      session: { id: 'f1', type: 'mcp-stdio' },
+      capability: 'runner.start',
+      input: { runnerId: 'report', input: {}, attemptId: '44444444-4444-4444-8444-444444444444' },
+    })).toMatchObject({ ok: false, code: 'UNKNOWN_CAPABILITY' });
+  });
+
+  it('requires exactly one active Workspace and blocks InternalRoot entry and reparse paths', () => {
+    const root = workspace();
+    writeReportRunnerManifest(root);
+    const repo = fakeWorkspaceRepo(runnerWorkspace(root));
+    const readonly = createProjectRunnerDiscoveryService({ workspaceRepo: repo, internalRoots: [] });
+    expect(readonly.discover()).toMatchObject({ ok: true });
+    repo.current = { ...repo.current, isActive: false };
+    expect(readonly.discover()).toMatchObject({ ok: false, error: { code: 'WORKSPACE_NOT_FOUND' } });
+    repo.current = runnerWorkspace(root);
+    expect(createProjectRunnerDiscoveryService({
+      workspaceRepo: repo,
+      internalRoots: [{ canonicalPath: path.join(root, 'tools'), label: 'internal fixture' }],
+    }).discover()).toMatchObject({ ok: false, error: { code: 'RUNNER_MANIFEST_INVALID' } });
+
+    const junction = path.join(root, 'tools-junction');
+    fs.symlinkSync(path.join(root, 'tools'), junction, process.platform === 'win32' ? 'junction' : 'dir');
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, '.sud-d', 'runners.json'), 'utf8')) as {
+      runners: Array<{ entry: string; snapshotPaths: string[] }>;
+    };
+    manifest.runners[0]!.entry = 'tools-junction/report.mjs';
+    manifest.runners[0]!.snapshotPaths = ['tools-junction'];
+    fs.writeFileSync(path.join(root, '.sud-d', 'runners.json'), JSON.stringify(manifest));
+    expect(readonly.discover()).toMatchObject({ ok: false, error: { code: 'RUNNER_MANIFEST_INVALID' } });
+
+    writeReportRunnerManifest(root);
+    const manifestDir = path.join(root, '.sud-d');
+    const manifestTarget = path.join(root, 'linked-manifest-target');
+    fs.renameSync(manifestDir, manifestTarget);
+    fs.symlinkSync(manifestTarget, manifestDir, process.platform === 'win32' ? 'junction' : 'dir');
+    expect(readonly.discover()).toMatchObject({ ok: false, error: { code: 'RUNNER_MANIFEST_INVALID' } });
   });
 });
 

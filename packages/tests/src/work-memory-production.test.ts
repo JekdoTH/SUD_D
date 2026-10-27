@@ -87,7 +87,7 @@ function approvalId(value: Record<string, unknown>): string {
 }
 
 describe('Work Memory production MCP bootstrap', () => {
-  it('exposes 39 tools and resets bootstrap for a new server while persisted Resume Context survives', async () => {
+  it('exposes 40 tools and resets bootstrap for a new server while persisted Resume Context survives', async () => {
     const root=fs.mkdtempSync(path.join(os.tmpdir(),'sud-d-work-prod-')); roots.push(root); const wsRoot=path.join(root,'workspace'); fs.mkdirSync(wsRoot);
     const db=openDatabase(path.join(root,'state.db')); dbs.push(db); const workspaceRepo=createWorkspaceRepository(db); const ws=workspaceRepo.save('A',canonical(wsRoot)); workspaceRepo.setActive(ws.id); const auditRepo=createAuditRepository(db); const workMemoryRepo=createWorkMemoryRepository(db);
     const make=()=>createProductionMcpServer({ workspaceRepo,gitSettingsRepo:createWorkspaceGitSettingsRepository(db),auditRepo,internalRoots:[],fileSystem:createWorkspaceTextFileSystem(),gitSafety,teamRepo:createTeamRepository(db),teamTransitionUow:createTeamTransitionUnitOfWork(db),semanticRead:{read:async()=>({content:[]})},semanticWrite:{write:async()=>({content:[]})},restrictedVerify:{run:async(_c,r)=>({action:r.action,passed:true,exitCode:0,output:'',truncated:false,durationMs:1})},workMemoryRepo });
@@ -98,12 +98,12 @@ describe('Work Memory production MCP bootstrap', () => {
     expect(instructions).toContain('If an active Team mission exists, call team.status');
     expect(instructions).toContain('If no active Team mission exists, continue in Normal Mode');
     expect(instructions).toContain('Do not start a new Team mission automatically');
-    expect(instructions).toContain('current user request explicitly asks to use Team Mode');
+    expect(instructions).toContain('current user explicitly requests Team Mode');
     expect(instructions).toContain('No automatic complexity-based Team routing exists today');
     expect(instructions).toContain('Skills, code edits, validation, or review');
-    const listed=await a.list(); const names=(listed.result?.tools??[]).map((t)=>t.name).filter((v):v is string=>typeof v==='string').sort(); expect(names).toHaveLength(39); expect(names).toContain('work.resume'); expect(names).toContain('work.checkpoint');
+    const listed=await a.list(); const names=(listed.result?.tools??[]).map((t)=>t.name).filter((v):v is string=>typeof v==='string').sort(); expect(names).toHaveLength(40); expect(names).toContain('work.resume'); expect(names).toContain('work.checkpoint');
     expect(names.filter((name) => name.startsWith('team.'))).toEqual(['team.start', 'team.status', 'team.stop', 'team.submit']);
-    expect(listed.result?.tools?.find((tool) => tool.name === 'team.start')?.description).toContain('current user request explicitly asks to use Team Mode');
+    expect(listed.result?.tools?.find((tool) => tool.name === 'team.start')?.description).toContain('current user explicitly asks for Team Mode');
     expect(listed.result?.tools?.find((tool) => tool.name === 'team.status')?.description).toContain('when none exists, use Normal Mode');
     expect(payload(await a.call('team.start',{goal:'Must resume first'}))).toMatchObject({ok:false,code:'WORK_RESUME_REQUIRED'});
     expect(payload(await a.call('git.status',{}))).toMatchObject({ok:false,code:'WORK_RESUME_REQUIRED'});

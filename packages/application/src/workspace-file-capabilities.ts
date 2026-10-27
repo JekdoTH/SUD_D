@@ -12,8 +12,10 @@ import {
 } from '@sud-d/domain';
 import {
   WORKSPACE_TEXT_FILE_LIMITS,
-  type WorkspaceRepository,
-  type WorkspaceTextFileSystem,
+} from '@sud-d/infrastructure/gateway-core';
+import type {
+  WorkspaceRepository,
+  WorkspaceTextFileSystem,
 } from '@sud-d/infrastructure';
 import { defineToolCapability, type RegisteredToolCapability } from './tool-kernel.js';
 

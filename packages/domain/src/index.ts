@@ -12,4 +12,5 @@ export * from './policy.js';
 export * from './git.js';
 export * from './tool-kernel.js';
 export * from './approval.js';
+export * from './solo-expert-serena.js';
 export * from './team.js';

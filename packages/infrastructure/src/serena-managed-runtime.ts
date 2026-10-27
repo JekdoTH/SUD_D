@@ -8,6 +8,23 @@ import {
   type CodingSemanticReadRequest,
   type CodingSemanticWriteRequest,
 } from '@sud-d/domain';
+import {
+  createSoloExpertFixedAdapter,
+  type B1aFixedReview, type B1aFixedResult,
+} from './solo-expert-serena-fixed-adapter.js';
+interface SoloExpertReadyReceipt {
+  readonly workspaceId: string;
+  readonly canonicalRoot: string;
+  readonly workspaceGeneration: string;
+  readonly managedEpoch: string;
+  readonly manifestDigest: string;
+  readonly artifactDigest: string;
+  readonly configDigest: string;
+  readonly schemaDigest: string;
+  readonly integrity: 'synthetic-fixture' | 'unverified';
+}
+interface SoloExpertReview extends B1aFixedReview, Omit<SoloExpertReadyReceipt, 'integrity'> {}
+type SoloExpertSafeResult = B1aFixedResult;
 import { createSerenaEngineProvisioner, safeManagedRuntimeEnvironment, buildManagedUvEnvironment, type SerenaEngineProvisioner } from './serena-engine-provisioner.js';
 import { SERENA_ENGINE_MANIFEST, type SerenaExpectedToolName } from './serena-engine-manifest.js';
 import { prepareManagedSerenaConfig } from './serena-managed-config.js';
@@ -45,8 +62,20 @@ export interface ManagedSerenaProcessSupervisor {
   killProcessTree(pid: number): void;
 }
 
+export interface SoloExpertSyntheticReadyFixture {
+  readonly receipt: SoloExpertReadyReceipt;
+  readonly session: Pick<ManagedSerenaMcpSession, 'callTool'>;
+  readonly toolSchema: unknown;
+  readonly serverName: string;
+  /** MCP server handshake is NOT a Serena package version. */
+  readonly handshakeVersion: string;
+  readonly packageVersion: string;
+}
+
 export interface ManagedSerenaRuntimeDependencies {
   readonly dataRoot: string;
+  /** B1a source-only fake composition. Never populated by production startup. */
+  readonly soloExpertFixture?: SoloExpertSyntheticReadyFixture;
   readonly provisioner?: SerenaEngineProvisioner;
   readonly createProvisioner?: (paths: SerenaRuntimePaths) => SerenaEngineProvisioner;
   readonly createSession?: () => ManagedSerenaMcpSession;
@@ -62,6 +91,17 @@ interface ActiveSession {
   readonly validatedToolNames: ReadonlySet<SerenaExpectedToolName>;
 }
 
+/** Passive observation only: no verified peer/executable binding exists yet. */
+export type LiveSoloNotReadyReason =
+  | 'NO_ACTIVE_SESSION'
+  | 'SESSION_INVALIDATED'
+  | 'PROVENANCE_UNVERIFIED';
+
+export interface LiveSoloReadinessObservation {
+  readonly status: 'not-ready';
+  readonly reason: LiveSoloNotReadyReason;
+}
+
 const DEFAULT_CLEANUP_TIMEOUT_MS = 5000;
 const DEFAULT_CLEANUP_POLL_INTERVAL_MS = 100;
 const SEMANTIC_READ_MAX_ANSWER_CHARS = 20_000;
@@ -72,14 +112,68 @@ export function createManagedSerenaRuntime(dependencies: ManagedSerenaRuntimeDep
   const cleanupTimeoutMs = dependencies.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS;
   const cleanupPollIntervalMs = dependencies.cleanupPollIntervalMs ?? DEFAULT_CLEANUP_POLL_INTERVAL_MS;
   let active: ActiveSession | null = null;
+  // Revocation is monotonic until a future separately approved peer-attestation design.
+  // An apparently successful restart cannot turn old/unknown provenance into real READY.
+  let liveObservationInvalidated = false;
 
   const runtime = {
+    /**
+     * Cache-only real-session observation. A root PID, MCP handshake, expected
+     * schema and pinned manifest cannot authenticate executable-to-peer ownership.
+     * This never reports real READY or consults a synthetic Solo fixture.
+     */
+    inspectLiveSoloReadinessOnly(): LiveSoloReadinessObservation {
+      const reason: LiveSoloNotReadyReason = liveObservationInvalidated
+        ? 'SESSION_INVALIDATED'
+        : active === null
+          ? 'NO_ACTIVE_SESSION'
+          : 'PROVENANCE_UNVERIFIED';
+      return Object.freeze({ status: 'not-ready' as const, reason });
+    },
+    /** No start/connect/install/provision/repair and no product session access. */
+    inspectSoloExpertReadyOnly(): SoloExpertReadyReceipt | undefined {
+      const fixture = dependencies.soloExpertFixture;
+      if (!fixture || fixture.serverName !== 'Serena' || !fixture.handshakeVersion
+        || fixture.packageVersion !== SERENA_ENGINE_MANIFEST.version
+        || !toolInputSchemaMatches(
+          fixture.toolSchema, SERENA_ENGINE_MANIFEST.expectedToolInputSchemas.execute_shell_command,
+        )) return undefined;
+      const r = fixture.receipt;
+      if (!r || r.integrity !== 'synthetic-fixture'
+        || !r.workspaceId || !r.canonicalRoot || !r.workspaceGeneration || !r.managedEpoch
+        || ![r.manifestDigest, r.artifactDigest, r.configDigest, r.schemaDigest]
+          .every(x => typeof x === 'string' && /^[a-f0-9]{64}$/.test(x))) return undefined;
+      return Object.freeze({ ...r });
+    },
+    async callSoloExpertReadyOnly(review: SoloExpertReview): Promise<SoloExpertSafeResult> {
+      const reject = (): SoloExpertSafeResult => Object.freeze({
+        executionKind: 'mock' as const, status: 'not-ready' as const, reason: 'NOT_READY' as const,
+      });
+      const r = runtime.inspectSoloExpertReadyOnly();
+      const fixture = dependencies.soloExpertFixture;
+      if (!r || !fixture || !review
+        || review.workspaceId !== r.workspaceId || review.canonicalRoot !== r.canonicalRoot
+        || review.workspaceGeneration !== r.workspaceGeneration || review.managedEpoch !== r.managedEpoch
+        || review.manifestDigest !== r.manifestDigest || review.artifactDigest !== r.artifactDigest
+        || review.configDigest !== r.configDigest || review.schemaDigest !== r.schemaDigest) return reject();
+      const fixed = createSoloExpertFixedAdapter(async request =>
+        fixture.session.callTool({ name: request.name, arguments: { ...request.arguments } }));
+      const result = await fixed.invoke(review);
+      const after = runtime.inspectSoloExpertReadyOnly();
+      if (!after || JSON.stringify(after) !== JSON.stringify(r)) return Object.freeze({
+        executionKind: 'mock' as const, status: 'unknown' as const, reason: 'IDENTITY_DRIFT' as const,
+      });
+      return result;
+    },
     async start(context: CodingEngineWorkspaceContext): Promise<CodingEngineRuntimeHealth> {
       if (active) await runtime.stop();
       return startInternal(context, 'start');
     },
 
     async stop(): Promise<void> {
+      // Revoke the passive observation synchronously, before any asynchronous
+      // MCP close/process cleanup. No stop/repair/reconnect may reuse it.
+      liveObservationInvalidated = true;
       if (!active) return;
       const current = active;
       const observed = [...new Set([current.rootPid, ...processSupervisor.snapshotProcessTree(current.rootPid)])];
@@ -342,6 +436,7 @@ function buildManagedSerenaLaunchPlan(
     env: safeManagedRuntimeEnvironment({
       ...buildManagedUvEnvironment(paths),
       SERENA_HOME: paths.serenaHome,
+      SERENA_USAGE_REPORTING: 'false',
     }),
   };
 }
@@ -478,6 +573,9 @@ class DefaultManagedSerenaMcpSession implements ManagedSerenaMcpSession {
       stderr: 'pipe',
       maxBufferSize: 10 * 1024 * 1024,
     });
+    // SDK PassThrough exists before connect: discard bytes; never surface raw stderr.
+    transport.stderr?.on('data', () => { /* discard upstream log bytes */ });
+    transport.stderr?.on('error', () => { /* safe, no error string projection */ });
     await client.connect(transport);
     const rootPid = transport.pid;
     const serverVersion = client.getServerVersion();

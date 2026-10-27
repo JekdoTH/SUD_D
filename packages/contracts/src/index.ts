@@ -31,6 +31,11 @@ export const IPC_CHANNELS = {
   ACTIVITY_LIST: 'activity:list',
   APPROVAL_LIST: 'approval:list',
   APPROVAL_RESPOND: 'approval:respond',
+  PRE_H1_PREPARE_REVIEW: 'pre-h1:prepare:review',
+  PRE_H1_PREPARE_REQUEST: 'pre-h1:prepare:request',
+  PRE_H1_PREPARE_CANCEL: 'pre-h1:prepare:cancel',
+  PRE_H1_NATIVE_REVIEW: 'pre-h1:native:review',
+  PRE_H1_NATIVE_REQUEST: 'pre-h1:native:request',
   APPROVAL_MODE_GET: 'approval:mode:get',
   APPROVAL_MODE_SET: 'approval:mode:set',
   GIT_SNAPSHOT: 'git:snapshot',
@@ -241,16 +246,96 @@ export type ApprovalListInput = z.infer<typeof ApprovalListInputSchema>;
 export const ApprovalRespondInputSchema = z.object({
   approvalRequestId: z.string().uuid(),
   decision: z.enum(['approve', 'deny']),
+  /** Optional on transport for legacy Basic Approval; mandatory in Solo Service. */
+  reviewDigest: z.string().regex(/^[0-9a-f]{64}$/).optional(),
 }).strict();
 export type ApprovalRespondInput = z.infer<typeof ApprovalRespondInputSchema>;
 
+export const PreH1PreparationReviewDtoSchema = z.object({
+  mission: z.object({
+    missionId:z.literal('pre-h1-controller-01'),
+    revision:z.number().int().positive(),goalDigest:z.string().regex(/^[0-9a-f]{64}$/),
+    workspaceId:z.string().min(1),workspaceGeneration:z.string().datetime(),
+    runnerId:z.literal('fixed-synthetic'),executionFingerprint:z.string().regex(/^[0-9a-f]{64}$/),
+    inputDigest:z.string().regex(/^[0-9a-f]{64}$/),
+    resourcePolicyIdentity:z.string().regex(/^[0-9a-f]{64}$/),expiresAt:z.string().datetime(),
+  }).strict(),
+  attemptId:z.literal('pre-h1-controller-01-attempt-01'),
+  missionBindingDigest:z.string().regex(/^[0-9a-f]{64}$/),
+  warning:z.literal('PREPARATION_ONLY_NO_NATIVE_EXECUTION'),
+}).strict();
+export type PreH1PreparationReviewDto = z.infer<typeof PreH1PreparationReviewDtoSchema>;
+export const PreH1PreparationResultDtoSchema = z.object({
+  code:z.string(),approvalRequestId:z.string().uuid().optional(),
+  state:z.enum(['pending','reserved','blocked']),
+}).strict();
+export type PreH1PreparationResultDto = z.infer<typeof PreH1PreparationResultDtoSchema>;
+
+export const PreH1NativeConsentReviewDtoSchema=z.object({
+  missionId:z.literal('pre-h1-controller-01'),
+  attemptId:z.literal('pre-h1-controller-01-attempt-01'),
+  ownerEpoch:z.literal('pre-h1-controller-01-epoch-01'),
+  runnerId:z.literal('fixed-synthetic'),stage:z.literal('NO-STAGE'),
+  workspaceId:z.string().min(1),workspaceGeneration:z.string().datetime(),
+  preparationApprovalId:z.string().uuid(),
+  missionBindingDigest:z.string().regex(/^[0-9a-f]{64}$/),
+  missionExpiresAt:z.string().datetime(),
+  artifacts:z.object({
+    rc5InventorySha:z.string().regex(/^[0-9a-f]{64}$/),
+    rc5ExternalSha:z.string().regex(/^[0-9a-f]{64}$/),
+    nativeCandidateInventorySha:z.string().regex(/^[0-9a-f]{64}$/),
+    nativeMainSha:z.string().regex(/^[0-9a-f]{64}$/),
+    rc5MainSha:z.string().regex(/^[0-9a-f]{64}$/),
+    rc5ActivationSha:z.string().regex(/^[0-9a-f]{64}$/),
+  }).strict(),
+  maxActiveMs:z.literal(30000),maxRetries:z.literal(0),
+  maxH0:z.literal(0),maxWorkerJobs:z.literal(0),
+  maxProviderCalls:z.literal(0),network:z.literal(false),
+}).strict();
+export type PreH1NativeConsentReviewDto=z.infer<typeof PreH1NativeConsentReviewDtoSchema>;
+export const PreH1NativeConsentResultDtoSchema=z.object({
+  state:z.enum(['pending','recorded','blocked']),code:z.string(),
+  approvalRequestId:z.string().uuid().optional(),
+}).strict();
+export type PreH1NativeConsentResultDto=z.infer<typeof PreH1NativeConsentResultDtoSchema>;
+
+/** Strict nonsecret Solo review projection; digest is verified against stored record in Desktop. */
+export const SoloExpertReviewDtoSchema = z.object({
+  version: z.literal('b1b-review-v1'),
+  attemptId: z.string().min(1).max(128),
+  command: z.literal('echo SUD_D_B1_OK'),
+  profileId: z.literal('harmless-short-smoke'),
+  profileRevision: z.literal('b1-smoke-v1'),
+  workspaceId: z.string().min(1).max(128),
+  canonicalRoot: z.string().min(3).max(240).regex(/^[A-Za-z]:[\\/]/).refine(s => !s.includes('..')),
+  workspaceGeneration: z.string().min(1).max(128),
+  sessionId: z.string().min(1).max(128),
+  sessionType: z.enum(['desktop','mcp-stdio']),
+  gatewayEpoch: z.string().min(1).max(128),
+  managedEpoch: z.string().min(1).max(128),
+  deviceLabel: z.string().min(1).max(128),
+  accountLabel: z.string().min(1).max(128),
+  provenance: z.literal('unverified-observation'),
+  riskDisclosure: z.string().min(100).max(1024),
+  privacy: z.literal('stock-local-logging'),
+  issuedAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
+  maxCalls: z.literal(1),
+  maxRetries: z.literal(0),
+  reviewDigest: z.string().regex(/^[0-9a-f]{64}$/),
+}).strict();
+export type SoloExpertReviewDto = z.infer<typeof SoloExpertReviewDtoSchema>;
+
 export const DesktopApprovalRequestDtoSchema = z.object({
+  soloExpertReview: SoloExpertReviewDtoSchema.optional(),
+  preH1NativeReview: PreH1NativeConsentReviewDtoSchema.optional(),
   id: z.string().uuid(),
   capability: z.string().min(1).max(96),
   effect: z.enum(['read', 'create', 'modify', 'execute', 'delete']),
   sensitivity: z.enum(['normal', 'sensitive', 'credential']),
   title: z.string().min(1).max(120),
   resourceLabel: z.string().min(1).max(240).optional(),
+  preH1Review: PreH1PreparationReviewDtoSchema.optional(),
   status: z.literal('pending'),
   createdAt: z.string().datetime(),
   expiresAt: z.string().datetime(),

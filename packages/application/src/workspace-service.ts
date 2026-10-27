@@ -1,8 +1,13 @@
 import type { Result, AppError, Workspace, InternalRoot } from '@sud-d/domain';
 import { ok, err, appError } from '@sud-d/domain';
-import type { WorkspaceRepository } from '@sud-d/infrastructure';
-import type { AuditRepository } from '@sud-d/infrastructure';
-import { validateWorkspaceRoot, canonicalizePath } from '@sud-d/infrastructure';
+import {
+  validateWorkspaceRoot,
+  canonicalizePath,
+} from '@sud-d/infrastructure/gateway-core';
+import type {
+  WorkspaceRepository,
+  AuditRepository,
+} from '@sud-d/infrastructure';
 import fs from 'node:fs';
 
 const DESKTOP_SESSION = { id: 'desktop', type: 'desktop' as const };

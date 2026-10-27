@@ -19,6 +19,25 @@ describe('Phase 1 — Desktop connection shutdown', () => {
     expect(source).toContain('void orderlyShutdown()');
   });
 
+  it('requires confirmed Runner Job shutdown before Connection, Git and SQLite close', async () => {
+    const order: string[] = [];
+    let clean = false;
+    const shutdown = createConnectionShutdown({
+      runnerLifecycle: {
+        shutdown: async () => { order.push('runner'); return clean; },
+        shutdownEvidence:()=>({disposition:'not-started' as const,osStopProven:false}),
+      },
+      connectionService: { shutdown: () => { order.push('connection'); return { ok:true }; } },
+      disposeGit: async () => { order.push('git'); },
+      closeDatabase: () => { order.push('db'); },
+    });
+    await expect(shutdown.shutdown()).rejects.toThrow('RUNNER_SHUTDOWN_UNCONFIRMED');
+    expect(order).toEqual(['runner']);
+    clean = true;
+    await expect(shutdown.shutdown()).resolves.toBeUndefined();
+    expect(order).toEqual(['runner','runner','connection','git','db']);
+  });
+
   it('shuts Connection down before Git/DB cleanup and shares duplicate requests', async () => {
     const order: string[] = [];
     let resolveGit: (() => void) | undefined;

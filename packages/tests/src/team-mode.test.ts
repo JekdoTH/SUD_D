@@ -44,7 +44,7 @@ const CODE_READ_TOOLS = ['code.overview', 'code.find_symbol', 'code.find_referen
 const CODE_WRITE_TOOLS = ['code.replace_symbol', 'code.insert_before', 'code.insert_after', 'code.rename'] as const;
 const VERIFY_TOOLS = ['verify.run'] as const;
 const WORK_MEMORY_TOOLS = ['work.resume', 'work.checkpoint'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...WORKSPACE_TOOLS, ...GIT_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS, ...WORK_MEMORY_TOOLS].sort();
+const APPROVED_PRODUCTION_TOOLS = [...WORKSPACE_TOOLS, ...GIT_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS, ...WORK_MEMORY_TOOLS, 'runner.discover'].sort();
 
 const tempDirs: string[] = [];
 const openDbs: Db[] = [];
@@ -399,7 +399,7 @@ describe('Team Mode - Tool Kernel and production MCP capabilities', () => {
     expect(requireOk(h.service.status({ missionId: start.missionId }))).toMatchObject({ state: 'blocked', blockedReason: 'EXECUTE_REQUIRED' });
   });
 
-  it('production MCP exposes exactly 39 tools with only the approved semantic reads and writes', async () => {
+  it('production MCP exposes exactly 40 tools with only the approved semantic reads and writes', async () => {
     const h = makeHarness();
     const approvalRepo = createApprovalRepository(h.db);
     const approval = createApprovalCoordinator({ repository: approvalRepo, runtimeInstanceId: 'mcp-team-test', hmacKey: Buffer.alloc(32, 6) });

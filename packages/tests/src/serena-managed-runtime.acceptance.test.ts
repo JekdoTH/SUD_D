@@ -1,3 +1,6 @@
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import ts from 'typescript';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -275,4 +278,193 @@ describe('managed Serena runtime production acceptance', () => {
       }
     }
   }, 300_000);
+});
+
+
+// G2c passive inspection: all apparent sessions below are in-memory mocks only.
+// This test deliberately loads Source through an in-memory TypeScript/VM boundary.
+// No compiled product, real MCP client, native addon, child process or network.
+function createG2cPassiveMock() {
+  const calls = { provision: 0, connect: 0, listTools: 0, callTool: 0,
+    close: 0, createSession: 0, snapshot: 0, processAlive: 0, kill: 0, config: 0 };
+  const expectedNames = ['get_current_config', 'find_symbol'] as const;
+  const definitions = expectedNames.map(name => ({ name, inputSchema: { type: 'object' } }));
+  const manifest = {
+    version: '1.7.0', expectedToolNames: [...expectedNames],
+    expectedToolInputSchemas: Object.fromEntries(definitions.map(t => [t.name, t.inputSchema])),
+    context: 'coding', modes: ['interactive'],
+  };
+  let completeClose: (() => void) | null = null;
+  let holdClose = false;
+  let completeToolList: (() => void) | null = null;
+  let holdToolList = false;
+  const session: ManagedSerenaMcpSession = {
+    async connect() {
+      calls.connect++;
+      return { rootPid: 4242, serverName: 'Serena', serverVersion: 'fake-injected-only' };
+    },
+    async listTools() {
+      calls.listTools++;
+      if (holdToolList) await new Promise<void>(resolve => { completeToolList = resolve; });
+      return definitions;
+    },
+    async callTool(request) {
+      calls.callTool++;
+      if (request.name === 'get_current_config') {
+        return 'Serena version: 1.7.0\nActive project: fake-only\nLanguage backend: LSP\nLanguage server status: synthetic';
+      }
+      return { content: [] };
+    },
+    close() {
+      calls.close++;
+      return holdClose ? new Promise<void>(resolve => { completeClose = resolve; }) : Promise.resolve();
+    },
+  };
+  const sourcePath = path.resolve(testDir, '../../infrastructure/src/serena-managed-runtime.ts');
+  const sourceText = fs.readFileSync(sourcePath, 'utf8');
+  const compiled = ts.transpileModule(sourceText, {
+    fileName: sourcePath,
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
+      esModuleInterop: true, isolatedModules: true },
+    reportDiagnostics: true,
+  });
+  assert.equal(compiled.diagnostics?.length, 0);
+  const sandboxModule: { exports: Record<string, unknown> } = { exports: {} };
+  const failOnActualOperation = () => { throw new Error('G2C_TEST_REAL_IO_OR_PROCESS_FORBIDDEN'); };
+  const mocks: Record<string, unknown> = {
+    'node:child_process': { spawnSync: failOnActualOperation },
+    '@modelcontextprotocol/client': { Client: class { constructor() { failOnActualOperation(); } } },
+    '@modelcontextprotocol/client/stdio': {
+      StdioClientTransport: class { constructor() { failOnActualOperation(); } },
+    },
+    '@sud-d/domain': { CodingEngineRuntimeFailure: class extends Error {} },
+    './solo-expert-serena-fixed-adapter.js': { createSoloExpertFixedAdapter: failOnActualOperation },
+    './serena-engine-provisioner.js': {
+      createSerenaEngineProvisioner: failOnActualOperation,
+      safeManagedRuntimeEnvironment: () => ({}),
+      buildManagedUvEnvironment: () => ({}),
+    },
+    './serena-engine-manifest.js': { SERENA_ENGINE_MANIFEST: manifest },
+    './serena-managed-config.js': { prepareManagedSerenaConfig: () => { calls.config++; } },
+    './serena-runtime-paths.js': {
+      createSerenaRuntimePaths: () => ({
+        dataRoot: 'FAKE_ONLY', serenaHome: 'FAKE_ONLY_HOME',
+        projectSerenaDir: 'FAKE_ONLY_PROJECT', cacheDir: 'FAKE_ONLY_CACHE',
+      }),
+    },
+  };
+  vm.runInNewContext(compiled.outputText, {
+    module: sandboxModule,
+    exports: sandboxModule.exports,
+    require: (id: string) => {
+      if (!(id in mocks)) throw new Error('G2C_UNEXPECTED_IMPORT_' + id);
+      return mocks[id];
+    },
+    setTimeout: failOnActualOperation,
+  }, { filename: 'g2c-in-memory-managed-serena-runtime.cjs', timeout: 2500 });
+  const create = sandboxModule.exports.createManagedSerenaRuntime as
+    typeof createManagedSerenaRuntime;
+  assert.equal(typeof create, 'function');
+  const context = { workspaceId: 'fake-only', canonicalRoot: 'FAKE_NO_WORKSPACE',
+    projectName: 'fake-only' };
+  const runtime = create({
+    dataRoot: 'FAKE_NO_DATA',
+    soloExpertFixture: { receipt: { integrity: 'synthetic-fixture' },
+      serverName: 'Serena' } as never,
+    provisioner: {
+      async ensureInstalled() { calls.provision++; return { executablePath: 'FAKE_NO_EXE', version: '1.7.0' }; },
+      async repairInstalledEngine() { calls.provision++; return { executablePath: 'FAKE_NO_EXE', version: '1.7.0' }; },
+    } as never,
+    createSession: () => { calls.createSession++; return session; },
+    processSupervisor: {
+      snapshotProcessTree: () => { calls.snapshot++; return []; },
+      isProcessAlive: () => { calls.processAlive++; return false; },
+      killProcessTree: () => { calls.kill++; throw new Error('G2C_FORBIDDEN_PROCESS_KILL'); },
+    },
+  });
+  return {
+    runtime, context, calls,
+    holdClose: () => { holdClose = true; },
+    releaseClose: () => { if (!completeClose) throw new Error('NO_PENDING_FAKE_CLOSE'); completeClose(); },
+    holdToolList: () => { holdToolList = true; },
+    releaseToolList: () => { if (!completeToolList) throw new Error('NO_PENDING_FAKE_TOOL_LIST'); completeToolList(); },
+  };
+}
+
+describe('G2c passive managed Serena session observation (all injected fakes, no live process)', () => {
+  it('has a frozen nonsecret NOT_READY receipt with no active session and no I/O', () => {
+    const h = createG2cPassiveMock();
+    const observed = h.runtime.inspectLiveSoloReadinessOnly();
+    assert.equal(observed.status, 'not-ready');
+    assert.equal(observed.reason, 'NO_ACTIVE_SESSION');
+    assert.equal(Object.isFrozen(observed), true);
+    assert.deepEqual(Object.keys(observed).sort(), ['reason', 'status']);
+    assert.deepEqual(h.calls, { provision: 0, connect: 0, listTools: 0, callTool: 0,
+      close: 0, createSession: 0, snapshot: 0, processAlive: 0, kill: 0, config: 0 });
+  });
+
+  it('refuses synthetic-only fixture and retained mock session even after schemas/health', async () => {
+    const h = createG2cPassiveMock();
+    const initial = h.runtime.inspectLiveSoloReadinessOnly();
+    assert.equal(initial.status, 'not-ready');
+    await h.runtime.start(h.context);
+    const prior = { ...h.calls };
+    const observed = h.runtime.inspectLiveSoloReadinessOnly();
+    assert.equal(observed.status, 'not-ready');
+    assert.equal(observed.reason, 'PROVENANCE_UNVERIFIED');
+    assert.equal(Object.isFrozen(observed), true);
+    assert.deepEqual(Object.keys(observed).sort(), ['reason', 'status']);
+    assert.equal(JSON.stringify(observed).includes('synthetic-fixture'), false);
+    assert.deepEqual(h.calls, prior);
+    await h.runtime.stop();
+  });
+
+  it('keeps incomplete fake tool-schema observation NOT_READY without polling', async () => {
+    const h = createG2cPassiveMock();
+    h.holdToolList();
+    const starting = h.runtime.start(h.context);
+    for (let i = 0; i < 20 && h.calls.listTools === 0; i++) await Promise.resolve();
+    assert.equal(h.calls.listTools, 1);
+    const snapshot = { ...h.calls };
+    const observed = h.runtime.inspectLiveSoloReadinessOnly();
+    assert.equal(observed.status, 'not-ready');
+    assert.equal(observed.reason, 'PROVENANCE_UNVERIFIED');
+    assert.deepEqual(h.calls, snapshot);
+    h.releaseToolList();
+    await starting;
+    assert.equal(h.runtime.inspectLiveSoloReadinessOnly().status, 'not-ready');
+    await h.runtime.stop();
+  });
+
+  it('invalidates synchronously at start of stop before awaited fake close', async () => {
+    const h = createG2cPassiveMock();
+    await h.runtime.start(h.context);
+    h.holdClose();
+    const pendingStop = h.runtime.stop();
+    const prior = { ...h.calls };
+    const observed = h.runtime.inspectLiveSoloReadinessOnly();
+    assert.equal(observed.status, 'not-ready');
+    assert.equal(observed.reason, 'SESSION_INVALIDATED');
+    assert.deepEqual(h.calls, prior);
+    h.releaseClose();
+    await pendingStop;
+    assert.equal(h.runtime.inspectLiveSoloReadinessOnly().status, 'not-ready');
+  });
+
+  it('never carries observation authority across replacement/reconnection', async () => {
+    const h = createG2cPassiveMock();
+    await h.runtime.start(h.context);
+    const first = h.runtime.inspectLiveSoloReadinessOnly();
+    await h.runtime.stop();
+    assert.equal(h.runtime.inspectLiveSoloReadinessOnly().status, 'not-ready');
+    await h.runtime.start(h.context);
+    const second = h.runtime.inspectLiveSoloReadinessOnly();
+    assert.equal(second.status, 'not-ready');
+    assert.ok(second.reason === 'PROVENANCE_UNVERIFIED' || second.reason === 'SESSION_INVALIDATED');
+    assert.notEqual(first, second);
+    const before = { ...h.calls };
+    h.runtime.inspectLiveSoloReadinessOnly();
+    assert.deepEqual(h.calls, before);
+    await h.runtime.stop();
+  });
 });

@@ -15,6 +15,10 @@ import type {
   DesktopApprovalModeDto,
   DesktopApprovalRequestDto,
   DesktopApprovalResponseDto,
+  PreH1PreparationReviewDto,
+  PreH1PreparationResultDto,
+  PreH1NativeConsentReviewDto,
+  PreH1NativeConsentResultDto,
   DesktopTeamMissionDto,
   DesktopOverviewWorkStatusDto,
   DesktopGitSnapshotDto,
@@ -70,6 +74,11 @@ interface SudDApi {
   approval: {
     list(input?: ApprovalListInput): Promise<IpcResult<DesktopApprovalRequestDto[]>>;
     respond(input: ApprovalRespondInput): Promise<IpcResult<DesktopApprovalResponseDto>>;
+    preH1Review(): Promise<IpcResult<PreH1PreparationReviewDto>>;
+    preH1Request(): Promise<IpcResult<PreH1PreparationResultDto>>;
+    preH1Cancel(): Promise<IpcResult<null>>;
+    preH1NativeReview(): Promise<IpcResult<PreH1NativeConsentReviewDto>>;
+    preH1NativeRequest(): Promise<IpcResult<PreH1NativeConsentResultDto>>;
     getMode(): Promise<IpcResult<DesktopApprovalModeDto>>;
     setMode(input: ApprovalModeSetInput): Promise<IpcResult<DesktopApprovalModeDto>>;
   };

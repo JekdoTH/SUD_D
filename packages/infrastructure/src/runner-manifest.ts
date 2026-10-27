@@ -254,6 +254,9 @@ export interface DiscoverProjectRunnersOptions {
 }
 
 export function loadProjectRunnerManifest(options: DiscoverProjectRunnersOptions): Result<ProjectRunnerManifest, AppError> {
+  // Check the original path before canonicalization can erase junction/symlink evidence.
+  const manifestLink = hasReparsePoint(path.join(options.workspaceCanonicalRoot, PROJECT_RUNNER_MANIFEST_PATH));
+  if (!manifestLink.ok || manifestLink.value) return invalid();
   const resolved = resolveExistingResource({
     workspaceCanonicalRoot: options.workspaceCanonicalRoot,
     relativePath: PROJECT_RUNNER_MANIFEST_PATH,
@@ -295,6 +298,9 @@ export function discoverProjectRunners(options: DiscoverProjectRunnersOptions): 
   if (!manifest.ok) return manifest;
   const candidates: ProjectRunnerCandidate[] = [];
   for (const definition of manifest.value.runners) {
+    // The resolved canonical target alone cannot prove that the source path is link-free.
+    const entryLink = hasReparsePoint(path.join(options.workspaceCanonicalRoot, definition.entry));
+    if (!entryLink.ok || entryLink.value) return invalid();
     const entry = resolveExistingResource({
       workspaceCanonicalRoot: options.workspaceCanonicalRoot,
       relativePath: definition.entry,

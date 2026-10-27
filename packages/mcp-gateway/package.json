@@ -9,6 +9,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./gateway-core": {
+      "types": "./dist/workspace-file-server-core.d.ts",
+      "import": "./dist/workspace-file-server-core.js"
     }
   },
   "bin": {

@@ -7,7 +7,7 @@ import {
   type Result,
 } from '@sud-d/domain';
 import { defineToolCapability, type RegisteredToolCapability } from './tool-kernel.js';
-import type { ProjectRunnerService } from './project-runner-service.js';
+import type { ProjectRunnerDiscoveryPort, ProjectRunnerService } from './project-runner-service.js';
 
 const RUNNER_ID_RE = /^[a-z][a-z0-9-]{0,63}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -43,6 +43,36 @@ function validateStart(input: unknown): Result<ProjectRunnerStartRequest, AppErr
   });
 }
 
+const DISCOVERY_EXECUTION_BLOCKED_REASON = 'Project Runner execution is not available through production MCP';
+
+export interface ProjectRunnerDiscoveryCapabilityDependencies {
+  readonly service: ProjectRunnerDiscoveryPort;
+}
+
+export function createProjectRunnerDiscoveryCapabilities(
+  dependencies: ProjectRunnerDiscoveryCapabilityDependencies,
+): readonly RegisteredToolCapability[] {
+  return Object.freeze([
+    defineToolCapability<Record<string, never>, unknown>({
+      name: 'runner.discover',
+      effect: 'read',
+      validate: validateDiscover,
+      resolveSecurity: () => dependencies.service.resolveSecurity(),
+      execute: () => {
+        const result = dependencies.service.discover();
+        if (!result.ok) return result;
+        return ok({
+          candidates: result.value.map(({ id, runtime, definitionDigest, supported }) => ({
+            id, runtime, definitionDigest, supported,
+          })),
+          executionAvailable: false,
+          executionBlockedReason: DISCOVERY_EXECUTION_BLOCKED_REASON,
+        });
+      },
+    }),
+  ]);
+}
+
 export interface ProjectRunnerCapabilityDependencies {
   readonly service: ProjectRunnerService;
 }
@@ -51,13 +81,7 @@ export function createProjectRunnerCapabilities(
   dependencies: ProjectRunnerCapabilityDependencies,
 ): readonly RegisteredToolCapability[] {
   return Object.freeze([
-    defineToolCapability<Record<string, never>, unknown>({
-      name: 'runner.discover',
-      effect: 'read',
-      validate: validateDiscover,
-      resolveSecurity: () => dependencies.service.resolveSecurity(),
-      execute: () => dependencies.service.discover(),
-    }),
+    ...createProjectRunnerDiscoveryCapabilities(dependencies),
     defineToolCapability<ProjectRunnerStartRequest, unknown>({
       name: 'runner.start',
       effect: 'execute',

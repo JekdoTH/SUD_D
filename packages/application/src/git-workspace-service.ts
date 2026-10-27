@@ -24,12 +24,14 @@ import {
   isUnderInternalRoot,
   validateGitHubNetworkRemote,
   validateWorkspaceRoot,
-  type GitRepositoryState,
-  type GitSafetyAdapter,
-  type GitStatusResult,
-  type GitWorkspaceInspection,
-  type WorkspaceGitSettingsRepository,
-  type WorkspaceRepository,
+} from '@sud-d/infrastructure/gateway-core';
+import type {
+  GitRepositoryState,
+  GitSafetyAdapter,
+  GitStatusResult,
+  GitWorkspaceInspection,
+  WorkspaceGitSettingsRepository,
+  WorkspaceRepository,
 } from '@sud-d/infrastructure';
 import type { WorkspaceService } from './workspace-service.js';
 

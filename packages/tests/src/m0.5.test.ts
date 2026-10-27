@@ -33,7 +33,7 @@ const CODE_READ_TOOLS = ['code.overview', 'code.find_symbol', 'code.find_referen
 const CODE_WRITE_TOOLS = ['code.replace_symbol', 'code.insert_before', 'code.insert_after', 'code.rename'] as const;
 const VERIFY_TOOLS = ['verify.run'] as const;
 const WORK_MEMORY_TOOLS = ['work.resume', 'work.checkpoint'] as const;
-const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS, ...GIT_WORKFLOW_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS, ...WORK_MEMORY_TOOLS] as const;
+const APPROVED_PRODUCTION_TOOLS = [...PERSONAL_ALPHA_WORKSPACE_TOOLS, ...GIT_SAFETY_TOOLS, ...GIT_WORKFLOW_TOOLS, ...TEAM_TOOLS, ...CODE_READ_TOOLS, ...CODE_WRITE_TOOLS, ...VERIFY_TOOLS, ...WORK_MEMORY_TOOLS, 'runner.discover'] as const;
 
 interface TunnelLaunchPlan {
   readonly executablePath: string;

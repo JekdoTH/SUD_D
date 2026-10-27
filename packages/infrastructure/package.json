@@ -9,6 +9,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./gateway-core": {
+      "types": "./dist/gateway-core.d.ts",
+      "import": "./dist/gateway-core.js"
     }
   },
   "scripts": {

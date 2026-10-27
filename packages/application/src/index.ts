@@ -12,6 +12,7 @@ export * from './project-runner-capabilities.js';
 export * from './work-memory-service.js';
 export * from './work-memory-capabilities.js';
 export * from './work-resume-guard.js';
+export * from './solo-expert-serena-integration.js';
 export * from './tool-kernel.js';
 export * from './workspace-file-capabilities.js';
 export * from './git-safety-capabilities.js';

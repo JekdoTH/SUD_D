@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import {
   appError,
   err,
@@ -53,10 +53,81 @@ export interface CreateApprovalCoordinatorOptions {
   readonly ttlMs?: number;
   readonly maxActive?: number;
   readonly mode?: () => ApprovalMode;
+  /** Private Desktop-only coordinator: do not invalidate Gateway approvals. */
+  readonly preserveOtherRuntimes?: boolean;
 }
 
 export interface ApprovalCoordinator extends ToolKernelApprovalPort {
   readonly runtimeInstanceId: string;
+  /** Desktop TCB only: attest a one-use manual, already-consumed Kernel Approval.
+   * Returns the runtime-bound HMAC stored in the EXISTING approval ledger;
+   * the Mission SHA-256 is a separate value in request.binding. */
+  verifyConsumedManualPreH1(request: ApprovalAuthorizationRequest, requestId: string): string | undefined;
+  verifyConsumedManualPreH1Native(request: ApprovalAuthorizationRequest, requestId: string): string | undefined;
+  /** Gateway-only: consumed exact human HMAC and immutable reviewed projection. */
+  verifyConsumedManualSolo(request: ApprovalAuthorizationRequest, requestId: string): string | undefined;
+}
+
+type SoloApprovalView = Readonly<Record<string, unknown> & {
+  reviewDigest: string; attemptId: string; expiresAt: string;
+  workspaceId: string; sessionId: string; sessionType: string;
+  canonicalRoot: string; workspaceGeneration: string;
+}>;
+const SOLO_FIELDS = Object.freeze([
+  'version','attemptId','command','profileId','profileRevision','workspaceId',
+  'canonicalRoot','workspaceGeneration','sessionId','sessionType','gatewayEpoch',
+  'managedEpoch','deviceLabel','accountLabel','provenance','riskDisclosure','privacy',
+  'issuedAt','expiresAt','maxCalls','maxRetries','reviewDigest',
+]);
+const SOLO_RISK = 'Stock Serena may log arguments, results and errors locally. ' +
+  'The Windows user retains host filesystem and network access. A waiting timeout does not kill descendants. ' +
+  'No secret, provider, script, admin, network-dependent or destructive operation is authorized.';
+function soloReview(r: ApprovalAuthorizationRequest): SoloApprovalView | undefined {
+  return (r.descriptor as ApprovalDescriptor & {soloExpertReview?: SoloApprovalView}).soloExpertReview;
+}
+function validSoloReview(r: ApprovalAuthorizationRequest, at: Date): boolean {
+  try {
+    const review = soloReview(r);
+    if (!review || Object.getPrototypeOf(review) !== Object.prototype ||
+      Reflect.ownKeys(review).length !== SOLO_FIELDS.length ||
+      !SOLO_FIELDS.every(key => {
+        const d = Object.getOwnPropertyDescriptor(review,key);
+        return d?.enumerable === true && 'value' in d;
+      }) || JSON.stringify(review).length > 4096) return false;
+    const {reviewDigest, ...rest} = review;
+    const binding = r.binding as Record<string, ApprovalBindingValue>;
+    return r.capability === 'solo_expert.smoke' && r.effect === 'execute'
+      && r.security.sensitivity === 'sensitive' && r.security.context === 'workspace'
+      && r.security.workspaceId === review.workspaceId
+      && r.session.id === review.sessionId && r.session.type === review.sessionType
+      && review.version === 'b1b-review-v1'
+      && review.command === 'echo SUD_D_B1_OK'
+      && review.profileId === 'harmless-short-smoke' && review.profileRevision === 'b1-smoke-v1'
+      && review.privacy === 'stock-local-logging' && review.provenance === 'unverified-observation'
+      && review.riskDisclosure === SOLO_RISK
+      && review.maxCalls === 1 && review.maxRetries === 0
+      && typeof review.workspaceId === 'string' && review.workspaceId.length >= 1
+      && typeof review.canonicalRoot === 'string' && /^[A-Za-z]:[\\/]/.test(review.canonicalRoot)
+      && review.canonicalRoot.length <= 240 && !review.canonicalRoot.includes('..')
+      && typeof review.workspaceGeneration === 'string' && review.workspaceGeneration.length > 0
+      && typeof review.attemptId === 'string' && review.attemptId.length > 0
+      && typeof review.deviceLabel === 'string' && review.deviceLabel.length > 0
+      && typeof review.accountLabel === 'string' && review.accountLabel.length > 0
+      && typeof review.gatewayEpoch === 'string' && review.gatewayEpoch.length > 0
+      && typeof review.managedEpoch === 'string' && review.managedEpoch.length > 0
+      && /^[0-9a-f]{64}$/.test(reviewDigest)
+      && createHash('sha256').update(JSON.stringify(rest)).digest('hex') === reviewDigest
+      && typeof review.issuedAt === 'string' && Number.isFinite(Date.parse(review.issuedAt))
+      && typeof review.expiresAt === 'string' && Number.isFinite(Date.parse(review.expiresAt))
+      && Date.parse(review.issuedAt) <= at.getTime()
+      && Date.parse(review.expiresAt) > at.getTime()
+      && Date.parse(review.expiresAt) <= at.getTime() + 90_000
+      && !!binding && typeof binding === 'object' && !Array.isArray(binding)
+      && binding['reviewDigest'] === reviewDigest && binding['attemptId'] === review.attemptId
+      && binding['workspaceId'] === review.workspaceId && binding['generation'] === review.workspaceGeneration
+      && binding['sessionId'] === review.sessionId && binding['sessionType'] === review.sessionType
+      && binding['gatewayEpoch'] === review.gatewayEpoch && binding['managedEpoch'] === review.managedEpoch;
+  } catch { return false; }
 }
 
 const APPROVE_FOR_ME_VERIFY_ACTIONS = new Set([
@@ -76,7 +147,8 @@ const GITHUB_NETWORK_AUTO_APPROVAL_CAPABILITIES = new Set([
 ]);
 
 function isAutoApprovalEligible(mode: ApprovalMode, request: ApprovalAuthorizationRequest): boolean {
-  if (request.capability === 'team.start' || request.capability === 'runner.start') return false;
+  if (request.capability === 'solo_expert.smoke' || request.capability === 'team.start' || request.capability === 'runner.start'
+    || request.capability === 'pre-h1.prepare' || request.capability === 'pre-h1.native-consent') return false;
   if (mode === 'standard') return false;
 
   if (request.security.context === 'github_network') {
@@ -109,11 +181,69 @@ export function createApprovalCoordinator(options: CreateApprovalCoordinatorOpti
   const ttlMs = options.ttlMs ?? BASIC_APPROVAL_LIMITS.ttlMs;
   const maxActive = options.maxActive ?? BASIC_APPROVAL_LIMITS.maxActivePerRuntime;
   const mode = options.mode ?? (() => 'standard' as const);
-  const startup = options.repository.expireOtherRuntimes(runtimeInstanceId, now().toISOString());
-  const startupHealthy = startup.ok;
+  const startupHealthy = options.preserveOtherRuntimes === true
+    ? true : options.repository.expireOtherRuntimes(runtimeInstanceId, now().toISOString()).ok;
+  const approvalDigest = (request: ApprovalAuthorizationRequest): string => createHmac('sha256', hmacKey).update(stableStringify({
+    runtimeInstanceId,
+    capability: request.capability,
+    effect: request.effect,
+    security: {
+      sensitivity: request.security.sensitivity,
+      context: request.security.context,
+      workspaceId: request.security.workspaceId ?? null,
+    },
+    binding: request.binding,
+  }), 'utf8').digest('hex');
 
+  const verifyManual = (request: ApprovalAuthorizationRequest, requestId: string,
+    capability: 'pre-h1.prepare'|'pre-h1.native-consent'): string|undefined => {
+    if (!startupHealthy || request.capability !== capability || request.effect !== 'execute'
+      || request.security.context !== 'workspace' || request.session.type !== 'desktop'
+      || typeof requestId !== 'string') return undefined;
+    try {
+      const digest = approvalDigest(request);
+      const record = options.repository.findById(requestId);
+      if (!record.ok || !record.value || record.value.bindingDigest !== digest
+        || record.value.runtimeInstanceId !== runtimeInstanceId
+        || record.value.capability !== capability || record.value.effect !== 'execute'
+        || record.value.policyContext !== 'workspace'
+        || record.value.workspaceId !== request.security.workspaceId
+        || record.value.sessionId !== request.session.id
+        || record.value.sessionType !== request.session.type
+        || record.value.decisionSource !== 'user' || record.value.status !== 'consumed'
+        || record.value.expiresAt <= now().toISOString()) return undefined;
+      return digest;
+    } catch { return undefined; }
+  };
   const coordinator: ApprovalCoordinator = {
     runtimeInstanceId,
+    verifyConsumedManualPreH1(request, requestId) {
+      return verifyManual(request,requestId,'pre-h1.prepare');
+    },
+    verifyConsumedManualPreH1Native(request, requestId) {
+      return verifyManual(request,requestId,'pre-h1.native-consent');
+    },
+    verifyConsumedManualSolo(request, requestId) {
+      if (!startupHealthy || request.capability !== 'solo_expert.smoke' || !validSoloReview(request, now())) return undefined;
+      try {
+        const digest = approvalDigest(request);
+        const record = options.repository.findById(requestId);
+        const review = soloReview(request);
+        const stored = record.ok ? record.value as ApprovalRequestRecord & {soloExpertReview?: SoloApprovalView} : undefined;
+        if (!record.ok || !record.value || !review || !stored?.soloExpertReview ||
+          record.value.bindingDigest !== digest || record.value.id !== requestId ||
+          record.value.runtimeInstanceId !== runtimeInstanceId ||
+          record.value.capability !== 'solo_expert.smoke' || record.value.effect !== 'execute' ||
+          record.value.sensitivity !== 'sensitive' || record.value.policyContext !== 'workspace' ||
+          record.value.workspaceId !== request.security.workspaceId ||
+          record.value.sessionId !== request.session.id || record.value.sessionType !== request.session.type ||
+          record.value.status !== 'consumed' || record.value.decisionSource !== 'user' ||
+          record.value.expiresAt <= now().toISOString() ||
+          stored?.soloExpertReview?.reviewDigest !== review.reviewDigest ||
+          JSON.stringify(stored?.soloExpertReview) !== JSON.stringify(review)) return undefined;
+        return digest;
+      } catch { return undefined; }
+    },
     authorize(request: ApprovalAuthorizationRequest): ApprovalAuthorizationResult {
       if (!startupHealthy) {
         return { ok: false, error: appError('INTERNAL_ERROR', 'Approval state is unavailable') };
@@ -125,25 +255,17 @@ export function createApprovalCoordinator(options: CreateApprovalCoordinatorOpti
       const cleanupBefore = new Date(clock.getTime() - BASIC_APPROVAL_LIMITS.retentionMs).toISOString();
       options.repository.cleanupTerminal(cleanupBefore);
 
+      if (request.capability === 'solo_expert.smoke' && !validSoloReview(request, clock)) {
+        return { ok: false, error: appError('APPROVAL_STATE_INVALID', 'Reviewed Solo Expert permission unavailable') };
+      }
       const descriptor = validateDescriptor(request.descriptor);
       if (!descriptor.ok) return { ok: false, error: descriptor.error };
-      let canonical: string;
+      let digest: string;
       try {
-        canonical = stableStringify({
-          runtimeInstanceId,
-          capability: request.capability,
-          effect: request.effect,
-          security: {
-            sensitivity: request.security.sensitivity,
-            context: request.security.context,
-            workspaceId: request.security.workspaceId ?? null,
-          },
-          binding: request.binding,
-        });
+        digest = approvalDigest(request);
       } catch {
         return { ok: false, error: appError('APPROVAL_STATE_INVALID', 'Approval binding is invalid') };
       }
-      const digest = createHmac('sha256', hmacKey).update(canonical, 'utf8').digest('hex');
       const latest = options.repository.findLatest(runtimeInstanceId, digest);
       if (!latest.ok) return { ok: false, error: latest.error };
       const existing = latest.value;
@@ -156,7 +278,9 @@ export function createApprovalCoordinator(options: CreateApprovalCoordinatorOpti
         if (consumed.value) return { ok: true, state: 'approved', requestId: consumed.value.id };
       }
 
-      const expiresAt = new Date(clock.getTime() + ttlMs).toISOString();
+      const solo = request.capability === 'solo_expert.smoke' ? soloReview(request) : undefined;
+      const expiresAt = new Date(Math.min(clock.getTime() + (solo ? Math.min(ttlMs, 90_000) : ttlMs),
+        solo ? Date.parse(solo.expiresAt) : Number.POSITIVE_INFINITY)).toISOString();
       const recordInput = {
         runtimeInstanceId,
         bindingDigest: digest,
@@ -168,6 +292,7 @@ export function createApprovalCoordinator(options: CreateApprovalCoordinatorOpti
         policyContext: request.security.context,
         ...(request.security.workspaceId ? { workspaceId: request.security.workspaceId } : {}),
         title: descriptor.value.title,
+        ...(solo ? { soloExpertReview: solo } : {}),
         ...(descriptor.value.resourceLabel ? { resourceLabel: descriptor.value.resourceLabel } : {}),
         createdAt: nowIso,
         expiresAt,
@@ -202,7 +327,7 @@ export interface ApprovalDecisionAuditPort {
 
 export interface ApprovalService {
   list(limit?: number): Result<readonly ApprovalRequestRecord[], AppError>;
-  respond(id: string, decision: ApprovalUserDecision): Result<ApprovalRequestRecord, AppError>;
+  respond(id: string, decision: ApprovalUserDecision, reviewDigest?: string): Result<ApprovalRequestRecord, AppError>;
 }
 
 export function createApprovalService(
@@ -214,12 +339,18 @@ export function createApprovalService(
     list(limit = BASIC_APPROVAL_LIMITS.desktopListCap) {
       return repository.listPending(Math.min(limit, BASIC_APPROVAL_LIMITS.desktopListCap), now().toISOString());
     },
-    respond(id, decision) {
+    respond(id, decision, reviewDigest) {
       const decidedAt = now();
       const current = repository.findById(id);
       if (!current.ok) return current;
       if (!current.value) return err(appError('APPROVAL_STATE_INVALID', 'Approval request is unavailable'));
       if (current.value.status !== 'pending') return err(appError('APPROVAL_STATE_INVALID', 'Approval request is no longer pending'));
+      const stored = current.value as ApprovalRequestRecord & {soloExpertReview?: SoloApprovalView};
+      if (current.value.capability === 'solo_expert.smoke' &&
+        (!reviewDigest || stored.soloExpertReview?.reviewDigest !== reviewDigest ||
+          stored.soloExpertReview?.expiresAt !== current.value.expiresAt)) {
+        return err(appError('APPROVAL_STATE_INVALID', 'Exact reviewed scope unavailable'));
+      }
       if (current.value.expiresAt <= decidedAt.toISOString()) {
         repository.expireStale(decidedAt.toISOString());
         return err(appError('APPROVAL_EXPIRED', 'Approval request expired'));
@@ -243,7 +374,13 @@ export function createApprovalService(
       } catch {
         return err(appError('INTERNAL_ERROR', 'Approval decision audit failed'));
       }
-      return repository.respond(id, decision, decidedAt.toISOString());
+      // Prebuilt infrastructure declarations omit B1b's additive fourth argument.
+      // The repository source adapter is checked by the isolated source-only TS program.
+      const reviewedRepository = repository as ApprovalRepository & {
+        respond(id: string, decision: ApprovalUserDecision, nowIso: string,
+          reviewDigest?: string): Result<ApprovalRequestRecord, AppError>;
+      };
+      return reviewedRepository.respond(id, decision, decidedAt.toISOString(), reviewDigest);
     },
   };
   return Object.freeze(service);

@@ -352,6 +352,9 @@ describe('Basic Approval - fixed-purpose Desktop IPC and UI surface', () => {
     expect(source).toContain('setApprovalMessage(result.value.message)');
     expect(source).toContain('window.sudD.approval.respond');
     expect(source).not.toMatch(/Always Allow|approve all|bulk approval|auto-approval/i);
-    expect(source).not.toMatch(/bindingDigest|hmac|raw input|file contents|diff contents|secret value/i);
+    // PRE-H1 now intentionally displays the non-secret Mission SHA-256,
+    // but never the runtime HMAC, approval-credential binding or raw inputs.
+    expect(source.replaceAll('missionBindingDigest','missionSha256')).not.toMatch(
+      /bindingDigest|hmac|raw input|file contents|diff contents|secret value/i);
   });
 });

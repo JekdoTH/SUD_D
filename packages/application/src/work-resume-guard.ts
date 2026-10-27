@@ -1,5 +1,6 @@
 import {
   type AuditEvent,
+  type ToolInvocationRequest,
   type ToolKernelResult,
   type Workspace,
 } from '@sud-d/domain';
@@ -44,6 +45,7 @@ const RESUME_GUARDED_CAPABILITIES = new Set<string>([
   'code.insert_after',
   'code.rename',
   'verify.run',
+  'runner.discover',
   'work.checkpoint',
 ]);
 
@@ -59,6 +61,10 @@ export function createWorkResumeGuardedToolKernel(
 ): ToolKernel {
   const guarded: ToolKernel = {
     async invoke(request) {
+      if (request.capability === 'solo_expert.smoke') {
+        const denied = await requireSoloWorkResume(dependencies, request);
+        return denied ?? dependencies.kernel.invoke(request);
+      }
       if (!RESUME_GUARDED_CAPABILITIES.has(request.capability)) {
         return dependencies.kernel.invoke(request);
       }
@@ -99,6 +105,45 @@ export function createWorkResumeGuardedToolKernel(
     },
   };
   return Object.freeze(guarded);
+}
+
+/** Solo never falls back to the Kernel on missing/multiple Workspace, DB failures or stale Resume. */
+export async function requireSoloWorkResume(
+  dependencies: Pick<WorkResumeGuardDependencies, 'workspaceRepo' | 'workMemory' | 'audit'>,
+  request: Pick<ToolInvocationRequest, 'session' | 'invocationId'>,
+): Promise<ToolKernelResult | undefined> {
+  const startedAt = Date.now();
+  let workspace: Workspace | undefined;
+  let resumed = false;
+  try {
+    workspace = getActiveWorkspace(dependencies.workspaceRepo);
+    const generation = workspace && dependencies.workspaceRepo.getGeneration(workspace.id);
+    resumed = !!workspace && typeof generation === 'string' && generation.length > 0
+      && dependencies.workMemory.requireResumedSolo(request.session, workspace.id, generation).ok;
+  } catch {
+    resumed = false;
+  }
+  if (resumed) return undefined;
+  try {
+    await dependencies.audit.append({
+      timestamp: new Date(),
+      sessionId: request.session.id,
+      sessionType: request.session.type,
+      action: 'tool_kernel.invoke',
+      ...(workspace ? { workspaceId: workspace.id } : {}),
+      resultCode: 'WORK_RESUME_REQUIRED',
+      durationMs: Math.max(0, Date.now() - startedAt),
+      metadata: {
+        invocationId: request.invocationId,
+        capability: 'solo_expert.smoke',
+        phase: 'outcome',
+        outcome: 'blocked',
+      },
+    });
+  } catch {
+    return { ok: false, outcome: 'blocked', code: 'AUDIT_PRECONDITION_FAILED' };
+  }
+  return workResumeRequired();
 }
 
 function getActiveWorkspace(workspaceRepo: WorkspaceRepository): Workspace | undefined {

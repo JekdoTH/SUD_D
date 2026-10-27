@@ -17,6 +17,10 @@ import {
   type DesktopApprovalModeDto,
   type DesktopApprovalRequestDto,
   type DesktopApprovalResponseDto,
+  type PreH1PreparationReviewDto,
+  type PreH1PreparationResultDto,
+  type PreH1NativeConsentReviewDto,
+  type PreH1NativeConsentResultDto,
   type DesktopTeamMissionDto,
   type DesktopOverviewWorkStatusDto,
   type DesktopGitSnapshotDto,
@@ -89,6 +93,16 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_LIST, input) as Promise<IpcResult<DesktopApprovalRequestDto[]>>,
     respond: (input: ApprovalRespondInput): Promise<IpcResult<DesktopApprovalResponseDto>> =>
       ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_RESPOND, input) as Promise<IpcResult<DesktopApprovalResponseDto>>,
+    preH1Review: (): Promise<IpcResult<PreH1PreparationReviewDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PRE_H1_PREPARE_REVIEW) as Promise<IpcResult<PreH1PreparationReviewDto>>,
+    preH1Request: (): Promise<IpcResult<PreH1PreparationResultDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PRE_H1_PREPARE_REQUEST) as Promise<IpcResult<PreH1PreparationResultDto>>,
+    preH1Cancel: (): Promise<IpcResult<null>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PRE_H1_PREPARE_CANCEL) as Promise<IpcResult<null>>,
+    preH1NativeReview: (): Promise<IpcResult<PreH1NativeConsentReviewDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PRE_H1_NATIVE_REVIEW) as Promise<IpcResult<PreH1NativeConsentReviewDto>>,
+    preH1NativeRequest: (): Promise<IpcResult<PreH1NativeConsentResultDto>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.PRE_H1_NATIVE_REQUEST) as Promise<IpcResult<PreH1NativeConsentResultDto>>,
     getMode: (): Promise<IpcResult<DesktopApprovalModeDto>> =>
       ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_MODE_GET) as Promise<IpcResult<DesktopApprovalModeDto>>,
     setMode: (input: ApprovalModeSetInput): Promise<IpcResult<DesktopApprovalModeDto>> =>
